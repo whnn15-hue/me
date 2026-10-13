@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
-  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
   BriefcaseBusiness,
   CalendarDays,
-  Check,
   CheckCheck,
   ChevronDown,
   ChevronRight,
@@ -21,7 +19,6 @@ import {
   Folder,
   FolderOpen,
   GraduationCap,
-  HardDrive,
   Layers3,
   LayoutGrid,
   List,
@@ -155,6 +152,7 @@ export default function App() {
     [category, setCategory] = useState<Category | "전체">("전체"),
     [year, setYear] = useState("전체 연도"),
     [evidenceFilter, setEvidenceFilter] = useState("전체 증빙"),
+    [reviewOnly, setReviewOnly] = useState(false),
     [layout, setLayout] = useState<"list" | "grid">("list");
   const [editor, setEditor] = useState<Career | null>(null),
     [queue, setQueue] = useState<Career[]>([]),
@@ -173,7 +171,8 @@ export default function App() {
       title: string;
     } | null>(null),
     [linkDoc, setLinkDoc] = useState<DocumentRecord | null>(null),
-    [linkId, setLinkId] = useState("");
+    [linkId, setLinkId] = useState(""),
+    [linkQuery, setLinkQuery] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null),
     searchRef = useRef<HTMLInputElement>(null),
     refreshVersion = useRef(0);
@@ -291,10 +290,11 @@ export default function App() {
         .filter((c) => {
           const match =
             `${c.title} ${c.organization} ${c.role} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
-              .toLocaleLowerCase()
-              .includes(query.toLocaleLowerCase());
+              .normalize("NFC").toLocaleLowerCase()
+              .includes(query.normalize("NFC").trim().toLocaleLowerCase());
           return (
             match &&
+            (!reviewOnly || !c.verified) &&
             (category === "전체" || category === c.category) &&
             (year === "전체 연도" ||
               (c.startDate.slice(0, 4) <= year &&
@@ -311,7 +311,7 @@ export default function App() {
             (b.startDate || "").localeCompare(a.startDate || "") ||
             a.title.localeCompare(b.title, "ko"),
         ),
-    [careers, query, category, year, evidenceFilter],
+    [careers, query, category, year, evidenceFilter, reviewOnly],
   );
   const groups = useMemo(
     () =>
@@ -322,7 +322,25 @@ export default function App() {
       ),
     [filtered],
   );
+  const linkedCareers = careers.filter((c) => c.documentIds.length > 0).length;
+  const missingEvidence = careers.filter((c) => !c.documentIds.length && c.evidenceStatus !== "unneeded").length;
+  const unreviewed = careers.filter((c) => !c.verified).length;
+  const evidenceRequired = careers.filter((c) => c.documentIds.length || c.evidenceStatus !== "unneeded").length;
+  const coverage = evidenceRequired ? Math.round(linkedCareers / evidenceRequired * 100) : 0;
+  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || evidenceFilter !== "전체 증빙" || reviewOnly;
+  const clearFilters = () => {
+    setQuery(""); setCategory("전체"); setYear("전체 연도");
+    setEvidenceFilter("전체 증빙"); setReviewOnly(false);
+  };
+  const focusArchive = (filter: "all" | "missing" | "review") => {
+    clearFilters();
+    if (filter === "missing") setEvidenceFilter("증빙 미첨부");
+    if (filter === "review") setReviewOnly(true);
+    document.getElementById("career-records")?.scrollIntoView({ block: "start" });
+  };
   const changeView = (v: View) => {
+    if (v === "careers") clearFilters();
+    window.scrollTo({ top: 0 });
     setView(v);
     setQuery("");
     setMobileNav(false);
@@ -603,6 +621,7 @@ export default function App() {
           {navItems.map((n) => (
             <button
               key={n.view}
+              aria-current={view === n.view ? "page" : undefined}
               className={`nav-item ${view === n.view ? "active" : ""}`}
               onClick={() => changeView(n.view)}
             >
@@ -637,12 +656,12 @@ export default function App() {
             <span className="tip-icon">
               <ShieldCheck size={18} />
             </span>
-            <strong>소중한 기록, 안전하게</strong>
-            <p>
-              경력 정보와 원본 공문을
-              <br />
-              함께 백업해 두세요.
-            </p>
+            <strong>{status?.driveConnected ? "드라이브와 연결되어 있어요" : "소중한 기록, 안전하게"}</strong>
+            <p>{status?.driveConnected
+              ? status.lastBackup
+                ? `마지막 백업 ${new Date(status.lastBackup).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" })}`
+                : "첫 백업으로 기록을 보관하세요."
+              : "경력 정보와 원본 공문을 함께 백업해 두세요."}</p>
             <button onClick={() => changeView("settings")}>
               {status?.driveConnected ? "백업 상태 확인" : "백업 설정하기"}
               <ArrowUpRight size={14} />
@@ -679,6 +698,7 @@ export default function App() {
           <button
             className="mobile-menu icon-button"
             aria-label="메뉴 열기"
+            aria-expanded={mobileNav}
             onClick={() => setMobileNav(true)}
           >
             <Menu size={21} />
@@ -689,6 +709,9 @@ export default function App() {
             <strong>{navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
+            {authorized && <button className={`sync-status ${status.driveConnected ? "connected" : ""}`} onClick={() => changeView("settings")}>
+              <Cloud size={15} />{status.driveConnected ? "드라이브 연결됨" : "백업 설정"}
+            </button>}
             <span className="privacy-label">
               <LockKeyhole size={13} />
               비공개
@@ -827,97 +850,36 @@ export default function App() {
               </div>
               {view === "careers" && (
                 <>
-                  <section className="welcome-banner">
-                    <div>
-                      <span className="banner-eyebrow">
-                        <span />
-                        EVERY EXPERIENCE MATTERS
-                      </span>
-                      <h2>
-                        쌓아온 경험이
-                        <br />
-                        나의 다음을 만듭니다.
-                      </h2>
-                      <p>기록하고, 연결하고, 필요할 때 꺼내 쓰세요.</p>
-                      <button
-                        onClick={() => {
-                          setManual(true);
-                          setManualText("");
-                        }}
-                        className="banner-link"
-                      >
-                        한 문장으로 경력 기록하기
-                        <ArrowRight size={16} />
+                  <section className="archive-overview" aria-label="나의 아카이브 현황">
+                    <div className="overview-intro">
+                      <span className="banner-eyebrow"><span />YOUR WORK, WELL KEPT</span>
+                      <h2>쌓아온 경험을, <br />다음 기회로.</h2>
+                      <p>강의부터 연구, 일상의 작은 성취까지.<br />나를 설명하는 기록을 하나씩 연결해 보세요.</p>
+                      <button onClick={() => { setManual(true); setManualText(""); }} className="banner-link">
+                        <Plus size={16} />한 문장으로 기록하기<ArrowUpRight size={15} />
                       </button>
+                      <div className="overview-period"><CalendarDays size={14} />
+                        {years.length ? `${years.at(-1)} – ${years[0]} · ${years.length}개 연도의 경험` : "오늘부터 시작하는 나의 아카이브"}
+                      </div>
                     </div>
-                    <div className="archive-illustration" aria-hidden="true">
-                      <div className="illustration-halo" />
-                      <span className="floating-star star-one">✳</span>
-                      <span className="floating-star star-two">✦</span>
-                      <div className="paper paper-back" />
-                      <div className="paper paper-front">
-                        <span className="paper-small-icon">
-                          <GraduationCap size={20} />
-                        </span>
-                        <span className="paper-line long" />
-                        <span className="paper-line" />
-                        <span className="paper-line short" />
-                        <div className="paper-tags">
-                          <i />
-                          <i />
-                        </div>
-                        <span className="paper-stamp">
-                          <Check size={22} />
-                        </span>
-                      </div>
-                      <div className="illustration-caption">
-                        <span />
-                        <span>My career, connected.</span>
-                      </div>
+                    <div className="archive-readiness">
+                      <div className="readiness-heading"><span><FileCheck2 size={16} />증빙 연결 현황</span><span className="readiness-caption">MY ARCHIVE</span></div>
+                      <div className="readiness-number"><strong>{linkedCareers}</strong><span>/ {evidenceRequired}건</span></div>
+                      <p>{evidenceRequired ? "증빙이 필요한 경력 중 원본을 연결한 기록" : "경력과 공문을 함께 보관해 보세요"}</p>
+                      <div className="coverage-track" role="progressbar" aria-label="증빙 연결률" aria-valuenow={coverage} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${coverage}%` }} /></div>
+                      <div className="coverage-caption"><span>연결 완료</span><strong>{coverage}%</strong></div>
+                      <button className="readiness-action" onClick={() => missingEvidence ? focusArchive("missing") : changeView("documents")}>
+                        <span>{missingEvidence ? `증빙 보완할 경력 ${missingEvidence}건` : "공문 보관함 살펴보기"}</span><ArrowRight size={17} />
+                      </button>
                     </div>
                   </section>
                   <section className="stats-grid" aria-label="경력 요약">
-                    <Stat
-                      label="전체 경력"
-                      value={careers.length}
-                      unit="건"
-                      icon={<BriefcaseBusiness size={19} />}
-                      foot="나의 경험이 차곡차곡"
-                    />
-                    <Stat
-                      label="보관 중인 공문"
-                      value={documents.length}
-                      unit="개"
-                      icon={<FolderOpen size={19} />}
-                      foot={`${careers.filter((c) => c.documentIds.length).length}개 경력과 연결되어 있어요`}
-                    />
-                    <Stat
-                      label="기록한 활동 연도"
-                      value={years.length}
-                      unit="년"
-                      icon={<CalendarDays size={19} />}
-                      foot={
-                        years.length
-                          ? `${years.at(-1)} – ${years[0]}`
-                          : "첫 기록을 남겨보세요"
-                      }
-                    />
-                    <Stat
-                      label="증빙 보완할 경력"
-                      value={
-                        careers.filter(
-                          (c) =>
-                            !c.documentIds.length &&
-                            c.evidenceStatus === "later",
-                        ).length
-                      }
-                      unit="건"
-                      icon={<FileCheck2 size={19} />}
-                      foot="공문은 나중에 연결해도 괜찮아요"
-                      accent
-                    />
+                    <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
+                    <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
+                    <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
+                    <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
                   </section>
-                  <section className="career-section">
+                  <section className="career-section" id="career-records">
                     <div className="section-heading">
                       <h2>
                         경력 모아보기 <span>{filtered.length}</span>
@@ -982,6 +944,7 @@ export default function App() {
                           <button
                             aria-label="목록 보기"
                             className={layout === "list" ? "active" : ""}
+                            aria-pressed={layout === "list"}
                             onClick={() => setLayout("list")}
                           >
                             <List size={17} />
@@ -989,6 +952,7 @@ export default function App() {
                           <button
                             aria-label="카드 보기"
                             className={layout === "grid" ? "active" : ""}
+                            aria-pressed={layout === "grid"}
                             onClick={() => setLayout("grid")}
                           >
                             <LayoutGrid size={16} />
@@ -1001,6 +965,7 @@ export default function App() {
                         <button
                           key={c}
                           className={category === c ? "active" : ""}
+                          aria-pressed={category === c}
                           onClick={() => setCategory(c)}
                         >
                           {c}
@@ -1011,6 +976,13 @@ export default function App() {
                           </span>
                         </button>
                       ))}
+                    </div>
+                    <div className="archive-result-bar">
+                      <span aria-live="polite">{hasFilters ? `검색 결과 ${filtered.length}건` : `전체 ${careers.length}건 · 최근 활동순`}</span>
+                      <div>
+                        <button className={`review-filter ${reviewOnly ? "active" : ""}`} aria-pressed={reviewOnly} onClick={() => setReviewOnly(!reviewOnly)}><CircleHelp size={14} />확인 전만 보기</button>
+                        {hasFilters && <button className="reset-filters" onClick={clearFilters}><X size={13} />필터 초기화</button>}
+                      </div>
                     </div>
                     {!filtered.length ? (
                       <EmptyState
@@ -1124,6 +1096,7 @@ export default function App() {
                   onLink={(d) => {
                     setLinkDoc(d);
                     setLinkId("");
+                    setLinkQuery("");
                   }}
                   onDelete={(d) =>
                     setDeleteTarget({
@@ -1279,8 +1252,7 @@ export default function App() {
             <Evidence career={detail} />
             {!detail.verified && (
               <div className="notice detail-notice">
-                PDF에서 가져온 확인 전 기록입니다. 날짜와 역할을 확인한 뒤
-                저장해 주세요.
+                아직 확인하지 않은 기록입니다. 증빙의 날짜와 역할을 확인한 뒤 저장해 주세요.
               </div>
             )}
             <dl className="detail-fields">
@@ -1442,15 +1414,19 @@ export default function App() {
         >
           <div className="modal-body">
             <label className="field">
+              <span>경력 찾기</span>
+              <input type="search" value={linkQuery} onChange={(e) => { setLinkQuery(e.target.value); setLinkId(""); }} placeholder="활동명, 기관, 연도로 검색" aria-label="연결할 경력 검색" />
+            </label>
+            <label className="field">
               <span>연결할 경력</span>
               <select
                 value={linkId}
                 onChange={(e) => setLinkId(e.target.value)}
               >
                 <option value="">경력을 선택해 주세요</option>
-                {careers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.startDate} · {c.title}
+                {careers.filter((c) => `${c.title} ${c.organization} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
+                  <option key={c.id} value={c.id} disabled={c.documentIds.includes(linkDoc.id)}>
+                    {c.startDate} · {c.title}{c.documentIds.includes(linkDoc.id) ? " (연결됨)" : ""}
                   </option>
                 ))}
               </select>
@@ -1484,6 +1460,7 @@ function Stat({
   icon,
   foot,
   accent = false,
+  onClick,
 }: {
   label: string;
   value: number;
@@ -1491,9 +1468,10 @@ function Stat({
   icon: ReactNode;
   foot: string;
   accent?: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className={`stat-card ${accent ? "accent" : ""}`}>
+    <button className={`stat-card ${accent ? "accent" : ""}`} onClick={onClick}>
       <div className="stat-label">
         {label}
         <span>{icon}</span>
@@ -1502,8 +1480,8 @@ function Stat({
         {value}
         <small>{unit}</small>
       </div>
-      <p>{foot}</p>
-    </div>
+      <p>{foot}<ArrowUpRight size={13} /></p>
+    </button>
   );
 }
 export function EmptyState({
@@ -1553,16 +1531,21 @@ function DocumentsView({
 }) {
   const [drag, setDrag] = useState(false),
     [filter, setFilter] = useState("전체 파일");
-  const items = documents.filter(
-    (d) =>
-      d.name.toLowerCase().includes(query.toLowerCase()) &&
-      (filter === "전체 파일" ||
-        (filter === "연결된 파일"
-          ? d.recordIds?.length
-          : !d.recordIds?.length)),
-  );
+  const linkedByDocument = new Map(documents.map((d) => [d.id, careers.filter((c) => c.documentIds.includes(d.id))]));
+  const linkedCount = documents.filter((d) => linkedByDocument.get(d.id)?.length).length;
+  const items = documents.filter((d) => {
+    const linked = linkedByDocument.get(d.id) || [];
+    return `${d.name} ${d.text || ""} ${linked.map((c) => `${c.title} ${c.organization} ${c.tags.join(" ")}`).join(" ")}`
+      .normalize("NFC").toLocaleLowerCase().includes(query.normalize("NFC").trim().toLocaleLowerCase()) &&
+      (filter === "전체 파일" || (filter === "연결된 파일" ? linked.length > 0 : linked.length === 0));
+  });
   return (
     <>
+      <div className="document-summary">
+        <span><FolderOpen size={17} /><strong>{documents.length}</strong>개 원본 보관</span>
+        <span><FileCheck2 size={16} /><strong>{linkedCount}</strong>개 원본 연결됨</span>
+        <button onClick={() => setFilter(filter === "미연결 파일" ? "전체 파일" : "미연결 파일")} aria-pressed={filter === "미연결 파일"} className={filter === "미연결 파일" ? "active" : ""}>미연결 {documents.length - linkedCount}개 살펴보기<ArrowRight size={14} /></button>
+      </div>
       <div
         className={`upload-dropzone ${drag ? "dragging" : ""}`}
         onDragOver={(e) => {
@@ -1607,7 +1590,7 @@ function DocumentsView({
           <Search size={18} />
           <input
             aria-label="공문 검색"
-            placeholder="파일명으로 검색"
+            placeholder="파일명, 문서 내용, 연결된 경력으로 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -1625,6 +1608,7 @@ function DocumentsView({
           <ChevronDown size={13} />
         </label>
       </div>
+      {(query || filter !== "전체 파일") && <div className="document-result-bar"><span aria-live="polite">검색 결과 {items.length}개</span><button className="reset-filters" onClick={() => { setQuery(""); setFilter("전체 파일"); }}><X size={13} />필터 초기화</button></div>}
       {!items.length ? (
         <EmptyState
           icon={<FolderOpen size={30} />}
@@ -1636,13 +1620,13 @@ function DocumentsView({
           text={
             documents.length
               ? "검색어나 필터를 바꿔보세요."
-              : "PDF에 적힌 파일명은 원본 첨부가 아닙니다. 컴퓨터에 모은 공문을 올려 주세요."
+              : "컴퓨터에 모아둔 공문을 올려 경력과 연결해 보세요."
           }
         />
       ) : (
         <div className="document-list">
           {items.map((d) => {
-            const linked = careers.filter((c) => c.documentIds.includes(d.id));
+            const linked = linkedByDocument.get(d.id) || [];
             return (
               <article className="document-row" key={d.id}>
                 <span className="document-file-icon">

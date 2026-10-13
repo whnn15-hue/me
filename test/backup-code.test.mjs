@@ -10,7 +10,7 @@ import JSZip from 'jszip';
 const root = new URL('..', import.meta.url).pathname;
 const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium';
 const decoderOutput = await build({ entryPoints: ['src/backup-code.ts'], absWorkingDir: root, bundle: true, platform: 'browser', format: 'esm', write: false });
-const { backupFileFromCode, backupFileFromImportCode } = await import(`data:text/javascript;base64,${Buffer.from(decoderOutput.outputFiles[0].contents).toString('base64')}`);
+const { backupFileFromCode, backupFileFromImportCode, evidenceFileFromImportCode } = await import(`data:text/javascript;base64,${Buffer.from(decoderOutput.outputFiles[0].contents).toString('base64')}`);
 const backupOutput = await build({ entryPoints: ['src/free/backup.ts'], absWorkingDir: root, bundle: true, platform: 'browser', format: 'esm', write: false });
 const { readBackupFile } = await import(`data:text/javascript;base64,${Buffer.from(backupOutput.outputFiles[0].contents).toString('base64')}`);
 
@@ -28,11 +28,11 @@ async function syntheticZip(suffix = '') {
   return archive.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 const archive = await syntheticZip();
-function encryptedImport(bytes) {
+function encryptedImport(bytes, prefix = "IMBK2") {
   const key = randomBytes(32), iv = randomBytes(12), id = randomBytes(8).toString('hex');
   const cipher = createCipheriv('aes-256-gcm', key, iv);
-  const payload = Buffer.concat([Buffer.from('IMBK2:', 'ascii'), iv, cipher.update(bytes), cipher.final(), cipher.getAuthTag()]);
-  return { key, id, payload, code: `IMBK2:${id}.${key.toString('base64url')}` };
+  const payload = Buffer.concat([Buffer.from(`${prefix}:`, 'ascii'), iv, cipher.update(bytes), cipher.final(), cipher.getAuthTag()]);
+  return { key, id, payload, code: `${prefix}:${id}.${key.toString('base64url')}` };
 }
 async function withImportFetch(fetcher, action) {
   const previous = globalThis.fetch;
@@ -185,6 +185,44 @@ test('encrypted imports reject unauthenticated content, wrong keys, tampering an
       await assert.rejects(backupFileFromImportCode(input), safeKoreanError);
   });
   assert.equal(malformedRequests, 0);
+});
+
+test('evidence codes transport larger original files and cannot enter the replacement restore flow', async () => {
+  const zip = new JSZip();
+  zip.file('manifest.json', JSON.stringify({ format: 'career-archive', version: 1, careers: fakeCareers(), documents: [],
+    evidenceImport: { format: 'career-evidence-import', version: 1 } }));
+  zip.file('originals/synthetic.txt', randomBytes(2 * 1024 * 1024));
+  const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'STORE' });
+  const encrypted = encryptedImport(bytes, 'IMEV1');
+  let requests = 0;
+  await withImportFetch(async (path, options) => {
+    requests++;
+    assert.equal(path, `/imports/${encrypted.id}.bin`);
+    assert.equal(options.credentials, 'same-origin');
+    assert.ok(!JSON.stringify([path, options]).includes(encrypted.key.toString('base64url')));
+    return binaryResponse(encrypted.payload);
+  }, async () => {
+    const file = await evidenceFileFromImportCode(encrypted.code);
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
+    await assert.rejects(backupFileFromImportCode(encrypted.code), safeKoreanError);
+    await assert.rejects(evidenceFileFromImportCode(encrypted.code.replace('IMEV1:', 'IMBK2:')), safeKoreanError);
+    assert.equal(requests, 1);
+    await assert.rejects(readBackupFile(file), /정리한 증빙 가져오기/);
+  });
+});
+
+test('evidence code rejects tampering and stops oversized streamed downloads at 16 MiB', async () => {
+  const encrypted = encryptedImport(archive, 'IMEV1');
+  const tampered = Buffer.from(encrypted.payload); tampered[tampered.length - 1] ^= 1;
+  await withImportFetch(() => binaryResponse(tampered), () => assert.rejects(evidenceFileFromImportCode(encrypted.code), safeKoreanError));
+  for (const contentLength of [undefined, '1', String(16 * 1024 * 1024 + 1)]) {
+    let canceled = false;
+    const stream = new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 1)); }, cancel() { canceled = true; } });
+    const headers = { 'Content-Type': 'application/octet-stream' };
+    if (contentLength !== undefined) headers['Content-Length'] = contentLength;
+    await withImportFetch(() => new Response(stream, { headers }), () => assert.rejects(evidenceFileFromImportCode(encrypted.code), /16 MiB/));
+    assert.equal(canceled, true);
+  }
 });
 
 async function browserFixtureBundle() {

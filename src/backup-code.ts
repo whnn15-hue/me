@@ -1,5 +1,6 @@
 const MAX_CODE_BYTES = 1024 * 1024;
 const MAX_IMPORT_BYTES = 1024 * 1024;
+const MAX_EVIDENCE_IMPORT_BYTES = 16 * 1024 * 1024;
 
 function compactCode(code: string) {
   if (typeof code !== "string" || !code.trim())
@@ -49,15 +50,16 @@ export function backupFileFromCode(code: string): File {
   return zipFile(bytes);
 }
 
-async function importBytes(response: Response): Promise<Uint8Array> {
+async function importBytes(response: Response, limit: number): Promise<Uint8Array> {
+  const sizeError = `가져오기 파일은 최대 ${limit / 1024 / 1024} MiB까지 불러올 수 있습니다.`;
   const length = response.headers.get("Content-Length");
   if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)))) {
     await response.body?.cancel().catch(() => {});
     throw new Error("복원 파일의 크기 정보를 확인할 수 없습니다.");
   }
-  if (length !== null && Number(length) > MAX_IMPORT_BYTES) {
+  if (length !== null && Number(length) > limit) {
     await response.body?.cancel().catch(() => {});
-    throw new Error("복원 파일은 최대 1 MiB까지 불러올 수 있습니다.");
+    throw new Error(sizeError);
   }
   if (!response.body) throw new Error("복원 파일의 내용이 없습니다.");
   const reader = response.body.getReader();
@@ -73,9 +75,9 @@ async function importBytes(response: Response): Promise<Uint8Array> {
       }
       if (chunk.done) break;
       total += chunk.value.byteLength;
-      if (total > MAX_IMPORT_BYTES) {
+      if (total > limit) {
         await reader.cancel().catch(() => {});
-        throw new Error("복원 파일은 최대 1 MiB까지 불러올 수 있습니다.");
+        throw new Error(sizeError);
       }
       chunks.push(chunk.value);
     }
@@ -94,9 +96,17 @@ async function importBytes(response: Response): Promise<Uint8Array> {
 export async function backupFileFromImportCode(code: string): Promise<File> {
   const compact = compactCode(code);
   if (compact.startsWith("IMBK1:")) return backupFileFromCode(code);
-  const matched = /^IMBK2:([0-9a-f]{16})\.([A-Za-z0-9_-]{43})$/.exec(compact);
+  return encryptedImportFile(compact, "IMBK2", MAX_IMPORT_BYTES);
+}
+
+export async function evidenceFileFromImportCode(code: string): Promise<File> {
+  return encryptedImportFile(compactCode(code), "IMEV1", MAX_EVIDENCE_IMPORT_BYTES);
+}
+
+async function encryptedImportFile(compact: string, prefix: "IMBK2" | "IMEV1", limit: number): Promise<File> {
+  const matched = new RegExp(`^${prefix}:([0-9a-f]{16})\\.([A-Za-z0-9_-]{43})$`).exec(compact);
   if (!matched)
-    throw new Error("IMBK1: 또는 IMBK2:로 시작하는 백업 코드 전체를 붙여넣어 주세요.");
+    throw new Error(prefix === "IMEV1" ? "IMEV1:로 시작하는 증빙 가져오기 코드를 붙여넣어 주세요." : "IMBK1: 또는 IMBK2:로 시작하는 백업 코드 전체를 붙여넣어 주세요.");
   let keyBytes: Uint8Array;
   try {
     const decoded = atob(matched[2].replace(/-/g, "+").replace(/_/g, "/") + "=");
@@ -126,8 +136,8 @@ export async function backupFileFromImportCode(code: string): Promise<File> {
     await response.body?.cancel().catch(() => {});
     throw new Error("올바른 복원 파일을 받지 못했습니다. 새로고침 후 다시 시도해 주세요.");
   }
-  const bytes = await importBytes(response);
-  const magic = [0x49, 0x4d, 0x42, 0x4b, 0x32, 0x3a];
+  const bytes = await importBytes(response, limit);
+  const magic = new TextEncoder().encode(`${prefix}:`);
   if (bytes.byteLength < 34 || !magic.every((value, index) => bytes[index] === value))
     throw new Error("복원 파일이 손상되었습니다. 전달받은 코드를 확인해 주세요.");
 

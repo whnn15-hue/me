@@ -15,6 +15,13 @@ export interface FreeSnapshot {
 interface Context { db: Firestore; root: DocumentReference; }
 interface RootState { activeVersion: string; revision: number; }
 class ChangedSnapshot extends Error {}
+/** No transaction callback has reached a possible root-pointer commit. */
+export class ArchiveRevisionConflictError extends Error {
+  constructor() {
+    super("다른 화면에서 기록이 변경되었습니다. 최신 내용을 불러온 뒤 다시 시도해 주세요.");
+    this.name = "ArchiveRevisionConflictError";
+  }
+}
 const MAX_RETRIES = 5;
 const conflict = () => new Error("다른 화면에서 기록이 변경되었습니다. 최신 내용을 불러온 뒤 다시 시도해 주세요.");
 
@@ -167,11 +174,21 @@ export async function linkFreeDocument(documentId: string, careerId: string): Pr
 }
 
 /** Staging can fail safely: only the final guarded pointer flip makes data visible. */
+export interface ActivationOptions {
+  signal?: AbortSignal;
+  /** From this point a failed request may already have committed; retain originals. */
+  onCommitStarted?: () => void;
+}
+function checkCancellation(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException("가져오기를 취소했습니다.", "AbortError");
+}
 export async function activateRestoredData(
   input: { careers: Career[]; documents: DocumentRecord[] },
   expectedRevision: number,
   expectedActiveVersion?: string,
+  options: ActivationOptions = {},
 ): Promise<void> {
+  checkCancellation(options.signal);
   if (!Array.isArray(input.careers) || !Array.isArray(input.documents) || input.careers.length > 100000 || input.documents.length > 10000) throw new Error("복원할 경력 목록이 올바르지 않습니다.");
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error("복원 기준 버전을 확인할 수 없습니다.");
   const careers = input.careers.map(career => normalizeCareer(career));
@@ -184,20 +201,31 @@ export async function activateRestoredData(
   }
   for (const career of careers) checkLinks(career, documents);
   const ctx = await context(), current = await snapshot(ctx);
-  if (current.revision !== expectedRevision || expectedActiveVersion !== undefined && current.activeVersion !== expectedActiveVersion) throw conflict();
+  checkCancellation(options.signal);
+  if (current.revision !== expectedRevision || expectedActiveVersion !== undefined && current.activeVersion !== expectedActiveVersion) throw new ArchiveRevisionConflictError();
   const version = crypto.randomUUID();
   const pending = [
     ...careers.map(career => ({ reference: row(ctx, version, "careers", career.id), data: career })),
     ...documents.map(document => ({ reference: row(ctx, version, "documents", document.id), data: documentMetadata(document) })),
   ];
   for (let offset = 0; offset < pending.length; offset += 400) {
+    checkCancellation(options.signal);
     const batch = writeBatch(ctx.db);
     for (const item of pending.slice(offset, offset + 400)) batch.set(item.reference, item.data);
     await batch.commit();
   }
+  checkCancellation(options.signal);
+  options.onCommitStarted?.();
+  // Firestore may invoke this callback repeatedly. Once any attempt can write,
+  // a later callback error does not establish that every earlier commit failed.
+  let mayHaveCommitted = false;
   await runTransaction(ctx.db, async tx => {
     const actual = rootState((await tx.get(ctx.root)).data());
-    if (!sameRoot(actual, current) || actual.revision !== expectedRevision) throw conflict();
+    if (!sameRoot(actual, current) || actual.revision !== expectedRevision) {
+      if (!mayHaveCommitted) throw new ArchiveRevisionConflictError();
+      throw conflict();
+    }
+    mayHaveCommitted = true;
     tx.set(ctx.root, { activeVersion: version, revision: nextRevision(actual.revision) }, { merge: true });
   });
 }

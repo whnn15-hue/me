@@ -19,6 +19,7 @@ import { api, download } from "./api";
 import { backupFileFromImportCode } from "./backup-code";
 import { cloudMode, cloudRefreshToken, freeMode, signInCloud, signOutCloud } from "./cloud";
 import { Modal } from "./CareerEditor";
+import EvidenceImport from "./EvidenceImport";
 import { type Status } from "./types";
 
 function GoogleMark() {
@@ -217,6 +218,16 @@ export default function BackupSettings({
             <HardDrive size={17} />
             <span>경력 정보는 계정에 저장하고 공문 원본은 구글 드라이브에 보관합니다. 공문을 올리기 전에 드라이브를 연결해 주세요.</span>
           </div>
+        )}
+        {freeMode && status.user && (
+          <EvidenceImport
+            driveConnected={status.driveConnected}
+            disabled={!!busy}
+            onBusyChange={(active) => setBusy(active ? "증빙 묶음 처리 중" : "")}
+            onRefresh={onRefresh}
+            onToast={onToast}
+            onBackup={driveBackup}
+          />
         )}
         <section className="panel settings-card">
           <div className="settings-card-heading">
