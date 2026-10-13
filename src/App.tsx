@@ -590,7 +590,7 @@ export default function App() {
             <Layers3 size={23} />
           </span>
           <span>
-            나의 기록<small>PERSONAL CAREER ARCHIVE</small>
+            Introduce Me<small>PERSONAL CAREER ARCHIVE</small>
           </span>
         </a>
         <div className="workspace-label">
@@ -1097,7 +1097,7 @@ export default function App() {
                     )}
                     <div className="list-footer">
                       <LockKeyhole size={12} />이 기록은 본인만 볼 수 있어요.
-                      <span>나의 기록 · 개인 경력 아카이브</span>
+                      <span>Introduce Me · 개인 경력 아카이브</span>
                     </div>
                   </section>
                 </>

@@ -66,7 +66,7 @@ export default function BackupSettings({
     try {
       await download(
         "/backup/export",
-        `나의기록_백업_${new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })}.zip`,
+        `Introduce_Me_백업_${new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })}.zip`,
       );
       onToast("경력 데이터와 원본 파일을 함께 백업했습니다.");
     } catch (e) {
