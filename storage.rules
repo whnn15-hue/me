@@ -1,0 +1,11 @@
+rules_version = '2';
+// Complete rules for a NEW, DEDICATED project only. For an existing project,
+// inspect and merge its rules first; publishing this file replaces all rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Only the API's service account and short-lived signed URLs access files.
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

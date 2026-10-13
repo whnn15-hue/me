@@ -1,0 +1,45 @@
+{
+  "name": "career-archive",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env scripts/dev.mjs",
+    "build": "tsc -b && vite build",
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:e2e": "playwright test",
+    "build:functions": "node scripts/build-functions.mjs",
+    "prepare:cloud": "node scripts/prepare-cloud-config.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.4",
+    "@netlify/functions": "^6.0.2",
+    "busboy": "^1.6.0",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.3.0",
+    "firebase": "^13.0.0",
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0",
+    "jose": "^6.2.12",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.468.0",
+    "multer": "^2.0.2",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "undici": "^7.16.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

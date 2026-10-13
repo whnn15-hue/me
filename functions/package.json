@@ -1,0 +1,21 @@
+{
+  "name": "career-archive-functions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.mjs",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "busboy": "1.6.0",
+    "express": "5.3.0",
+    "fast-xml-parser": "5.11.2",
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0",
+    "jszip": "3.10.2",
+    "multer": "2.4.0",
+    "pdfjs-dist": "6.4.299",
+    "undici": "7.30.0"
+  }
+}

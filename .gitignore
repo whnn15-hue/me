@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.e2e-dist/
+.data/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+*.log
+*.tsbuildinfo
+.firebase/
+.firebaserc
+functions/lib/
+functions/node_modules/
+.cloud-local/
+server/seed.json

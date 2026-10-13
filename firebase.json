@@ -1,0 +1,20 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "career-app",
+      "runtime": "nodejs22",
+      "ignore": ["node_modules", ".git", ".gitignore", "*.log", ".env*", "storage-cors*.json"],
+      "predeploy": [
+        "npm run build:functions",
+        "npm --prefix functions ci --cache /workspace/.cache/npm"
+      ]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
