@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { createCipheriv, randomBytes } from 'node:crypto';
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
 import JSZip from 'jszip';
@@ -9,7 +10,9 @@ import JSZip from 'jszip';
 const root = new URL('..', import.meta.url).pathname;
 const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium';
 const decoderOutput = await build({ entryPoints: ['src/backup-code.ts'], absWorkingDir: root, bundle: true, platform: 'browser', format: 'esm', write: false });
-const { backupFileFromCode } = await import(`data:text/javascript;base64,${Buffer.from(decoderOutput.outputFiles[0].contents).toString('base64')}`);
+const { backupFileFromCode, backupFileFromImportCode } = await import(`data:text/javascript;base64,${Buffer.from(decoderOutput.outputFiles[0].contents).toString('base64')}`);
+const backupOutput = await build({ entryPoints: ['src/free/backup.ts'], absWorkingDir: root, bundle: true, platform: 'browser', format: 'esm', write: false });
+const { readBackupFile } = await import(`data:text/javascript;base64,${Buffer.from(backupOutput.outputFiles[0].contents).toString('base64')}`);
 
 // These records are synthetic. Personal seed data and real credentials must not
 // enter the fixture bundle or the browser used for this test.
@@ -25,6 +28,18 @@ async function syntheticZip(suffix = '') {
   return archive.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 const archive = await syntheticZip();
+function encryptedImport(bytes) {
+  const key = randomBytes(32), iv = randomBytes(12), id = randomBytes(8).toString('hex');
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const payload = Buffer.concat([Buffer.from('IMBK2:', 'ascii'), iv, cipher.update(bytes), cipher.final(), cipher.getAuthTag()]);
+  return { key, id, payload, code: `IMBK2:${id}.${key.toString('base64url')}` };
+}
+async function withImportFetch(fetcher, action) {
+  const previous = globalThis.fetch;
+  globalThis.fetch = fetcher;
+  try { return await action(); } finally { globalThis.fetch = previous; }
+}
+const binaryResponse = payload => new Response(payload, { headers: { 'Content-Type': 'application/octet-stream; charset=utf-8' } });
 const code = bytes => `IMBK1:${Buffer.from(bytes).toString('base64')}`;
 const wrapped = value => ` \r\n${value.slice(0, 6)}\n\t${value.slice(6).match(/.{1,53}/g).join('\r\n ')}\t `;
 const safeKoreanError = error => {
@@ -88,14 +103,102 @@ test('large permitted backup codes decode without regex stack failures or byte c
   assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
 });
 
-test('browser code restore requires confirmation, cancels safely, and validates before writing', {
-  skip: !existsSync(chromiumPath) && !existsSync(chromium.executablePath()),
-}, async () => {
+test('short encrypted import code decrypts an exact synthetic ZIP and keeps its key out of fetch requests', async () => {
+  const encrypted = encryptedImport(archive);
+  assert.equal(encrypted.code.length, 66);
+  const requests = [];
+  await withImportFetch(async (path, options) => {
+    requests.push({ path, options });
+    return binaryResponse(encrypted.payload);
+  }, async () => {
+    const file = await backupFileFromImportCode(wrapped(encrypted.code));
+    assert.ok(file instanceof File);
+    assert.equal(file.type, 'application/zip');
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), archive);
+    const result = await readBackupFile(file);
+    assert.deepEqual(result.careers, fakeCareers().map(career => ({ ...career, source: '' })));
+    assert.deepEqual(result.documents, []);
+  });
+  assert.deepEqual(requests, [{ path: `/imports/${encrypted.id}.bin`, options: {
+    credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+  } }]);
+  assert.ok(!JSON.stringify(requests).includes(encrypted.key.toString('base64url')));
+  await withImportFetch(() => { throw new Error('Legacy codes must not fetch an asset'); }, async () => {
+    assert.deepEqual(Buffer.from(await (await backupFileFromImportCode(code(archive))).arrayBuffer()), archive);
+  });
+});
+
+test('encrypted imports reject unauthenticated content, wrong keys, tampering and unbounded responses safely', async () => {
+  const encrypted = encryptedImport(archive);
+  const wrongKey = Buffer.from(encrypted.key); wrongKey[0] ^= 1;
+  const wrongCode = `IMBK2:${encrypted.id}.${wrongKey.toString('base64url')}`;
+  const tampered = Buffer.from(encrypted.payload); tampered[tampered.length - 1] ^= 1;
+  const badMagic = Buffer.from(encrypted.payload); badMagic[0] ^= 1;
+  const redirected = binaryResponse(encrypted.payload);
+  Object.defineProperty(redirected, 'redirected', { value: true });
+  const nonZip = encryptedImport(Buffer.from('This authenticated plaintext is deliberately not a ZIP archive.'));
+  const cases = [
+    [wrongCode, () => binaryResponse(encrypted.payload)],
+    [encrypted.code, () => binaryResponse(tampered)],
+    [encrypted.code, () => binaryResponse(badMagic)],
+    [encrypted.code, () => new Response('PRIVATE_INPUT_SENTINEL', { status: 404 })],
+    [encrypted.code, () => new Response(encrypted.payload, { status: 206, headers: { 'Content-Type': 'application/octet-stream' } })],
+    [encrypted.code, () => new Response('<script>PRIVATE_INPUT_SENTINEL</script>', { headers: { 'Content-Type': 'text/html' } })],
+    [encrypted.code, () => new Response(encrypted.payload, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(1024 * 1024 + 1) } })],
+    [encrypted.code, () => redirected],
+    [encrypted.code, () => { throw new TypeError('PRIVATE_INPUT_SENTINEL: redirect disallowed'); }],
+    [nonZip.code, () => binaryResponse(nonZip.payload)],
+    [encrypted.code, () => binaryResponse(new ReadableStream({ start(controller) {
+      controller.enqueue(new Uint8Array([0x49, 0x4d]));
+      controller.error(new Error('PRIVATE_INPUT_SENTINEL network body failure'));
+    } }))],
+  ];
+  for (const [value, response] of cases) {
+    await withImportFetch(response, () => assert.rejects(backupFileFromImportCode(value), error => {
+      safeKoreanError(error);
+      assert.ok(!error.message.includes(encrypted.key.toString('base64url')));
+      assert.ok(!error.message.includes(wrongKey.toString('base64url')));
+      assert.doesNotMatch(error.message, /OperationError|DOMException/);
+      return true;
+    }));
+  }
+
+  // Missing or misleading Content-Length cannot bypass the streamed byte cap.
+  for (const contentLength of [undefined, '1']) {
+    let canceled = false;
+    const stream = new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array(1024 * 1024 + 1)); },
+      cancel() { canceled = true; },
+    });
+    const headers = { 'Content-Type': 'application/octet-stream' };
+    if (contentLength !== undefined) headers['Content-Length'] = contentLength;
+    await withImportFetch(() => new Response(stream, { headers }), () =>
+      assert.rejects(backupFileFromImportCode(encrypted.code), safeKoreanError));
+    assert.equal(canceled, true);
+  }
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const last = encrypted.code.at(-1);
+  const noncanonicalKey = encrypted.code.slice(0, -1) + alphabet[alphabet.indexOf(last) | 1];
+  let malformedRequests = 0;
+  await withImportFetch(() => { malformedRequests++; throw new Error('Malformed codes must not make network requests'); }, async () => {
+    for (const input of [encrypted.code.slice(0, -1), encrypted.code.replace('IMBK2:', 'IMBK3:'), noncanonicalKey, 'IMBK2:PRIVATE_INPUT_SENTINEL'])
+      await assert.rejects(backupFileFromImportCode(input), safeKoreanError);
+  });
+  assert.equal(malformedRequests, 0);
+});
+
+async function browserFixtureBundle() {
   const output = await build({
     absWorkingDir: root, stdin: { resolveDir: root, loader: 'tsx', contents: `
       import {useState} from 'react';
       import {createRoot} from 'react-dom/client';
       import BackupSettings from './src/BackupSettings';
+      import {backupFileFromImportCode} from './src/backup-code';
+      import {readBackupFile} from './src/free/backup';
+      globalThis.decodeImportFixture=async code=>{
+        const file=await backupFileFromImportCode(code), result=await readBackupFile(file);
+        return {bytes:Array.from(new Uint8Array(await file.arrayBuffer())),careers:result.careers.length,documents:result.documents.length};
+      };
       globalThis.fixture = { calls:[], writes:[], errors:[], toasts:[], refreshes:0, holdWrites:true,
         releaseRestore:null, records:[{id:'existing_fixture', title:'기존 테스트 기록'}] };
       function Fixture() {
@@ -141,7 +244,13 @@ test('browser code restore requires confirmation, cancels safely, and validates 
       ` }));
     } }],
   });
-  const bundle = output.outputFiles[0].text;
+  return output.outputFiles[0].text;
+}
+
+test('browser code restore requires confirmation, cancels safely, and validates before writing', {
+  skip: !existsSync(chromiumPath) && !existsSync(chromium.executablePath()),
+}, async () => {
+  const bundle = await browserFixtureBundle();
   const server = createServer((request, response) => {
     if (request.url === '/bundle.js') { response.writeHead(200, { 'Content-Type': 'application/javascript' }).end(bundle); return; }
     if (request.url === '/fixture') { response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end('<div id="root"></div><script src="/bundle.js"></script>'); return; }
@@ -235,10 +344,130 @@ test('browser code restore requires confirmation, cancels safely, and validates 
     assert.match(rejected.errors[0], /[가-힣]/);
     assert.deepEqual(externalRequests, []); assert.deepEqual(pageErrors, []);
   } catch (error) {
-    if (page) console.error('Backup-code browser fixture:', JSON.stringify({ pageErrors, inputs: await page.locator('textarea').evaluateAll(elements => elements.map(element => ({ ariaLabel: element.getAttribute('aria-label'), labels: [...element.labels].map(label => label.textContent.slice(0, 100)), disabled: element.disabled }))).catch(() => []) }));
+    if (page) console.error('Backup-code browser fixture:', JSON.stringify({ pageErrors, inputs: await page.locator('textarea').evaluateAll(elements => elements.map(element => ({ ariaLabel: element.getAttribute('aria-label'), labelLengths: [...element.labels].map(label => label.textContent.length), disabled: element.disabled }))).catch(() => []) }));
     throw error;
   } finally {
     await browser?.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('browser short import code authenticates its asset and preserves existing records until confirmed', {
+  skip: !existsSync(chromiumPath) && !existsSync(chromium.executablePath()),
+}, async () => {
+  const bundle = await browserFixtureBundle();
+  const encrypted = encryptedImport(archive);
+  const wrongKey = Buffer.from(encrypted.key); wrongKey[0] ^= 1;
+  const tampered = encryptedImport(archive); tampered.payload[tampered.payload.length - 1] ^= 1;
+  const html = encryptedImport(archive), oversized = encryptedImport(archive), redirect = encryptedImport(archive), missing = encryptedImport(archive);
+  const assets = new Map([
+    [encrypted.id, { body: encrypted.payload }],
+    [tampered.id, { body: tampered.payload }],
+    [html.id, { body: '<script>PRIVATE_INPUT_SENTINEL</script>', type: 'text/html' }],
+    [oversized.id, { body: oversized.payload, length: 1024 * 1024 + 1 }],
+    [redirect.id, { status: 302, location: `/imports/${encrypted.id}.bin` }],
+  ]);
+  const assetRequests = [];
+  const server = createServer((request, response) => {
+    if (request.url === '/bundle.js') { response.writeHead(200, { 'Content-Type': 'application/javascript' }).end(bundle); return; }
+    if (request.url === '/fixture') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': 'fixture_gate=passed; HttpOnly; SameSite=Lax; Path=/' })
+        .end('<div id="root"></div><script src="/bundle.js"></script>');
+      return;
+    }
+    const matched = /^\/imports\/([a-f0-9]{16})\.bin$/.exec(request.url);
+    if (matched) {
+      assetRequests.push({ path: request.url, cookie: request.headers.cookie || '' });
+      if (!request.headers.cookie?.includes('fixture_gate=passed')) { response.writeHead(401).end(); return; }
+      const asset = assets.get(matched[1]);
+      if (!asset) { response.writeHead(404).end(); return; }
+      if (asset.location) { response.writeHead(asset.status, { Location: asset.location }).end(); return; }
+      const headers = { 'Content-Type': asset.type || 'application/octet-stream' };
+      if (asset.length) headers['Content-Length'] = String(asset.length);
+      response.writeHead(200, headers).end(asset.body);
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  let browser;
+  try {
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    browser = await chromium.launch({ executablePath: existsSync(chromiumPath) ? chromiumPath : undefined, args: ['--no-sandbox'] });
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10000);
+    const externalRequests = [], pageErrors = [], consoleMessages = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('console', message => consoleMessages.push(message.text()));
+    await page.route('**/*', route => {
+      if (new URL(route.request().url()).origin === origin) return route.continue();
+      externalRequests.push(route.request().url()); return route.abort();
+    });
+    await page.goto(origin + '/fixture');
+    const input = page.getByLabel('백업 코드', { exact: true });
+    const restoreCode = page.getByRole('button', { name: '백업 코드로 복원', exact: true });
+    const dialog = page.getByRole('dialog', { name: '백업으로 전체 기록을 복원할까요?', exact: true });
+    await input.waitFor({ state: 'visible' });
+    const state = () => page.evaluate(() => ({ calls:globalThis.fixture.calls, writes:globalThis.fixture.writes,
+      errors:globalThis.fixture.errors, refreshes:globalThis.fixture.refreshes, toasts:globalThis.fixture.toasts,
+      records:globalThis.fixture.records }));
+    const baseline = await state();
+    const decoded = await page.evaluate(value => globalThis.decodeImportFixture(value), encrypted.code);
+    assert.deepEqual(decoded.bytes, Array.from(archive));
+    assert.equal(decoded.careers, 2); assert.equal(decoded.documents, 0);
+    assert.deepEqual(await state(), baseline);
+
+    const wrongCode = `IMBK2:${encrypted.id}.${wrongKey.toString('base64url')}`;
+    for (const value of [wrongCode, tampered.code, missing.code, html.code, oversized.code, redirect.code]) {
+      const priorRequests = assetRequests.length;
+      await input.fill(value); await restoreCode.click();
+      await page.waitForFunction(() => document.querySelector('textarea')?.disabled === false && !!document.querySelector('[role="alert"]'));
+      const message = await page.getByRole('alert').innerText();
+      assert.match(message, /[가-힣]/);
+      assert.doesNotMatch(message, /PRIVATE_INPUT_SENTINEL|<script>|OperationError|DOMException/);
+      assert.ok(!message.includes(encrypted.key.toString('base64url')));
+      assert.ok(assetRequests.length > priorRequests);
+      assert.equal(await dialog.count(), 0);
+      assert.deepEqual(await state(), baseline);
+    }
+    // The redirect target must not be requested: accepting it would bypass the
+    // static asset's same-origin, exact-status and authentication boundary.
+    assert.equal(assetRequests.at(-1).path, `/imports/${redirect.id}.bin`);
+
+    await input.fill(encrypted.code); await restoreCode.click();
+    await dialog.waitFor({ state: 'visible' });
+    assert.equal(await input.inputValue(), '');
+    assert.deepEqual(await state(), baseline);
+    await dialog.getByRole('button', { name: '취소', exact: true }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    assert.deepEqual(await state(), baseline);
+
+    await input.fill(encrypted.code); await restoreCode.click();
+    await dialog.waitFor({ state: 'visible' });
+    assert.deepEqual(await state(), baseline);
+    const confirm = dialog.getByRole('button', { name: '전체 기록 복원', exact: true });
+    await confirm.click();
+    await page.waitForFunction(() => typeof globalThis.fixture.releaseRestore === 'function');
+    assert.equal(await confirm.isDisabled(), true);
+    assert.equal((await state()).writes.length, 0);
+    await page.evaluate(() => globalThis.fixture.releaseRestore());
+    await page.waitForFunction(() => globalThis.fixture.toasts.length === 1);
+    await dialog.waitFor({ state: 'hidden' });
+    const result = await state();
+    assert.equal(result.calls.length, 1); assert.equal(result.writes.length, 1);
+    assert.deepEqual(result.writes[0].bytes, Array.from(archive));
+    assert.equal(result.writes[0].careers, 2); assert.equal(result.writes[0].documents, 0);
+    assert.deepEqual(result.records, fakeCareers().map(career => ({ ...career, source: '' })));
+    assert.equal(result.refreshes, 1); assert.equal(result.toasts.length, 1);
+    assert.deepEqual(result.errors, []);
+    assert.ok(assetRequests.every(request => request.cookie.includes('fixture_gate=passed')));
+    assert.ok(assetRequests.every(request => /^\/imports\/[a-f0-9]{16}\.bin$/.test(request.path)));
+    assert.ok(!JSON.stringify(assetRequests).includes(encrypted.key.toString('base64url')));
+    assert.ok(consoleMessages.every(message => !message.includes(encrypted.key.toString('base64url')) && !message.includes(wrongKey.toString('base64url'))));
+    assert.deepEqual(externalRequests, []); assert.deepEqual(pageErrors, []);
+  } finally {
+    await browser?.close();
+    server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
   }
 });

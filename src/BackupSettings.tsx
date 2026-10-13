@@ -16,7 +16,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api, download } from "./api";
-import { backupFileFromCode } from "./backup-code";
+import { backupFileFromImportCode } from "./backup-code";
 import { cloudMode, cloudRefreshToken, freeMode, signInCloud, signOutCloud } from "./cloud";
 import { Modal } from "./CareerEditor";
 import { type Status } from "./types";
@@ -132,9 +132,12 @@ export default function BackupSettings({
       setBusy("");
     }
   }
-  function restoreFromCode() {
+  async function restoreFromCode() {
+    if (busy) return;
+    setBusy("백업 코드 확인 중");
+    setBackupCodeError("");
     try {
-      const file = backupFileFromCode(backupCode);
+      const file = await backupFileFromImportCode(backupCode);
       setBackupCode("");
       setBackupCodeError("");
       setRestore(file);
@@ -142,6 +145,8 @@ export default function BackupSettings({
       setBackupCodeError(
         error instanceof Error ? error.message : "백업 코드를 확인해 주세요.",
       );
+    } finally {
+      setBusy("");
     }
   }
   async function disconnectDrive() {
