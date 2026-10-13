@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { normalizeCareer, publicDocument, cleanText } from './store.mjs';
 import { networkFetch } from './auth.mjs';
+import { normalizeWorkspace } from '../shared/workspace.mjs';
 
 export const ALLOWED_EXTENSIONS = new Set(['.pdf', '.hwp', '.hwpx', '.docx', '.txt', '.xlsx', '.png', '.jpg', '.jpeg', '.webp']);
 const MAX_BACKUP_SIZE = 200 * 1024 * 1024;
@@ -85,7 +86,11 @@ export async function exportBackup(store, selectedIds) {
   if (careers.length > MAX_CAREERS || documents.length > MAX_DOCUMENTS) throw tooLarge('백업 항목 수가 복원 가능 범위를 초과했습니다. 경력별 증빙 묶음을 이용해 주세요.');
   const zip = new JSZip();
   const manifest = { format: 'career-archive', version: 1, createdAt: new Date().toISOString(), careers, documents: documents.map(document => ({ ...publicDocument(document, careers), sha256: document.sha256, filePath: `originals/${document.storageName}` })) };
-  const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2));
+  if (!selectedIds) {
+    const { revision: _revision, ...workspace } = normalizeWorkspace(store.workspace?.(), { careerIds: careers.map(career => career.id), pruneMissingCareerLinks: true });
+    manifest.workspace = workspace;
+  }
+  const manifestBytes = Buffer.from(JSON.stringify(manifest));
   if (manifestBytes.length > MAX_MANIFEST_SIZE) throw tooLarge('경력·공문 목록이 복원 가능한 5MB를 초과했습니다. 필요한 경력만 선택해 증빙 묶음을 내려받아 주세요.');
   let total = manifestBytes.length;
   zip.file('manifest.json', manifestBytes);
@@ -132,6 +137,7 @@ export async function restoreBackup(store, buffer) {
   let manifest;
   try { manifest = JSON.parse(await readEntry(manifestFile, MAX_MANIFEST_SIZE, true)); } catch (error) { if (error.status) throw error; throw bad('백업 목록을 읽을 수 없습니다.'); }
   if (!manifest || manifest.format !== 'career-archive' || manifest.version !== 1 || !Array.isArray(manifest.careers) || !Array.isArray(manifest.documents) || manifest.careers.length > MAX_CAREERS || manifest.documents.length > MAX_DOCUMENTS) throw bad('지원하지 않는 경력 백업 형식입니다.');
+  if (manifest.evidenceImport != null) throw bad('증빙 추가 묶음은 정리한 증빙 가져오기에서 추가해 주세요. 전체 기록 복원에는 사용할 수 없습니다.');
   const idOK = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
   const docIds = new Set(), recordIds = new Set(), hashes = new Set();
   const docs = [], careers = [];
@@ -150,6 +156,16 @@ export async function restoreBackup(store, buffer) {
     if (!input || !idOK(input.id) || recordIds.has(input.id) || !Array.isArray(input.documentIds) || input.documentIds.some(id => !docIds.has(id))) throw bad('백업 경력 목록 또는 증빙 연결이 올바르지 않습니다.');
     recordIds.add(input.id); careers.push(normalizeCareer(input));
   }
+  const previousWorkspace = store.workspace?.() ?? normalizeWorkspace(undefined);
+  if (!Number.isSafeInteger(previousWorkspace.revision) || previousWorkspace.revision >= Number.MAX_SAFE_INTEGER) throw bad('작업 기록 버전을 확인할 수 없습니다.');
+  // Old archives have no workspace extension. Retain their existing items and
+  // only detach career edges whose destination disappears in this full restore.
+  const workspace = normalizeWorkspace(manifest.workspace ?? previousWorkspace, {
+    careerIds: careers.map(career => career.id), revision: previousWorkspace.revision + 1,
+    pruneMissingCareerLinks: manifest.workspace === undefined,
+  });
+  const detachedLinks = manifest.workspace === undefined ? previousWorkspace.links.length - workspace.links.length : 0;
+  if (!store.putWorkspace && (workspace.items.length || workspace.links.length)) throw bad('이 저장 환경에서는 확장 기록을 복원할 수 없습니다. 무료 웹앱 또는 로컬 앱에서 복원해 주세요.');
   // New originals receive fresh names before the transaction. SQLite then switches
   // all references in one commit; interruption cannot leave existing data unreadable.
   const previousNames = store.documents().map(document => document.storageName);
@@ -165,10 +181,11 @@ export async function restoreBackup(store, buffer) {
       store.db.exec('DELETE FROM careers; DELETE FROM documents;');
       for (const career of careers) store.putCareer(career);
       for (const item of docs) store.putDocument(item.document);
+      store.putWorkspace?.(workspace);
     });
     committed = true;
     for (const name of previousNames) await unlink(join(store.dataDir, 'originals', name)).catch(() => {});
-    return { ok: true, careers: careers.length, documents: docs.length };
+    return { ok: true, careers: careers.length, documents: docs.length, ...(workspace.items.length || detachedLinks ? { workspaceItems: workspace.items.length, detachedWorkspaceLinks: detachedLinks } : {}) };
   } finally { if (!committed) for (const path of created) await unlink(path).catch(() => {}); }
 
 }

@@ -69,7 +69,7 @@ function metadataSize(careers: Career[], documents: DocumentRecord[]) {
   // Match the pretty-printed automatic Drive snapshot, including its envelope.
   const snapshot = { format: "career-drive-snapshot", version: 1, createdAt: new Date().toISOString(), careers, documents: metadata };
   if (encoder.encode(JSON.stringify(snapshot, null, 2)).byteLength > MAX_METADATA_SIZE)
-    throw new Error("가져온 뒤의 경력·공문 목록이 백업 용량 한도인 5 MB를 초과합니다.");
+    throw new Error("가져온 뒤의 경력, 공문 목록이 백업 용량 한도인 5 MB를 초과합니다.");
 }
 
 /** Validate the ordinary ZIP/CRC/SHA schema before reading its additive marker. */
@@ -133,7 +133,7 @@ export async function applyEvidenceImport(
       throw new Error("중복된 공문 ID 또는 원본이 포함된 가져오기 파일입니다.");
     incomingIds.add(document.id); incomingHashes.add(document.sha256);
     if (bytes.byteLength !== document.size || await sha256(bytes) !== document.sha256)
-      throw new Error("공문 원본의 크기·SHA-256 무결성 검증에 실패했습니다.");
+      throw new Error("공문 원본의 크기, SHA-256 무결성 검증에 실패했습니다.");
     const file = new File([new Uint8Array(bytes).buffer], document.name, { type: document.mime });
     await validateDriveUploadFile(file);
     const links = options.approvedLinks[document.id];
@@ -157,7 +157,7 @@ export async function applyEvidenceImport(
   const byHash = new Map<string, DocumentRecord>();
   for (const document of current.documents) {
     if (!document.sha256 || !document.driveFileId || byHash.has(document.sha256))
-      throw new Error("기존 공문의 원본·중복 정보를 확인한 뒤 다시 시도해 주세요.");
+      throw new Error("기존 공문의 원본, 중복 정보를 확인한 뒤 다시 시도해 주세요.");
     byHash.set(document.sha256, document);
   }
   const targetIds = new Map<string, string>();

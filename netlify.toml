@@ -36,7 +36,7 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self'; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com https://*.web.app; frame-src https://*.firebaseapp.com https://*.web.app https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com https://*.web.app; frame-src https://*.firebaseapp.com https://*.web.app https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 
 [[headers]]
   for = "/imports/*.bin"

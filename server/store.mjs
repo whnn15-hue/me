@@ -49,6 +49,9 @@ export class Store {
     this.dataDir = dataDir;
     this.db = new DatabaseSync(join(dataDir, 'archive.sqlite'));
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; CREATE TABLE IF NOT EXISTS careers(id TEXT PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY, sha256 TEXT UNIQUE NOT NULL, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, data TEXT NOT NULL, expires INTEGER NOT NULL);');
+    // A separate namespaced row keeps upgrades additive: no existing career,
+    // original-file metadata, setting or session is rewritten by migration.
+    this.db.exec('CREATE TABLE IF NOT EXISTS introduce_me_workspace(id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);');
     if (!this.getSetting('initialized')) {
       let seeds = [];
       if (seedPath && existsSync(seedPath)) {
@@ -75,6 +78,8 @@ export class Store {
   putDocument(document) { this.db.prepare('INSERT OR REPLACE INTO documents(id,sha256,data) VALUES (?,?,?)').run(document.id, document.sha256, JSON.stringify(document)); }
   deleteCareer(id) { this.db.prepare('DELETE FROM careers WHERE id=?').run(id); }
   deleteDocument(id) { this.db.prepare('DELETE FROM documents WHERE id=?').run(id); }
+  workspace() { const row = this.db.prepare('SELECT data FROM introduce_me_workspace WHERE id=1').get(); return row ? JSON.parse(row.data) : { schemaVersion: 1, items: [], links: [], revision: 0 }; }
+  putWorkspace(workspace) { this.db.prepare('INSERT OR REPLACE INTO introduce_me_workspace(id,data) VALUES (1,?)').run(JSON.stringify(workspace)); }
   getSetting(key) { return this.db.prepare('SELECT value FROM settings WHERE key=?').get(key)?.value || null; }
   setSetting(key, value) { if (value === null) this.db.prepare('DELETE FROM settings WHERE key=?').run(key); else this.db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)').run(key, String(value)); }
   session(id) { const row = this.db.prepare('SELECT data,expires FROM sessions WHERE id=?').get(id); return row && row.expires > Date.now() ? JSON.parse(row.data) : null; }

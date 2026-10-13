@@ -54,7 +54,7 @@ function careerContext(career: Career) {
     [career.startDate, career.endDate].filter(Boolean).join(" ~ "),
     career.organization,
     career.role,
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(", ");
 }
 
 export default function EvidenceImport({
@@ -215,7 +215,7 @@ export default function EvidenceImport({
           <h2 id="evidence-import-heading">정리한 증빙 가져오기</h2>
           <p>원본을 드라이브에 보관하고 알맞은 경력에 연결하세요.</p>
         </div>
-        <span className="evidence-step-label">{step === "complete" ? "정리 완료" : prepared ? "02 · 연결 확인" : "01 · 묶음 불러오기"}</span>
+        <span className="evidence-step-label">{step === "complete" ? "정리 완료" : prepared ? "02, 연결 확인" : "01, 묶음 불러오기"}</span>
       </div>
 
       {step === "input" || step === "preparing" ? (
@@ -282,7 +282,7 @@ export default function EvidenceImport({
                   <div className="evidence-file-heading">
                     <span className="evidence-file-index">{String(index + 1).padStart(2, "0")}</span>
                     <FileText size={18} className="evidence-file-icon" />
-                    <div className="evidence-file-name"><h4>{document.name}</h4><p>{sizeLabel(document.size)}{document.analysisStatus && <><span aria-hidden="true"> · </span>{document.analysisStatus}</>}</p></div>
+                    <div className="evidence-file-name"><h4>{document.name}</h4><p>{sizeLabel(document.size)}{document.analysisStatus && <><span aria-hidden="true">, </span>{document.analysisStatus}</>}</p></div>
                     <span className={`evidence-link-count ${selected.length ? "has-links" : ""}`}>{selected.length ? <><Link2 size={12} /> {selected.length}</> : "우선 보관"}</span>
                   </div>
                   {proposedCareers.length > 0 ? (
@@ -304,7 +304,7 @@ export default function EvidenceImport({
                             onChange={event => toggleLink(document.id, career.id, event.target.checked)}
                           />
                           <span><strong>{career.title}</strong><small>{careerContext(career)}</small>
-                            {changes.length > 0 && <small className="evidence-career-change">현재 기록에 변경된 항목: {changes.join(" · ")}
+                            {changes.length > 0 && <small className="evidence-career-change">현재 기록에 변경된 항목: {changes.join(", ")}
                               <span>묶음 당시: {archived?.title}{archived && careerContext(archived) ? ` (${careerContext(archived)})` : ""}</span>
                             </small>}
                           </span>
@@ -334,7 +334,7 @@ export default function EvidenceImport({
               {step === "importing" ? "증빙 추가 중" : "증빙 추가하고 연결"}
             </button>
             {step === "importing" && <button className="text-button" disabled={canceling || progress?.phase === "saving" || progress?.phase === "done"} onClick={() => { setCanceling(true); controllerRef.current?.abort(); }}>중단하기</button>}
-            {step !== "importing" && <span>원본 {prepared.documents.length}개 · 경력 {linkedCareerCount}건</span>}
+            {step !== "importing" && <span>원본 {prepared.documents.length}개, 경력 {linkedCareerCount}건</span>}
           </div>
         </>
       )}
@@ -342,7 +342,7 @@ export default function EvidenceImport({
       {step === "complete" && result && (
         <div className="evidence-import-complete" role="status">
           <span className="evidence-complete-mark"><Check size={22} /></span>
-          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가 · 동일 파일 {result.duplicates}개 재사용 · 경력 연결 {result.linked}개 저장</p>{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
+          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
           <div className="evidence-complete-actions">
             <button className="button secondary" disabled={disabled} onClick={() => void onBackup()}><FileCheck2 size={15} /> 지금 백업하기</button>
             <button className="text-button" disabled={disabled} onClick={reset}>다른 증빙 가져오기 <ArrowRight size={14} /></button>

@@ -3,6 +3,7 @@ import { ALLOWED_EXTENSIONS } from '../backup.mjs';
 import { FreeRestRepository } from './repository.mjs';
 import { fault, safeName, MAX_FILE_SIZE } from './files.mjs';
 import { extname } from 'node:path';
+import { normalizeWorkspace } from '../../shared/workspace.mjs';
 
 export const MAX_SNAPSHOT_SIZE = 5 * 1024 * 1024;
 export function serializeDriveSnapshot(snapshot) {
@@ -21,15 +22,17 @@ export function serializeDriveSnapshot(snapshot) {
   });
   const careerIds = new Set();
   const careers = snapshot.careers.map(input => {
-    if (!input || !/^[A-Za-z0-9_-]{1,100}$/.test(input.id || '') || careerIds.has(input.id) || !Array.isArray(input.documentIds) || input.documentIds.length > 1000 || input.documentIds.some(id => !documentIds.has(id))) throw fault('자동 백업의 경력·증빙 연결이 올바르지 않습니다.');
+    if (!input || !/^[A-Za-z0-9_-]{1,100}$/.test(input.id || '') || careerIds.has(input.id) || !Array.isArray(input.documentIds) || input.documentIds.length > 1000 || input.documentIds.some(id => !documentIds.has(id))) throw fault('자동 백업의 경력, 증빙 연결이 올바르지 않습니다.');
     if (['title', 'organization', 'role', 'startDate', 'endDate', 'description', 'source'].some(field => input[field] != null && typeof input[field] !== 'string') || input.tags != null && (!Array.isArray(input.tags) || input.tags.some(tag => typeof tag !== 'string'))) throw fault('경력 메타데이터의 형식이 올바르지 않습니다.');
     careerIds.add(input.id); const career = normalizeCareer(input);
     if (career.startDate && career.endDate && career.endDate < career.startDate) throw fault('종료일이 시작일보다 빠릅니다. 날짜를 확인해 주세요.');
     return career;
   });
-  const manifest = { format: 'career-drive-snapshot', version: 1, createdAt: new Date().toISOString(), careers, documents };
-  const buffer = Buffer.from(JSON.stringify(manifest, null, 2));
-  if (buffer.length > MAX_SNAPSHOT_SIZE) throw fault('자동 백업의 경력·공문 목록이 5MB를 초과했습니다. 경력 데이터를 나누어 정리해 주세요.', 413);
+  const normalizedWorkspace = snapshot.workspace === undefined ? undefined : normalizeWorkspace(snapshot.workspace, { careerIds: careers.map(item => item.id), revision: 0 });
+  const workspace = normalizedWorkspace === undefined ? undefined : { schemaVersion: 1, items: normalizedWorkspace.items, links: normalizedWorkspace.links };
+  const manifest = { format: 'career-drive-snapshot', version: 1, createdAt: new Date().toISOString(), careers, documents, ...(workspace ? { workspace } : {}) };
+  const buffer = Buffer.from(JSON.stringify(manifest));
+  if (buffer.length > MAX_SNAPSHOT_SIZE) throw fault('자동 백업의 경력, 공문 목록이 5MB를 초과했습니다. 경력 데이터를 나누어 정리해 주세요.', 413);
   return buffer;
 }
 export function createAutomaticSnapshot({ config, fetcher, repositoryFactory = values => new FreeRestRepository(values) }) {

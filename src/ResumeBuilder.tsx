@@ -1,3 +1,4 @@
+import { displayText } from "./display";
 import { useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -83,7 +84,7 @@ export default function ResumeBuilder({
     "",
     ...chosen.map(
       (c) =>
-        `${period(c)}  ${c.title}\n${[c.organization, c.role].filter(Boolean).join(" · ")}${c.description ? "\n" + c.description : ""}\n`,
+        `${period(c)}  ${c.title}\n${[c.organization, c.role].filter(Boolean).join(", ")}${c.description ? "\n" + c.description : ""}\n`,
     ),
   ]
     .filter((x) => x !== undefined)
@@ -140,7 +141,7 @@ export default function ResumeBuilder({
     }
   }
   function print() {
-    const html = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><title>${escape(title)}</title><style>body{font-family:"Noto Sans CJK KR",sans-serif;color:#26372f;margin:0;padding:38px}h1{font-size:26px;margin:0 0 18px}h2{font-size:15px;margin:0 0 8px}.profile{margin-bottom:30px;color:#59635e}table{border-collapse:collapse;width:100%;font-size:11px}th{background:#f0f3ef;text-align:left;padding:10px}td{padding:12px 10px;border-bottom:1px solid #e4e8e3;vertical-align:top}p{white-space:pre-wrap;margin:5px 0;color:#66716b}.title{font-weight:700}@page{size:A4;margin:15mm}@media print{body{padding:0}tr{break-inside:avoid}thead{display:table-header-group}}</style></head><body><h1>${escape(title)}</h1><div class="profile">${escape(name)}${contact ? "<p>" + escape(contact) + "</p>" : ""}</div><table><thead><tr><th>기간</th><th>활동 및 주요 내용</th><th>기관 · 역할</th></tr></thead><tbody>${chosen.map((c) => `<tr><td style="width:18%">${escape(period(c))}</td><td><div class="title">${escape(c.title)}</div>${c.description ? "<p>" + escape(c.description) + "</p>" : ""}${!c.verified ? "<p>확인 전 기록</p>" : ""}</td><td style="width:24%">${escape(c.organization)}${c.role ? "<p>" + escape(c.role) + "</p>" : ""}</td></tr>`).join("")}</tbody></table></body></html>`;
+    const html = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><title>${escape(title)}</title><style>body{font-family:"Noto Sans CJK KR",sans-serif;color:#26372f;margin:0;padding:38px}h1{font-size:26px;margin:0 0 18px}h2{font-size:15px;margin:0 0 8px}.profile{margin-bottom:30px;color:#59635e}table{border-collapse:collapse;width:100%;font-size:11px}th{background:#f0f3ef;text-align:left;padding:10px}td{padding:12px 10px;border-bottom:1px solid #e4e8e3;vertical-align:top}p{white-space:pre-wrap;margin:5px 0;color:#66716b}.title{font-weight:700}@page{size:A4;margin:15mm}@media print{body{padding:0}tr{break-inside:avoid}thead{display:table-header-group}}</style></head><body><h1>${escape(title)}</h1><div class="profile">${escape(name)}${contact ? "<p>" + escape(contact) + "</p>" : ""}</div><table><thead><tr><th>기간</th><th>활동 및 주요 내용</th><th>기관, 역할</th></tr></thead><tbody>${chosen.map((c) => `<tr><td style="width:18%">${escape(period(c))}</td><td><div class="title">${escape(c.title)}</div>${c.description ? "<p>" + escape(c.description) + "</p>" : ""}${!c.verified ? "<p>확인 전 기록</p>" : ""}</td><td style="width:24%">${escape(c.organization)}${c.role ? "<p>" + escape(c.role) + "</p>" : ""}</td></tr>`).join("")}</tbody></table></body></html>`;
     const frame = document.createElement("iframe");
     frame.style.cssText = "position:fixed;width:0;height:0;border:0";
     frame.title = "이력서 인쇄";
@@ -227,7 +228,7 @@ export default function ResumeBuilder({
     else if (type.startsWith("career:")) {
       const c = chosen.find((c) => c.id === type.slice(7));
       if (c)
-        text = `${period(c)}\n${c.title}\n${[c.organization, c.role].filter(Boolean).join(" · ")}`;
+        text = `${period(c)}\n${c.title}\n${[c.organization, c.role].filter(Boolean).join(", ")}`;
     }
     if (type) setMappings((m) => ({ ...m, [id]: text }));
   }
@@ -266,7 +267,7 @@ export default function ResumeBuilder({
             >
               <option>전체</option>
               {categories.map((c) => (
-                <option key={c}>{c}</option>
+                <option key={c} value={c}>{displayText(c)}</option>
               ))}
             </select>
           </div>
@@ -300,7 +301,7 @@ export default function ResumeBuilder({
                 />
                 <span>
                   <small>
-                    {period(c)} · {c.category}
+                    {period(c)}, {displayText(c.category)}
                   </small>
                   <strong>{c.title}</strong>
                   <em>
@@ -369,7 +370,7 @@ export default function ResumeBuilder({
                   </label>
                   <label className="field">
                     <span>
-                      연락처·소속 <small>선택</small>
+                      연락처, 소속 <small>선택</small>
                     </span>
                     <input
                       placeholder="필요한 정보만 입력"
@@ -400,7 +401,7 @@ export default function ResumeBuilder({
                           <span>
                             {[c.organization, c.role]
                               .filter(Boolean)
-                              .join(" · ")}
+                              .join(", ")}
                           </span>
                           {c.description && <p>{c.description}</p>}
                           {!c.verified && (
@@ -450,7 +451,7 @@ export default function ResumeBuilder({
                 </button>
               </div>
               <p className="export-note">
-                PDF는 인쇄 창에서 ‘PDF로 저장’을 선택하세요. CSV·복사한 내용은
+                PDF는 인쇄 창에서 ‘PDF로 저장’을 선택하세요. CSV, 복사한 내용은
                 한글 양식에 옮겨 사용할 수 있어요.
               </p>
             </>
@@ -539,7 +540,7 @@ export default function ResumeBuilder({
                             선택한 경력에서 내용 가져오기
                           </option>
                           <option value="name">이름</option>
-                          <option value="contact">연락처·소속</option>
+                          <option value="contact">연락처, 소속</option>
                           <option value="summary">선택한 경력 목록</option>
                           <option value="full">이력서 전체 내용</option>
                           {chosen.map((c) => (
@@ -577,7 +578,7 @@ export default function ResumeBuilder({
                     작성한 HWPX 받기
                   </button>
                   <p className="export-note">
-                    한글에서 내려받은 파일을 열고 셀 높이·줄바꿈·내용을 최종
+                    한글에서 내려받은 파일을 열고 셀 높이, 줄바꿈, 내용을 최종
                     확인해 주세요.
                   </p>
                 </>

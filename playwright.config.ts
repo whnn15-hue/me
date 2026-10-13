@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./test",
-  testMatch: "e2e.spec.ts",
+  testMatch: ["e2e.spec.ts", "workspace-e2e.spec.ts", "workspace-concurrency-e2e.spec.ts"],
   fullyParallel: false,
   workers: 1,
   timeout: 60000,
@@ -30,6 +30,6 @@ export default defineConfig({
       APP_ENCRYPTION_KEY: "",
     },
     reuseExistingServer: false,
-    timeout: 30000,
+    timeout: 60000,
   },
 });

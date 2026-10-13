@@ -51,7 +51,7 @@ export interface Status {
   configurationError?: string;
   authenticationError?: string;
 }
-export type View = "careers" | "documents" | "resume" | "settings";
+export type View = "careers" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings";
 export interface HwpxField {
   id: string;
   label: string;

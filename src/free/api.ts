@@ -12,6 +12,11 @@ import {
   readFreeData,
   readFreeSnapshot,
   updateFreeCareer,
+  readFreeWorkspace,
+  mutateFreeWorkspace,
+  exportFreeWorkspace,
+  importFreeWorkspace,
+  ArchiveRevisionConflictError,
 } from "./store";
 
 function jsonBody(options: RequestInit): Record<string, unknown> {
@@ -86,6 +91,7 @@ async function restoreBackup(file: File) {
   const restored = await readBackupFile(file);
   const uploadedIds: string[] = [];
   const documents: DocumentRecord[] = [];
+  let commitStarted = false;
   try {
     for (const document of restored.documents) {
       const uploaded = await uploadDriveFile(
@@ -98,14 +104,16 @@ async function restoreBackup(file: File) {
       documents.push({ ...metadata, driveFileId: uploaded.id });
     }
     await activateRestoredData(
-      { careers: restored.careers, documents },
+      { careers: restored.careers, documents, ...(restored.workspace ? { workspace: restored.workspace } : {}) },
       previous.revision,
       previous.activeVersion,
+      { onCommitStarted: () => { commitStarted = true; } },
     );
     return { ok: true };
   } catch (error) {
     // 이번 복원에서 새로 만든 원본만 정리합니다. 기존 원본은 보존합니다.
-    for (const id of uploadedIds) await trashDriveFile(id).catch(() => {});
+    if (!commitStarted || error instanceof ArchiveRevisionConflictError)
+      for (const id of uploadedIds) await trashDriveFile(id).catch(() => {});
     throw error;
   }
 }
@@ -137,7 +145,7 @@ async function fullBackup(careerIds?: unknown) {
     });
     documents.push({ ...document, bytes: new Uint8Array(await original.blob.arrayBuffer()) });
   }
-  return { blob: await createBackupBlob({ careers, documents }) };
+  return { blob: await createBackupBlob({ careers, documents, ...(careerIds === undefined ? { workspace: snapshot.workspace } : {}) }) };
 }
 
 export async function freeApi(
@@ -145,6 +153,17 @@ export async function freeApi(
   options: RequestInit,
 ): Promise<{ handled: boolean; value?: unknown }> {
   const method = (options.method || "GET").toUpperCase();
+  if (path === "/workspace" && method === "GET") return { handled: true, value: await readFreeWorkspace() };
+  if (path === "/workspace/export" && method === "GET") return { handled: true, value: await exportFreeWorkspace() };
+  if (path === "/workspace/import" && method === "POST") return { handled: true, value: await importFreeWorkspace(jsonBody(options), {
+    verifyOriginal: async document => {
+      await downloadDriveFile(document.driveFileId!, { kind: "document", size: document.size, sha256: document.sha256 });
+    },
+  }) };
+  if (path === "/workspace/items" && method === "POST") return { handled: true, value: await mutateFreeWorkspace("create", jsonBody(options)) };
+  const workspaceItem = /^\/workspace\/items\/([^/]+)$/.exec(path);
+  if (workspaceItem && (method === "PUT" || method === "DELETE")) return { handled: true,
+    value: await mutateFreeWorkspace(method === "PUT" ? "update" : "delete", jsonBody(options), workspaceItem[1]) };
   if (path === "/backup/export" && method === "GET")
     return { handled: true, value: await fullBackup() };
   if (path === "/resume/evidence" && method === "POST")

@@ -1,6 +1,8 @@
 import JSZip from "jszip";
 import type { Career, DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId as validId } from "./normalize";
+import { normalizeWorkspace } from "../../shared/workspace.mjs";
+import type { WorkspaceData } from "../workspace/types";
 
 const MAX_BACKUP_SIZE = 200 * 1024 * 1024;
 const MAX_MANIFEST_SIZE = 5 * 1024 * 1024;
@@ -26,6 +28,7 @@ export interface BackupManifest {
   createdAt?: string;
   careers: Career[];
   documents: (DocumentRecord & { sha256: string; filePath: string })[];
+  workspace?: Omit<WorkspaceData, "revision">;
 }
 
 interface ArchiveEntry {
@@ -167,7 +170,7 @@ function readEntry(file: JSZip.JSZipObject, entry: ArchiveEntry): Promise<Uint8A
     stream.on("error", () => fail("백업 압축 데이터가 손상되었습니다."));
     stream.on("end", () => {
       if (ended) return;
-      if (size !== entry.size || crc !== entry.crc) return fail("백업 항목의 크기·CRC 무결성 검증에 실패했습니다.");
+      if (size !== entry.size || crc !== entry.crc) return fail("백업 항목의 크기, CRC 무결성 검증에 실패했습니다.");
       ended = true;
       const output = new Uint8Array(size);
       let position = 0;
@@ -194,7 +197,7 @@ function normalizedCareer(value: unknown): Career {
   return normalizeCareer(input);
 }
 
-export async function readBackupFile(file: File, options: { allowEvidenceImport?: boolean } = {}): Promise<{ careers: Career[]; documents: RestoredDocument[]; manifest: BackupManifest }> {
+export async function readBackupFile(file: File, options: { allowEvidenceImport?: boolean } = {}): Promise<{ careers: Career[]; documents: RestoredDocument[]; manifest: BackupManifest; workspace?: WorkspaceData }> {
   if (!Number.isSafeInteger(file.size) || file.size > MAX_BACKUP_SIZE) throw invalid("백업 ZIP 파일은 200MB 이하여야 합니다.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const entries = inspectArchive(bytes);
@@ -225,7 +228,7 @@ export async function readBackupFile(file: File, options: { allowEvidenceImport?
   const metadata = raw.documents.map(value => {
     const input = record(value);
     if (!validId(input.id) || documentIds.has(input.id) || typeof input.filePath !== "string" || !/^originals\/[A-Za-z0-9_-]+\.[a-z0-9]+$/.test(input.filePath)
-      || paths.has(input.filePath) || typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256) || hashes.has(input.sha256)) throw invalid("백업 파일 목록의 경로·ID·무결성 정보가 올바르지 않습니다.");
+      || paths.has(input.filePath) || typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256) || hashes.has(input.sha256)) throw invalid("백업 파일 목록의 경로, ID, 무결성 정보가 올바르지 않습니다.");
     const extension = input.filePath.split(".").at(-1)!;
     if (!ALLOWED_EXTENSIONS.has(extension) || !zip.file(input.filePath)) throw invalid("백업 원본 파일이 없거나 지원하지 않는 형식입니다.");
     const entry = entries.get(input.filePath)!;
@@ -260,7 +263,8 @@ export async function readBackupFile(file: File, options: { allowEvidenceImport?
   }
   const csvEntry = entries.get("경력목록.csv");
   if (csvEntry) await readEntry(zip.file("경력목록.csv")!, csvEntry);
-  return { careers, documents, manifest: { format: "career-archive", version: 1, createdAt: text(raw.createdAt, 50), careers, documents: manifestDocuments } };
+  const workspace = raw.workspace === undefined ? undefined : normalizeWorkspace(raw.workspace, { careerIds: careers.map(career => career.id), revision: 0 });
+  return { careers, documents, ...(workspace ? { workspace } : {}), manifest: { format: "career-archive", version: 1, createdAt: text(raw.createdAt, 50), careers, documents: manifestDocuments, ...(workspace ? { workspace } : {}) } };
 }
 
 /**
@@ -268,7 +272,7 @@ export async function readBackupFile(file: File, options: { allowEvidenceImport?
  * original against its size and SHA-256 before activating a restored version.
  * File contents and credentials are never read or returned by this parser.
  */
-export async function readDriveSnapshotFile(file: File): Promise<{ careers: Career[]; documents: DocumentRecord[] }> {
+export async function readDriveSnapshotFile(file: File): Promise<{ careers: Career[]; documents: DocumentRecord[]; workspace?: WorkspaceData }> {
   if (!/\.json$/i.test(file.name)) throw invalid("드라이브 경력 백업은 JSON 파일이어야 합니다.");
   if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_MANIFEST_SIZE) throw invalid("드라이브 경력 백업 JSON은 5MB 이하여야 합니다.");
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -288,7 +292,7 @@ export async function readDriveSnapshotFile(file: File): Promise<{ careers: Care
     const input = record(value);
     if (!validId(input.id) || documentIds.has(input.id) || typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256)
       || hashes.has(input.sha256) || typeof input.driveFileId !== "string" || !/^[A-Za-z0-9_-]{8,200}$/.test(input.driveFileId)
-      || driveIds.has(input.driveFileId)) throw invalid("드라이브 백업의 파일 ID·중복·무결성 정보가 올바르지 않습니다.");
+      || driveIds.has(input.driveFileId)) throw invalid("드라이브 백업의 파일 ID, 중복, 무결성 정보가 올바르지 않습니다.");
     const document = normalizeDocumentRecord(input);
     originalBytes += document.size;
     if (!Number.isSafeInteger(originalBytes)) throw invalid("드라이브 백업의 원본 파일 합계가 올바르지 않습니다.");
@@ -309,10 +313,11 @@ export async function readDriveSnapshotFile(file: File): Promise<{ careers: Care
     document.recordIds = links.get(document.id) ?? [];
     if (encoder.encode(JSON.stringify(document)).length > 128 * 1024) throw invalid("공문 메타데이터의 크기가 저장 한도를 초과했습니다.");
   }
-  return { careers, documents };
+  const workspace = raw.workspace === undefined ? undefined : normalizeWorkspace(raw.workspace, { careerIds: careers.map(career => career.id), revision: 0 });
+  return { careers, documents, ...(workspace ? { workspace } : {}) };
 }
 
-export async function createBackupBlob(data: { careers: Career[]; documents: BackupDocument[] }): Promise<Blob> {
+export async function createBackupBlob(data: { careers: Career[]; documents: BackupDocument[]; workspace?: WorkspaceData }): Promise<Blob> {
   if (data.careers.length > MAX_CAREERS || data.documents.length > MAX_DOCUMENTS) throw invalid("백업 항목 수가 복원 가능 범위를 초과했습니다.");
   const careers = data.careers.map(normalizedCareer);
   if (new Set(careers.map(career => career.id)).size !== careers.length) throw invalid("중복된 경력 ID가 있습니다.");
@@ -327,7 +332,7 @@ export async function createBackupBlob(data: { careers: Career[]; documents: Bac
     total += document.bytes.length;
     if (document.bytes.length > MAX_FILE_SIZE || total > MAX_BACKUP_SIZE) throw invalid("원본 파일은 각각 25MB, 백업 합계는 200MB 이하여야 합니다.");
     const hash = await sha256(document.bytes);
-    if (hashes.has(hash) || document.sha256 && document.sha256 !== hash) throw invalid("보관된 원본 파일의 중복·무결성 검증에 실패했습니다.");
+    if (hashes.has(hash) || document.sha256 && document.sha256 !== hash) throw invalid("보관된 원본 파일의 중복, 무결성 검증에 실패했습니다.");
     hashes.add(hash); documentIds.add(document.id);
     const filePath = `originals/${document.id}.${extension}`;
     const metadata: BackupManifest["documents"][number] = {
@@ -345,10 +350,12 @@ export async function createBackupBlob(data: { careers: Career[]; documents: Bac
     }
   }
   for (const document of documents) document.recordIds = links.get(document.id) ?? [];
-  const manifest: BackupManifest = { format: "career-archive", version: 1, createdAt: new Date().toISOString(), careers, documents };
-  const manifestBytes = encoder.encode(JSON.stringify(manifest, null, 2));
-  if (manifestBytes.length > MAX_MANIFEST_SIZE) throw invalid("경력·공문 목록은 5MB 이하여야 합니다.");
-  if (total + manifestBytes.length > MAX_BACKUP_SIZE) throw invalid("원본·경력 목록의 백업 합계가 200MB를 초과했습니다.");
+  const normalizedWorkspace = data.workspace === undefined ? undefined : normalizeWorkspace(data.workspace, { careerIds: careers.map(career => career.id), revision: 0 });
+  const workspace = normalizedWorkspace === undefined ? undefined : { schemaVersion: 1 as const, items: normalizedWorkspace.items, links: normalizedWorkspace.links };
+  const manifest: BackupManifest = { format: "career-archive", version: 1, createdAt: new Date().toISOString(), careers, documents, ...(workspace ? { workspace } : {}) };
+  const manifestBytes = encoder.encode(JSON.stringify(manifest));
+  if (manifestBytes.length > MAX_MANIFEST_SIZE) throw invalid("경력, 공문 목록은 5MB 이하여야 합니다.");
+  if (total + manifestBytes.length > MAX_BACKUP_SIZE) throw invalid("원본, 경력 목록의 백업 합계가 200MB를 초과했습니다.");
   zip.file("manifest.json", manifestBytes);
   return new Promise((resolve, reject) => {
     let chunks: BlobPart[] = [], size = 0, ended = false;

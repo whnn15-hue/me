@@ -54,7 +54,7 @@ export function createDriveBackup({ config, fetcher, getDrive, repositoryFactory
         await writeFile(join(directory, 'originals', storageName), file.buffer, { flag: 'wx', mode: 0o600 });
         materialized.push({ ...document, storageName });
       }
-      const store = { dataDir: directory, careers: () => snapshot.careers, documents: () => materialized };
+      const store = { dataDir: directory, careers: () => snapshot.careers, documents: () => materialized, workspace: () => snapshot.workspace };
       return exportBackup(store, selectedIds);
     });
   };

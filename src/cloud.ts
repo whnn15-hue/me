@@ -60,7 +60,7 @@ if (cloudMode) {
           parsed.hash
         )
           throw new Error(
-            "API 주소는 HTTPS여야 하며 인증 정보·쿼리·해시를 포함할 수 없습니다.",
+            "API 주소는 HTTPS여야 하며 인증 정보, 쿼리, 해시를 포함할 수 없습니다.",
           );
         apiOrigin = parsed.toString().replace(/\/+$/, "");
       }
@@ -109,7 +109,7 @@ export function signedOutCloudStatus(authenticationError = ""): Status {
     user: null,
     googleConfigured: !cloudConfigurationError,
     firebaseConfigured: !cloudConfigurationError,
-    // 서버의 소유자·AI·드라이브 설정은 로그인 후 확인합니다.
+    // 서버의 소유자, AI, 드라이브 설정은 로그인 후 확인합니다.
     ownerConfigured: false,
     aiConfigured: false,
     driveConfigured: false,

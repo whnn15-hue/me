@@ -1,3 +1,4 @@
+import { displayText } from "./display";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -212,7 +213,7 @@ export function CareerEditor({
               <Sparkles size={17} />
               <span>
                 {note}
-                {remaining > 0 && <strong> · 다음 초안 {remaining}개</strong>}
+                {remaining > 0 && <strong>, 다음 초안 {remaining}개</strong>}
               </span>
             </div>
           )}
@@ -242,7 +243,7 @@ export function CareerEditor({
                 onChange={(e) => change("category", e.target.value as Category)}
               >
                 {categories.map((c) => (
-                  <option key={c}>{c}</option>
+                  <option key={c} value={c}>{displayText(c)}</option>
                 ))}
               </select>
             </label>

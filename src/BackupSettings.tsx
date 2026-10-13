@@ -324,7 +324,7 @@ export default function BackupSettings({
             <div>
               <span>백업 대상</span>
               <strong>
-                경력 {careers}건 · 공문 {documents}개
+                경력 {careers}건, 공문 {documents}개
               </strong>
             </div>
           </div>
@@ -337,21 +337,21 @@ export default function BackupSettings({
             <p>
               <Check size={15} />
               {freeMode
-                ? "연결 후 하루 한 번 자동 백업 · 앱을 닫아도 실행"
+                ? "연결 후 하루 한 번 자동 백업, 앱을 닫아도 실행"
                 : cloudMode
-                  ? "연결 후 하루 한 번 자동 백업 · Firebase 예약 실행"
-                  : "연결 후 하루 한 번 자동 백업 · 앱 서버 실행 중"}
+                  ? "연결 후 하루 한 번 자동 백업, Firebase 예약 실행"
+                  : "연결 후 하루 한 번 자동 백업, 앱 서버 실행 중"}
             </p>
             <p>
               <Check size={15} />
               {freeMode
-                ? "이전 백업을 덮어쓰지 않는 날짜별 경력·원본 연결 정보 보관"
+                ? "이전 백업을 덮어쓰지 않는 날짜별 경력, 원본 연결 정보 보관"
                 : "이전 백업을 덮어쓰지 않는 날짜별 ZIP 보관"}
             </p>
             <p>
               <Check size={15} />
               {freeMode
-                ? "공문 원본은 드라이브에 유지 · 복원할 때 원본 무결성 확인"
+                ? "공문 원본은 드라이브에 유지, 복원할 때 원본 무결성 확인"
                 : "파일 원본과 경력 연결 관계까지 함께 저장"}
             </p>
           </div>
@@ -407,7 +407,7 @@ export default function BackupSettings({
               <HardDrive size={26} />
             </span>
             <div>
-              <h2>파일로 백업·복원</h2>
+              <h2>파일로 백업, 복원</h2>
               <p>{freeMode
                 ? "공문 원본까지 담은 ZIP을 내려받아 별도로 보관하세요."
                 : "별도 계정 연결 없이도 내 기록을 직접 보관할 수 있어요."}</p>
@@ -513,21 +513,21 @@ export default function BackupSettings({
             <span>
               {status.aiConfigured
                 ? "AI 분석은 외부 AI 서비스로 문서 내용을 전송합니다. 추출 결과는 저장 전 직접 확인해 주세요."
-                : "현재 AI 서비스 키가 없어 문서 텍스트와 키워드 규칙으로 분류합니다. AI를 연결하면 기관·역할·태그 추출을 함께 제안합니다."}
+                : "현재 AI 서비스 키가 없어 문서 텍스트와 키워드 규칙으로 분류합니다. AI를 연결하면 기관, 역할, 태그 추출을 함께 제안합니다."}
             </span>
           </div>
           <ul className="supported-list">
             <li>
-              <strong>PDF·HWPX·DOCX·TXT</strong>
+              <strong>PDF, HWPX, DOCX, TXT</strong>
               <span>텍스트 추출 후 초안 생성</span>
             </li>
             <li>
-              <strong>스캔 PDF·이미지</strong>
-              <span>AI 연결 시 이미지 분석 · 미연결 시 직접 입력</span>
+              <strong>스캔 PDF, 이미지</strong>
+              <span>AI 연결 시 이미지 분석, 미연결 시 직접 입력</span>
             </li>
             <li>
-              <strong>HWP·XLSX</strong>
-              <span>원본 보관·연결 가능 · 내용은 직접 확인</span>
+              <strong>HWP, XLSX</strong>
+              <span>원본 보관, 연결 가능, 내용은 직접 확인</span>
             </li>
           </ul>
         </section>

@@ -69,6 +69,7 @@ test('Firestore REST snapshot paginates and retries a revision change to avoid m
   const repo = new FreeRestRepository({ projectId: config.projectId, uid: 'owner-uid', idToken: 'private-id-token', fetcher: async (raw, options) => {
     const url = new URL(raw); requests.push(url); assert.equal(options.headers.Authorization, 'Bearer private-id-token');
     if (url.pathname.endsWith('/owner-uid')) { rootReads++; return Response.json({ fields: encodeFields({ activeVersion: 'version-one', revision: rootReads === 1 ? 0 : 1 }) }); }
+    if (url.pathname.endsWith('/__workspace_pointer_v1')) return new Response(null, { status: 404 });
     if (url.pathname.endsWith('/careers')) return Response.json({ documents: [{ name: 'projects/test/documents/careerArchives/owner-uid/versions/version-one/careers/' + (url.searchParams.has('pageToken') ? 'second' : 'first'), fields: encodeFields({ title: '교육 활동', documentIds: [], verified: false }) }], ...(url.searchParams.has('pageToken') ? {} : { nextPageToken: 'next-page' }) });
     return Response.json({ documents: [] });
   } });

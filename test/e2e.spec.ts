@@ -97,7 +97,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   current = await data(page); expect(current.careers.find((career: { id: string }) => career.id === secondCareer.id).documentIds).toHaveLength(2);
 
   // Evidence export contains only the selected career and the originals it references.
-  await navigate(page, '이력서·증빙 만들기');
+  await navigate(page, '이력서, 증빙 만들기');
   await page.getByRole('textbox', { name: '이력서 경력 검색', exact: true }).fill(firstTitle);
   await page.locator('.resume-career').getByRole('checkbox').check();
   await expect(page.locator('.resume-paper')).toContainText(firstTitle);

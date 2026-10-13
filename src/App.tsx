@@ -58,6 +58,14 @@ import {
 import { CareerEditor, Modal } from "./CareerEditor";
 import ResumeBuilder from "./ResumeBuilder";
 import BackupSettings from "./BackupSettings";
+import ProjectsView from "./workspace/ProjectsView";
+import MaterialsView from "./workspace/MaterialsView";
+import GraduateView from "./workspace/GraduateView";
+import WorkspaceSearch from "./workspace/WorkspaceSearch";
+import WorkspaceBackup from "./workspace/WorkspaceBackup";
+import { displayLabel, RelatedLinks } from "./workspace/WorkspaceUI";
+import type { WorkspaceData, WorkspaceItem, WorkspaceImportResult } from "./workspace/types";
+const emptyWorkspace = (): WorkspaceData => ({ schemaVersion: 1, items: [], links: [], revision: 0 });
 
 const categoryIcons = {
   "강의·연수": GraduationCap,
@@ -76,10 +84,13 @@ const navItems: {
 }[] = [
   {
     view: "careers",
-    label: "경력 아카이브",
+    label: "이력",
     icon: Layers3,
     description: "나의 모든 경험",
   },
+  { view: "projects", label: "프로젝트", icon: Folder, description: "교실에서 만들어 낸 배움" },
+  { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
+  { view: "graduate", label: "대학원", icon: GraduationCap, description: "공부와 연구의 기록" },
   {
     view: "documents",
     label: "공문 보관함",
@@ -88,7 +99,7 @@ const navItems: {
   },
   {
     view: "resume",
-    label: "이력서·증빙 만들기",
+    label: "이력서, 증빙 만들기",
     icon: FileText,
     description: "필요한 기록만 골라서",
   },
@@ -146,7 +157,11 @@ export function Evidence({ career }: { career: Career }) {
 export default function App() {
   const [status, setStatus] = useState<Status | null>(null),
     [careers, setCareers] = useState<Career[]>([]),
-    [documents, setDocuments] = useState<DocumentRecord[]>([]);
+    [documents, setDocuments] = useState<DocumentRecord[]>([]),
+    [workspace, setWorkspace] = useState<WorkspaceData>(emptyWorkspace),
+    [workspaceFocus, setWorkspaceFocus] = useState<string | undefined>(),
+    [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0),
+    [globalSearch, setGlobalSearch] = useState(false);
   const [view, setView] = useState<View>("careers"),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState<Category | "전체">("전체"),
@@ -183,18 +198,23 @@ export default function App() {
       if (version !== refreshVersion.current) return;
       setStatus(s);
       if (s.mode === "local" || s.user) {
-        const d = await api<{ careers: Career[]; documents: DocumentRecord[] }>(
-          "/data",
-        );
+        const [d, nextWorkspace] = await Promise.all([
+          api<{ careers: Career[]; documents: DocumentRecord[] }>("/data"),
+          api<WorkspaceData>("/workspace"),
+        ]);
         if (version !== refreshVersion.current) return;
         setCareers(d.careers);
         setDocuments(d.documents);
+        setWorkspace(nextWorkspace);
         setDetail((current) =>
           current ? d.careers.find((c) => c.id === current.id) || null : null,
         );
       } else {
         setCareers([]);
         setDocuments([]);
+        setWorkspace(emptyWorkspace());
+        setWorkspaceFocus(undefined);
+        setGlobalSearch(false);
         setDetail(null);
       }
     } catch (e) {
@@ -207,6 +227,9 @@ export default function App() {
         );
         setCareers([]);
         setDocuments([]);
+        setWorkspace(emptyWorkspace());
+        setWorkspaceFocus(undefined);
+        setGlobalSearch(false);
         setDetail(null);
       }
       throw e;
@@ -223,6 +246,9 @@ export default function App() {
         setStatus(null);
         setCareers([]);
         setDocuments([]);
+        setWorkspace(emptyWorkspace());
+        setWorkspaceFocus(undefined);
+        setGlobalSearch(false);
         setEditor(null);
         setQueue([]);
         setDetail(null);
@@ -252,8 +278,15 @@ export default function App() {
   }, [toast]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (document.querySelector('[role="dialog"]')) return;
+        setGlobalSearch(true);
+        return;
+      }
       if (
         e.key === "/" &&
+        !document.querySelector('[role="dialog"]') &&
         !["INPUT", "TEXTAREA", "SELECT"].includes(
           (e.target as HTMLElement).tagName,
         )
@@ -289,7 +322,7 @@ export default function App() {
       careers
         .filter((c) => {
           const match =
-            `${c.title} ${c.organization} ${c.role} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
+            `${displayLabel(c.title)} ${c.organization} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
               .normalize("NFC").toLocaleLowerCase()
               .includes(query.normalize("NFC").trim().toLocaleLowerCase());
           return (
@@ -345,9 +378,57 @@ export default function App() {
     setQuery("");
     setMobileNav(false);
     setDetail(null);
+    setWorkspaceFocus(undefined);
   };
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "처리 중 오류가 발생했습니다.");
+  const openWorkspaceRef = (ref: string) => {
+    const separator = ref.indexOf(":");
+    if (separator < 1) return;
+    const kind = ref.slice(0, separator), id = ref.slice(separator + 1);
+    if (kind === "career") {
+      const career = careers.find(item => item.id === id);
+      if (!career) return;
+      changeView("careers"); setDetail(career);
+    } else if (kind === "document") {
+      const document = documents.find(item => item.id === id);
+      if (!document) return;
+      changeView("documents"); setQuery(document.name);
+    } else {
+      const item = workspace.items.find(item => item.id === id && item.kind === kind);
+      if (!item) return;
+      changeView(item.kind === "project" ? "projects" : item.kind === "material" ? "materials" : "graduate");
+      setWorkspaceFocus(id);
+      setWorkspaceFocusVersion(version => version + 1);
+    }
+  };
+  async function saveWorkspaceItem(item: WorkspaceItem, links: string[], expectedRevision: number) {
+    setBusy("기록 저장 중");
+    setError("");
+    try {
+      const next = await api<WorkspaceData>(item.id ? `/workspace/items/${item.id}` : "/workspace/items", {
+        method: item.id ? "PUT" : "POST", body: JSON.stringify({ item, links, expectedRevision }),
+      });
+      setWorkspace(next);
+      setToast("기록과 연결 정보를 저장했습니다.");
+    } catch (cause) { await refresh().catch(() => {}); throw cause; }
+    finally { setBusy(""); }
+  }
+  async function deleteWorkspaceItem(id: string, expectedRevision: number) {
+    setBusy("기록 삭제 중"); setError("");
+    try {
+      const next = await api<WorkspaceData>(`/workspace/items/${id}`, { method: "DELETE", body: JSON.stringify({ expectedRevision }) });
+      setWorkspace(next); setWorkspaceFocus(undefined);
+      setToast("기록을 삭제했습니다.");
+    } catch (cause) { await refresh().catch(() => {}); throw cause; }
+    finally { setBusy(""); }
+  }
+  async function importWorkspaceArchive(archive: unknown) {
+    const result = await api<WorkspaceImportResult>("/workspace/import", { method: "POST", body: JSON.stringify({ archive, expectedRevision: workspace.revision }) });
+    setWorkspace(result.workspace);
+    await refresh();
+    return result;
+  }
   async function login() {
     setBusy("구글 로그인 중");
     setError("");
@@ -437,7 +518,7 @@ export default function App() {
       setEditor(drafts[0]);
       setQueue(drafts.slice(1));
       setAnalysisNote(
-        `${result.method === "ai" ? "AI가 정리한 초안" : "키워드 규칙으로 정리한 초안 · AI 미연결"}. ${result.warnings.join(" ")}`,
+        `${result.method === "ai" ? "AI가 정리한 초안" : "키워드 규칙으로 정리한 초안, AI 미연결"}. ${result.warnings.join(" ")}`,
       );
       setManual(false);
       setManualText("");
@@ -608,7 +689,7 @@ export default function App() {
             <Layers3 size={23} />
           </span>
           <span>
-            Introduce Me<small>PERSONAL CAREER ARCHIVE</small>
+            Introduce Me<small>MY PROFESSIONAL WORKSPACE</small>
           </span>
         </a>
         <div className="workspace-label">
@@ -619,8 +700,10 @@ export default function App() {
         <div className="nav-section-label">WORKSPACE</div>
         <nav aria-label="주 메뉴">
           {navItems.map((n) => (
+            <div key={n.view}>
+            {n.view === "documents" && <div className="workspace-nav-break">ARCHIVE TOOLS</div>}
             <button
-              key={n.view}
+              aria-label={n.view === "careers" ? "경력 아카이브" : undefined}
               aria-current={view === n.view ? "page" : undefined}
               className={`nav-item ${view === n.view ? "active" : ""}`}
               onClick={() => changeView(n.view)}
@@ -631,6 +714,7 @@ export default function App() {
                 <span className="nav-count">{careers.length}</span>
               )}
             </button>
+            </div>
           ))}
         </nav>
         <div className="sidebar-divider" />
@@ -638,7 +722,7 @@ export default function App() {
         <div className="collection-links">
           {categories.slice(0, 6).map((c, i) => (
             <button
-              key={c}
+              key={displayLabel(c)}
               onClick={() => {
                 changeView("careers");
                 setCategory(c);
@@ -646,7 +730,7 @@ export default function App() {
               className={view === "careers" && category === c ? "selected" : ""}
             >
               <span className={`collection-dot dot-${i}`} />
-              {c}
+              {displayLabel(c)}
               <span>{careers.filter((x) => x.category === c).length}</span>
             </button>
           ))}
@@ -709,6 +793,7 @@ export default function App() {
             <strong>{navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
+            {authorized && <button className="global-search-trigger" aria-label="모든 기록 검색 열기" onClick={() => setGlobalSearch(true)}><Search size={15} /><span>통합 검색</span><kbd>Ctrl K</kbd></button>}
             {authorized && <button className={`sync-status ${status.driveConnected ? "connected" : ""}`} onClick={() => changeView("settings")}>
               <Cloud size={15} />{status.driveConnected ? "드라이브 연결됨" : "백업 설정"}
             </button>}
@@ -724,7 +809,7 @@ export default function App() {
         <main className="main-content">
           {error && (
             <div role="alert" className="alert error">
-              <span>{error}</span>
+              <span>{displayLabel(error)}</span>
               <button aria-label="오류 닫기" onClick={() => setError("")}>
                 <X size={17} />
               </button>
@@ -790,11 +875,15 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="page-heading">
+              {["careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {!["projects", "materials", "graduate"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
                     {view === "careers"
                       ? "MY CAREER"
+                      : view === "projects" ? "TEACHING PORTFOLIO"
+                      : view === "materials" ? "MY LEARNING LIBRARY"
+                      : view === "graduate" ? "STUDY & RESEARCH"
                       : view === "documents"
                         ? "DOCUMENT LIBRARY"
                         : view === "resume"
@@ -804,16 +893,22 @@ export default function App() {
                   <h1>
                     {view === "careers"
                       ? "나의 경력"
+                      : view === "projects" ? "프로젝트"
+                      : view === "materials" ? "강의 자료"
+                      : view === "graduate" ? "대학원"
                       : view === "documents"
                         ? "공문 보관함"
                         : view === "resume"
-                          ? "이력서·증빙 만들기"
+                          ? "이력서, 증빙 만들기"
                           : "백업 및 설정"}
                     <span className="heading-dot">.</span>
                   </h1>
                   <p>
                     {view === "careers"
                       ? "하나씩 쌓아온 경험을, 한눈에 정리하세요."
+                      : view === "projects" ? "수업의 질문부터 결과와 성찰까지, 나의 교육 프로젝트를 기록하세요."
+                      : view === "materials" ? "내가 만든 자료와 발견한 좋은 자료를 필요한 순간에 꺼내 쓰세요."
+                      : view === "graduate" ? "수업, 과제, 논문과 떠오른 생각을 하나의 공부 흐름으로 연결하세요."
                       : view === "documents"
                         ? "경력을 증명하는 원본 파일을 한곳에 모아두세요."
                         : view === "resume"
@@ -847,7 +942,7 @@ export default function App() {
                     </>
                   )}
                 </div>
-              </div>
+              </div>}
               {view === "careers" && (
                 <>
                   <section className="archive-overview" aria-label="나의 아카이브 현황">
@@ -859,7 +954,7 @@ export default function App() {
                         <Plus size={16} />한 문장으로 기록하기<ArrowUpRight size={15} />
                       </button>
                       <div className="overview-period"><CalendarDays size={14} />
-                        {years.length ? `${years.at(-1)} – ${years[0]} · ${years.length}개 연도의 경험` : "오늘부터 시작하는 나의 아카이브"}
+                        {years.length ? `${years.at(-1)} – ${years[0]}, ${years.length}개 연도의 경험` : "오늘부터 시작하는 나의 아카이브"}
                       </div>
                     </div>
                     <div className="archive-readiness">
@@ -963,12 +1058,12 @@ export default function App() {
                     <div className="category-tabs" aria-label="분류 필터">
                       {(["전체", ...categories] as const).map((c) => (
                         <button
-                          key={c}
+                          key={displayLabel(c)}
                           className={category === c ? "active" : ""}
                           aria-pressed={category === c}
                           onClick={() => setCategory(c)}
                         >
-                          {c}
+                          {displayLabel(c)}
                           <span>
                             {c === "전체"
                               ? careers.length
@@ -978,7 +1073,7 @@ export default function App() {
                       ))}
                     </div>
                     <div className="archive-result-bar">
-                      <span aria-live="polite">{hasFilters ? `검색 결과 ${filtered.length}건` : `전체 ${careers.length}건 · 최근 활동순`}</span>
+                      <span aria-live="polite">{hasFilters ? `검색 결과 ${filtered.length}건` : `전체 ${careers.length}건, 최근 활동순`}</span>
                       <div>
                         <button className={`review-filter ${reviewOnly ? "active" : ""}`} aria-pressed={reviewOnly} onClick={() => setReviewOnly(!reviewOnly)}><CircleHelp size={14} />확인 전만 보기</button>
                         {hasFilters && <button className="reset-filters" onClick={clearFilters}><X size={13} />필터 초기화</button>}
@@ -1026,28 +1121,28 @@ export default function App() {
                                 <CategoryIcon category={c.category} />
                                 <div className="career-info">
                                   <div className="career-category">
-                                    {c.category}
+                                    {displayLabel(c.category)}
                                     {!c.verified && (
                                       <span className="unverified-label">
                                         확인 전
                                       </span>
                                     )}
                                   </div>
-                                  <h4>{c.title}</h4>
+                                  <h4>{displayLabel(c.title)}</h4>
                                   <div className="career-meta">
                                     <span>
-                                      {c.organization || "기관 확인 필요"}
+                                      {displayLabel(c.organization || "기관 확인 필요")}
                                     </span>
                                     {c.role && (
                                       <>
                                         <i />
-                                        {c.role}
+                                        {displayLabel(c.role)}
                                       </>
                                     )}
                                   </div>
                                   <div className="row-tags">
                                     {c.tags.slice(0, 3).map((t) => (
-                                      <span key={t}>#{t}</span>
+                                      <span key={t}>#{displayLabel(t)}</span>
                                     ))}
                                   </div>
                                 </div>
@@ -1069,11 +1164,14 @@ export default function App() {
                     )}
                     <div className="list-footer">
                       <LockKeyhole size={12} />이 기록은 본인만 볼 수 있어요.
-                      <span>Introduce Me · 개인 경력 아카이브</span>
+                      <span>Introduce Me, 개인 경력 아카이브</span>
                     </div>
                   </section>
                 </>
               )}
+              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
+              {view === "materials" && <MaterialsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
+              {view === "graduate" && <GraduateView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "documents" && (
                 <DocumentsView
                   documents={documents}
@@ -1125,6 +1223,7 @@ export default function App() {
                   documents={documents.length}
                 />
               )}
+              {view === "settings" && status && <WorkspaceBackup onImport={importWorkspaceArchive} onError={fail} onToast={setToast} />}
             </>
           )}
         </main>
@@ -1153,6 +1252,7 @@ export default function App() {
           </button>
         </div>
       )}
+      {authorized && globalSearch && <WorkspaceSearch workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} onClose={() => setGlobalSearch(false)} />}
       {editor && (
         <CareerEditor
           career={editor}
@@ -1247,8 +1347,8 @@ export default function App() {
               </button>
             </div>
             <CategoryIcon category={detail.category} />
-            <div className="detail-category">{detail.category}</div>
-            <h2>{detail.title}</h2>
+            <div className="detail-category">{displayLabel(detail.category)}</div>
+            <h2>{displayLabel(detail.title)}</h2>
             <Evidence career={detail} />
             {!detail.verified && (
               <div className="notice detail-notice">
@@ -1268,20 +1368,20 @@ export default function App() {
                   <BriefcaseBusiness size={15} />
                   기관
                 </dt>
-                <dd>{detail.organization || "미입력"}</dd>
+                <dd>{displayLabel(detail.organization || "미입력")}</dd>
               </div>
               <div>
                 <dt>
                   <Users size={15} />
                   역할
                 </dt>
-                <dd>{detail.role || "미입력"}</dd>
+                <dd>{displayLabel(detail.role || "미입력")}</dd>
               </div>
             </dl>
             <section className="detail-section">
               <h3>활동 내용</h3>
               <p>
-                {detail.description || "아직 활동 내용을 작성하지 않았어요."}
+                {displayLabel(detail.description || "아직 활동 내용을 작성하지 않았어요.")}
               </p>
             </section>
             <section className="detail-section">
@@ -1291,7 +1391,7 @@ export default function App() {
               </h3>
               <div className="tags">
                 {detail.tags.length ? (
-                  detail.tags.map((t) => <span key={t}>#{t}</span>)
+                  detail.tags.map((t) => <span key={t}>#{displayLabel(t)}</span>)
                 ) : (
                   <p>등록된 태그가 없어요.</p>
                 )}
@@ -1313,7 +1413,7 @@ export default function App() {
                       disabled={!!busy}
                     >
                       <FileText size={18} />
-                      <span>{d.name}<small>{fileSize(d.size)}</small></span>
+                      <span>{displayLabel(d.name)}<small>{fileSize(d.size)}</small></span>
                       <Download size={16} />
                     </button>
                   ) : (
@@ -1325,7 +1425,7 @@ export default function App() {
                   >
                     <FileText size={18} />
                     <span>
-                      {d.name}
+                      {displayLabel(d.name)}
                       <small>{fileSize(d.size)}</small>
                     </span>
                     <Download size={16} />
@@ -1343,8 +1443,9 @@ export default function App() {
                 </div>
               )}
             </section>
+            <RelatedLinks workspace={workspace} careers={careers} currentRef={`career:${detail.id}`} onOpen={openWorkspaceRef} />
             {detail.source && (
-              <p className="source-note">출처: {detail.source}</p>
+              <p className="source-note">출처: {displayLabel(detail.source)}</p>
             )}
             <div className="drawer-actions">
               <button
@@ -1377,7 +1478,7 @@ export default function App() {
         <Modal title="기록을 삭제할까요?" onClose={() => setDeleteTarget(null)}>
           <div className="modal-body">
             <p className="confirm-description">
-              ‘{deleteTarget.title}’
+              ‘{displayLabel(deleteTarget.title)}’
               {deleteTarget.type === "career"
                 ? " 경력을 삭제합니다. 연결된 공문 원본은 보관함에 남습니다."
                 : freeMode
@@ -1409,7 +1510,7 @@ export default function App() {
       {linkDoc && (
         <Modal
           title="기존 경력에 공문 연결"
-          subtitle={linkDoc.name}
+          subtitle={displayLabel(linkDoc.name)}
           onClose={() => setLinkDoc(null)}
         >
           <div className="modal-body">
@@ -1424,9 +1525,9 @@ export default function App() {
                 onChange={(e) => setLinkId(e.target.value)}
               >
                 <option value="">경력을 선택해 주세요</option>
-                {careers.filter((c) => `${c.title} ${c.organization} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
+                {careers.filter((c) => `${displayLabel(c.title)} ${c.organization} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
                   <option key={c.id} value={c.id} disabled={c.documentIds.includes(linkDoc.id)}>
-                    {c.startDate} · {c.title}{c.documentIds.includes(linkDoc.id) ? " (연결됨)" : ""}
+                    {c.startDate}, {displayLabel(c.title)}{c.documentIds.includes(linkDoc.id) ? " (연결됨)" : ""}
                   </option>
                 ))}
               </select>
@@ -1535,7 +1636,7 @@ function DocumentsView({
   const linkedCount = documents.filter((d) => linkedByDocument.get(d.id)?.length).length;
   const items = documents.filter((d) => {
     const linked = linkedByDocument.get(d.id) || [];
-    return `${d.name} ${d.text || ""} ${linked.map((c) => `${c.title} ${c.organization} ${c.tags.join(" ")}`).join(" ")}`
+    return `${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${displayLabel(c.title)} ${c.organization} ${c.tags.join(" ")}`).join(" ")}`
       .normalize("NFC").toLocaleLowerCase().includes(query.normalize("NFC").trim().toLocaleLowerCase()) &&
       (filter === "전체 파일" || (filter === "연결된 파일" ? linked.length > 0 : linked.length === 0));
   });
@@ -1572,10 +1673,10 @@ function DocumentsView({
           파일 선택하기
         </button>
         <small>
-          PDF, HWP, HWPX, DOCX, XLSX, TXT, 이미지 · 파일당 최대 25 MB · 한 번에
+          PDF, HWP, HWPX, DOCX, XLSX, TXT, 이미지, 파일당 최대 25 MB, 한 번에
           10개
           <br />
-          HWP·이미지 원본은 보관 가능하며 내용 추출 지원 범위는 설정에서 확인할
+          HWP, 이미지 원본은 보관 가능하며 내용 추출 지원 범위는 설정에서 확인할
           수 있어요.
         </small>
       </div>
@@ -1635,15 +1736,15 @@ function DocumentsView({
                 </span>
                 <div className="document-info">
                   {cloudMode ? (
-                    <button className="document-download-link" onClick={() => onDownload(d)} disabled={busy}>{d.name}</button>
+                    <button className="document-download-link" onClick={() => onDownload(d)} disabled={busy}>{displayLabel(d.name)}</button>
                   ) : (
                   <a href={`/api/documents/${d.id}/file`} download>
-                    {d.name}
+                    {displayLabel(d.name)}
                   </a>
                   )}
                   <p>
                     {fileSize(d.size)}
-                    <span>·</span>
+                    <span>,</span>
                     {new Date(d.createdAt).toLocaleDateString("ko-KR", {
                       timeZone: "Asia/Seoul",
                     })}
@@ -1653,7 +1754,7 @@ function DocumentsView({
                       linked.map((c) => (
                         <button key={c.id} onClick={() => onOpenCareer(c)}>
                           <Layers3 size={12} />
-                          {c.title}
+                          {displayLabel(c.title)}
                           <ChevronRight size={12} />
                         </button>
                       ))
@@ -1666,7 +1767,7 @@ function DocumentsView({
                   <button
                     className="icon-button"
                     title="경력 초안 만들기"
-                    aria-label={`${d.name} 경력 초안 만들기`}
+                    aria-label={`${displayLabel(d.name)} 경력 초안 만들기`}
                     onClick={() => onAnalyze(d)}
                     disabled={busy}
                   >
@@ -1675,7 +1776,7 @@ function DocumentsView({
                   <button
                     className="icon-button"
                     title="기존 경력에 연결"
-                    aria-label={`${d.name} 기존 경력에 연결`}
+                    aria-label={`${displayLabel(d.name)} 기존 경력에 연결`}
                     onClick={() => onLink(d)}
                     disabled={busy}
                   >
@@ -1685,7 +1786,7 @@ function DocumentsView({
                     <button
                       className="icon-button"
                       title="원본 다운로드"
-                      aria-label={`${d.name} 다운로드`}
+                      aria-label={`${displayLabel(d.name)} 다운로드`}
                       onClick={() => onDownload(d)}
                       disabled={busy}
                     >
@@ -1697,7 +1798,7 @@ function DocumentsView({
                     title="원본 다운로드"
                     href={`/api/documents/${d.id}/file`}
                     download
-                    aria-label={`${d.name} 다운로드`}
+                    aria-label={`${displayLabel(d.name)} 다운로드`}
                   >
                     <ArrowDownToLine size={17} />
                   </a>
@@ -1705,7 +1806,7 @@ function DocumentsView({
                   <button
                     className="icon-button delete-file"
                     title="파일 삭제"
-                    aria-label={`${d.name} 삭제`}
+                    aria-label={`${displayLabel(d.name)} 삭제`}
                     onClick={() => onDelete(d)}
                     disabled={busy}
                   >

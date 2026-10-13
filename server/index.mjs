@@ -9,6 +9,7 @@ import { Store, normalizeCareer, publicDocument } from './store.mjs';
 import { Auth, networkFetch } from './auth.mjs';
 import { extractText, analyze } from './extract.mjs';
 import { ALLOWED_EXTENSIONS, exportBackup, restoreBackup, backupToDrive } from './backup.mjs';
+import { readWorkspace, saveWorkspaceItem, deleteWorkspaceItem, deleteWorkspaceCareer, exportWorkspaceArchive, importWorkspaceArchive } from './workspace.mjs';
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const fault = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -47,6 +48,8 @@ export function createApp(overrides = {}) {
   const store = new Store(config.dataDir, config.seedPath), auth = new Auth(store, config);
   const app = express(); app.disable('x-powered-by');
   app.use((req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); res.set('Referrer-Policy', 'same-origin'); res.set('Cache-Control', 'no-store'); next(); });
+  // The archive itself is bounded to 5 MB; leave room for its request envelope.
+  app.use('/api/workspace/import', express.json({ limit: '6mb' }));
   app.use(express.json({ limit: '1mb' }));
   auth.register(app);
   app.use('/api', auth.accessMiddleware.bind(auth), auth.csrfMiddleware.bind(auth));
@@ -80,6 +83,24 @@ export function createApp(overrides = {}) {
   };
   const ensureLinks = career => { if (career.documentIds.some(id => typeof id !== 'string' || !store.document(id))) throw fault('연결할 공문 파일을 찾을 수 없습니다.'); };
   app.get('/api/data', (req, res) => { const careers = store.careers(); res.json({ careers, documents: store.documents().map(doc => publicDocument(doc, careers)) }); });
+  app.get('/api/workspace', (req, res) => res.json(readWorkspace(store)));
+  app.post('/api/workspace/items', locked((req, res) => {
+    const workspace = saveWorkspaceItem(store, req.body);
+    changed(); res.status(201).json(workspace);
+  }));
+  app.put('/api/workspace/items/:id', locked((req, res) => {
+    const workspace = saveWorkspaceItem(store, req.body, req.params.id);
+    changed(); res.json(workspace);
+  }));
+  app.delete('/api/workspace/items/:id', locked((req, res) => {
+    const workspace = deleteWorkspaceItem(store, req.params.id, req.body?.expectedRevision);
+    changed(); res.json(workspace);
+  }));
+  app.get('/api/workspace/export', locked((req, res) => res.json(exportWorkspaceArchive(store))));
+  app.post('/api/workspace/import', locked((req, res) => {
+    const result = importWorkspaceArchive(store, req.body?.archive, req.body?.expectedRevision);
+    changed(); res.json(result);
+  }));
   app.post('/api/careers', locked((req, res) => {
     const career = normalizeCareer({ ...req.body, id: randomUUID() }); ensureLinks(career); store.putCareer(career); changed(); res.status(201).json(career);
   }));
@@ -87,7 +108,7 @@ export function createApp(overrides = {}) {
     const previous = store.career(req.params.id); if (!previous) throw fault('경력을 찾을 수 없습니다.', 404);
     const career = normalizeCareer(req.body, previous); ensureLinks(career); store.putCareer(career); changed(); res.json(career);
   }));
-  app.delete('/api/careers/:id', locked((req, res) => { if (!store.career(req.params.id)) throw fault('경력을 찾을 수 없습니다.', 404); store.deleteCareer(req.params.id); changed(); res.json({ ok: true }); }));
+  app.delete('/api/careers/:id', locked((req, res) => { if (!store.career(req.params.id)) throw fault('경력을 찾을 수 없습니다.', 404); deleteWorkspaceCareer(store, req.params.id); changed(); res.json({ ok: true }); }));
   app.post('/api/documents', upload.array('files', 10), locked(async (req, res) => {
     if (!req.files?.length) throw fault('보관할 파일을 선택해 주세요.');
     const prepared = req.files.map(file => ({ file, ...validateFile(file) }));

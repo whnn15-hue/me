@@ -166,7 +166,7 @@ test('evidence review waits for Drive, prevents cancellation while saving, and r
     assert.equal(await page.getByRole('button',{name:'중단하기',exact:true}).isDisabled(),true);
     await page.evaluate(()=>fixture.release());
     await page.getByText('증빙이 내 경력에 자리 잡았어요',{exact:true}).waitFor();
-    assert.match(await page.locator('body').innerText(),/원본 1개 추가 · 동일 파일 1개 재사용 · 경력 연결 1개 저장/);
+    assert.match(await page.locator('body').innerText(),/원본 1개 추가, 동일 파일 1개 재사용, 경력 연결 1개 저장/);
     assert.equal(await page.evaluate(()=>fixture.refreshes),1);
     assert.equal(await page.evaluate(()=>fixture.toasts.length),1);
     assert.equal(await page.getByRole('checkbox').count(),0);
@@ -198,10 +198,10 @@ test('evidence review displays fresh renamed careers and excludes deleted target
     const removed=page.getByRole('checkbox',{name:/가상 위원회/});
     assert.equal(await removed.isChecked(),false);
     assert.equal(await removed.isDisabled(),true);
-    assert.match(await page.locator('body').innerText(),/현재 기록에 변경된 항목: 제목 · 기관 · 기간/);
+    assert.match(await page.locator('body').innerText(),/현재 기록에 변경된 항목: 제목, 기관, 기간/);
     assert.match(await page.locator('body').innerText(),/묶음 당시: 가상 학교 강의/);
     assert.match(await page.locator('body').innerText(),/현재 경력 목록에서 찾을 수 없어 연결 대상에서 제외했습니다/);
-    assert.match(await page.locator('body').innerText(),/2026-07 · 현재 기관/);
+    assert.match(await page.locator('body').innerText(),/2026-07, 현재 기관/);
     await confirm.click();
     await page.waitForFunction(()=>fixture.calls.length===1);
     assert.deepEqual(await page.evaluate(()=>fixture.calls[0].links),{fixture_document_a:['fixture_career_a'],fixture_document_b:[]});

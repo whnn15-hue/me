@@ -1,0 +1,20 @@
+import type { Career } from '../src/types';
+import type { WorkspaceData, WorkspaceItem, WorkspaceLink, WorkspaceImportConflict } from '../src/workspace/types';
+export const WORKSPACE_KINDS: string[];
+export const WORKSPACE_ROW_PREFIX: string;
+export const WORKSPACE_ROW_TAG: string;
+export const MAX_WORKSPACE_ITEMS: number;
+export const MAX_WORKSPACE_LINKS: number;
+export function validWorkspaceId(value: unknown): value is string;
+export function normalizeWorkspaceUrl(value: unknown, options?: {httpsOnly?: boolean; driveOnly?: boolean}): string;
+export function workspaceItemRef(item: WorkspaceItem): string;
+export function parseWorkspaceRef(value: unknown): {kind: string; id: string};
+export function emptyWorkspace(revision?: number): WorkspaceData;
+export function normalizeWorkspaceItem(value: unknown, previous?: WorkspaceItem): WorkspaceItem;
+export function normalizeWorkspace(value: unknown, options?: {careerIds?: string[];revision?: number;pruneMissingCareerLinks?: boolean}): WorkspaceData;
+export function mutateWorkspace(workspace: WorkspaceData, mutation: {operation:'create'|'update'|'delete';id?: string;item?: unknown;links?: string[];expectedRevision: number}, careers: Career[]): WorkspaceData;
+export function mergeWorkspaceData(current: WorkspaceData, incoming: WorkspaceData, careers: Career[]): {workspace:WorkspaceData;conflicts:WorkspaceImportConflict[];added:{items:number;links:number}};
+export interface WorkspaceMetadataRow {id:string; rowKind:string; rowType:string;schemaVersion:number;[key:string]:unknown;}
+export function isWorkspaceMetadataRow(row: unknown): boolean;
+export function workspaceToRows(workspace: WorkspaceData): WorkspaceMetadataRow[];
+export function workspaceFromRows(rows: unknown[],careerIds:string[],revision?:number):WorkspaceData;
