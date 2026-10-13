@@ -52,6 +52,7 @@ export function createFreeDrive({ vault, config, fetcher = networkFetch, capture
   async function status(account) {
     if (!account) return { driveConfigured: configured, driveConnected: false, lastBackup: null };
     const uid = requireOwner(account);
+    if (!configured) return { driveConfigured: false, driveConnected: false, lastBackup: null };
     const [tokens, firebaseTokens, lastBackup, backupError, lastBackupKind] = await Promise.all([
       vault.getJSON(`driveTokens/${uid}`), vault.getJSON(`firebaseTokens/${uid}`),
       vault.getJSON(`lastBackup/${uid}`), vault.getJSON(`backupError/${uid}`), vault.getJSON(`lastBackupKind/${uid}`),

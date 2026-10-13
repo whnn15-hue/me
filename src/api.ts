@@ -12,6 +12,16 @@ import { type Status } from "./types";
 
 let approvedUid: string | null = null;
 
+async function responseJson<T>(response: Response): Promise<T> {
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new Error(
+      `서버가 올바른 데이터로 응답하지 않았습니다 (HTTP ${response.status}). 배포 상태를 확인해 주세요.`,
+    );
+  }
+}
+
 async function dispatchFree(path: string, options: RequestInit) {
   const user = await readyCloudUser();
   if (!user || user.uid !== approvedUid)
@@ -32,14 +42,17 @@ async function request(path: string, options: RequestInit) {
   const response = await fetch(cloudApiUrl(path), {
     ...options,
     headers,
-    credentials: cloudMode ? "omit" : "same-origin",
+    credentials: cloudMode && !freeMode ? "omit" : "same-origin",
   });
   if (!response.ok) {
-    const data = await response
-      .json()
-      .catch(() => ({ error: "요청을 처리하지 못했습니다." }));
+    const data = response.headers.get("Content-Type")?.toLowerCase().includes("json")
+      ? await response.json().catch(() => null)
+      : null;
+    const message = data?.error || data?.message;
     throw new Error(
-      data.error || data.message || `요청 실패 (${response.status})`,
+      typeof message === "string" && message
+        ? message
+        : `서버 요청을 처리하지 못했습니다 (HTTP ${response.status}). 배포 상태와 연결 설정을 확인해 주세요.`,
     );
   }
   return response;
@@ -55,8 +68,9 @@ export async function api<T>(
     if (!user) return signedOutCloudStatus() as T;
     const userError = cloudUserError(user);
     if (userError) return signedOutCloudStatus(userError) as T;
-    const status: Status = await (await request(path, options)).json();
+    const status = await responseJson<Status>(await request(path, options));
     if (
+      !status ||
       status.mode !== "firebase" ||
       !status.ownerConfigured ||
       status.user?.email?.toLowerCase() !== user.email?.toLowerCase()
@@ -75,7 +89,7 @@ export async function api<T>(
     const result = await dispatchFree(path, options);
     if (result.handled) return result.value as T;
   }
-  return (await request(path, options)).json() as Promise<T>;
+  return responseJson<T>(await request(path, options));
 }
 export async function download(
   path: string,
@@ -113,7 +127,7 @@ export async function download(
     response.headers.get("Content-Type")?.includes("application/json")
   ) {
     const result: { downloadUrl?: string; driveFileId?: string; fileName?: string } =
-      await response.json();
+      await responseJson(response);
     if (freeMode && result.driveFileId) {
       const { downloadDriveFile } = await import("./free/drive");
       const source = await downloadDriveFile(result.driveFileId);
