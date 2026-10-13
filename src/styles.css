@@ -1980,6 +1980,12 @@ svg {
   font-size: 9px;
   padding: 9px 11px;
 }
+.backup-code-restore {
+  margin-top: 20px;
+}
+.backup-code-restore .field {
+  margin-bottom: 12px;
+}
 .supported-list {
   list-style: none;
   margin: 0;

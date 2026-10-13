@@ -16,6 +16,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api, download } from "./api";
+import { backupFileFromCode } from "./backup-code";
 import { cloudMode, cloudRefreshToken, freeMode, signInCloud, signOutCloud } from "./cloud";
 import { Modal } from "./CareerEditor";
 import { type Status } from "./types";
@@ -59,7 +60,9 @@ export default function BackupSettings({
 }) {
   const [busy, setBusy] = useState(""),
     [restore, setRestore] = useState<File | null>(null),
-    [disconnect, setDisconnect] = useState(false);
+    [disconnect, setDisconnect] = useState(false),
+    [backupCode, setBackupCode] = useState(""),
+    [backupCodeError, setBackupCodeError] = useState("");
   const restoreRef = useRef<HTMLInputElement>(null);
   async function localBackup() {
     setBusy("전체 백업 만드는 중");
@@ -127,6 +130,18 @@ export default function BackupSettings({
       onError(e);
     } finally {
       setBusy("");
+    }
+  }
+  function restoreFromCode() {
+    try {
+      const file = backupFileFromCode(backupCode);
+      setBackupCode("");
+      setBackupCodeError("");
+      setRestore(file);
+    } catch (error) {
+      setBackupCodeError(
+        error instanceof Error ? error.message : "백업 코드를 확인해 주세요.",
+      );
     }
   }
   async function disconnectDrive() {
@@ -421,10 +436,44 @@ export default function BackupSettings({
                 accept={freeMode ? ".zip,.json" : ".zip"}
                 aria-label="복원할 백업 선택"
                 onChange={(e) => {
-                  setRestore(e.target.files?.[0] || null);
+                  const file = e.target.files?.[0] || null;
+                  if (file) {
+                    setBackupCode("");
+                    setBackupCodeError("");
+                  }
+                  setRestore(file);
                   e.target.value = "";
                 }}
               />
+              <div className="backup-code-restore">
+                <p>파일을 받기 어려우면 전달받은 백업 코드를 붙여넣으세요.</p>
+                <label className="field">
+                  <span>백업 코드</span>
+                  <textarea
+                    aria-label="백업 코드"
+                    rows={4}
+                    value={backupCode}
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={!!busy}
+                    onChange={(e) => {
+                      setBackupCode(e.target.value);
+                      setBackupCodeError("");
+                    }}
+                  />
+                </label>
+                {backupCodeError && (
+                  <div className="alert error" role="alert">{backupCodeError}</div>
+                )}
+                <button
+                  className="button secondary"
+                  disabled={!!busy || !backupCode.trim()}
+                  onClick={restoreFromCode}
+                >
+                  <Upload size={16} />
+                  백업 코드로 복원
+                </button>
+              </div>
             </div>
           </div>
         </section>
