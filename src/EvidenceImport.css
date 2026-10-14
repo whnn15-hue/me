@@ -91,6 +91,13 @@
 .evidence-import-notice { display: flex; align-items: start; gap: 8px; background: #f8f6ed; padding: 11px 13px; border-radius: 6px; color: #8e8263; margin-top: 18px; font-size: 11px; line-height: 1.8; }
 .evidence-import-notice svg { flex-shrink: 0; margin-top: 2px; }
 .evidence-import-error { margin: 16px 0 0; }
+.evidence-new-careers { margin: 18px 0; padding: 16px; border: 1px solid #dce6d3; border-radius: 9px; background: #f5f8f0; }
+.evidence-new-careers h3 { margin: 0 0 7px; color: #40573a; font-size: 14px; }
+.evidence-new-careers > div > p { margin: 0; font-size: 11px; color: #7a876e; line-height: 1.8; }
+.evidence-new-careers fieldset { min-width: 0; border: 0; padding: 0; margin: 13px 0 0; display: grid; gap: 10px; max-height: 440px; overflow-y: auto; }
+.evidence-new-career { min-width: 0; }
+.evidence-new-career .evidence-review-note { margin: 7px 0 0 29px; }
+.evidence-new-badge { display: inline-block; margin-left: 7px; padding: 1px 6px; border-radius: 4px; background: #e9f1df; color: #57754a; font-style: normal; font-size: 9px; }
 @media (max-width: 700px) {
   .evidence-import-heading { gap: 11px; flex-wrap: wrap; }
   .evidence-import-heading > div { flex: 1 1 calc(100% - 53px); }

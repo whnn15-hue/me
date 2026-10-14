@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import JSZip from 'jszip';
+import { normalizeWorkspace, workspaceToRows } from '../shared/workspace.mjs';
 
 const workingDirectory = new URL('..', import.meta.url).pathname;
 const stateKey = '__careerEvidenceImportTest';
@@ -182,6 +183,9 @@ async function archive(careers, documents, options = {}) {
   return new File([bytes], 'evidence-import.zip', { type: 'application/zip' });
 }
 async function prepared(careers, documents) { return readEvidenceImportFile(await archive(careers, documents)); }
+async function preparedWithNew(careers, documents, newCareerIds) {
+  return readEvidenceImportFile(await archive(careers, documents, { marker: { format: 'career-evidence-import', version: 1, newCareerIds } }));
+}
 const assertNoWrites = state => { assert.equal(state.uploads.length, 0); assert.equal(state.activations.length, 0); assert.deepEqual(state.trashed, []); };
 const rootPath = 'careerArchives/test_owner';
 function firestoreRuntimeState() {
@@ -216,6 +220,133 @@ test('normal backup ZIPs and unrecognized evidence markers cannot enter additive
 test('a marked evidence package cannot be mistaken for a full replacement backup', async () => {
   const document = original('incoming_one');
   await assert.rejects(readBackupFile(await archive([career('career_one', [document.id])], [document])));
+});
+
+test('new career suggestions must explicitly identify unique carrier records', async () => {
+  const document = original('new_evidence');
+  const carriers = [career('new_career', [document.id])];
+  const valid = await preparedWithNew(carriers, [document], ['new_career']);
+  assert.deepEqual(valid.newCareerIds, ['new_career']);
+  assert.equal(Object.hasOwn(await prepared(carriers, [document]), 'newCareerIds'), false);
+  for (const ids of [null, 'new_career', ['absent'], ['new_career', 'new_career'], [42], ['../unsafe']]) {
+    await assert.rejects(preparedWithNew(carriers, [document], ids));
+  }
+});
+
+test('explicitly approved new careers and evidence are committed together with unverified reviewed fields', async () => {
+  const document = original('new_evidence');
+  const existing = career('unrelated_career', [], { title: 'Keep current title', tags: ['keep'] });
+  const proposed = career('new_career', [document.id], {
+    title: 'Synthetic training', role: 'Participant', startDate: '2026-01-15', endDate: '2026-01-16',
+    description: 'The document requests attendance; completion needs checking.', verified: true,
+  });
+  const input = await preparedWithNew([proposed], [document], [proposed.id]);
+  const state = runtime([existing]);
+  const result = await applyEvidenceImport(input, { approvedNewCareerIds: [proposed.id] });
+  assert.equal(state.activations.length, 1);
+  assert.deepEqual(state.snapshot.careers[0], existing);
+  assert.deepEqual(state.snapshot.careers[1], { ...proposed, verified: false });
+  assert.equal(result.careersAdded, 1);
+  assert.equal(result.careersUpdated, 0);
+  assert.equal(result.linked, 1);
+  assert.equal(state.snapshot.documents[0].driveFileId, 'owned_upload_0');
+  assert.ok(state.events.indexOf('upload') < state.events.indexOf('commit'));
+});
+
+test('suggested careers are never created implicitly or after deselection', async () => {
+  const document = original('new_evidence');
+  const input = await preparedWithNew([career('new_career', [document.id])], [document], ['new_career']);
+  for (const selection of [undefined, []]) {
+    const state = runtime([career('existing_career')]);
+    await assert.rejects(applyEvidenceImport(input, { approvedNewCareerIds: selection }));
+    assertNoWrites(state);
+    const result = await applyEvidenceImport(input, { approvedNewCareerIds: selection, approvedLinks: { [document.id]: [] } });
+    assert.deepEqual(state.snapshot.careers.map(item => item.id), ['existing_career']);
+    assert.equal(result.careersAdded, undefined);
+    assert.equal(result.unmatched, 1);
+    assert.equal(state.snapshot.documents.length, 1);
+  }
+});
+
+test('caller approvals cannot create unmarked or unknown careers', async () => {
+  const document = original('new_evidence');
+  const carriers = [career('new_career', [document.id])];
+  const legacy = await prepared(carriers, [document]);
+  const input = await preparedWithNew(carriers, [document], ['new_career']);
+  for (const [preparedInput, selection] of [
+    [legacy, ['new_career']], [input, ['unknown_career']], [input, ['new_career', 'new_career']],
+    [input, null], [input, 'new_career'], [input, [42]],
+  ]) {
+    const state = runtime([]);
+    await assert.rejects(applyEvidenceImport(preparedInput, { approvedNewCareerIds: selection }));
+    assertNoWrites(state);
+  }
+});
+
+test('repeated new career imports retain owner edits and do not add a duplicate career or archive revision', async () => {
+  const document = original('new_evidence');
+  const proposed = career('new_career', [document.id], { title: 'Proposed title', description: 'Prepared note' });
+  const input = await preparedWithNew([proposed], [document], [proposed.id]);
+  const state = runtime([]);
+  const options = { approvedNewCareerIds: [proposed.id] };
+  await applyEvidenceImport(input, options);
+  Object.assign(state.snapshot.careers[0], { title: 'Owner renamed this', description: 'Owner revised note', verified: true });
+  const before = structuredClone(state.snapshot);
+  const result = await applyEvidenceImport(input, options);
+  assert.deepEqual(state.snapshot, before);
+  assert.equal(state.snapshot.careers.length, 1);
+  assert.equal(state.activations.length, 1);
+  assert.equal(state.uploads.length, 1);
+  assert.equal(result.careersAdded, undefined);
+  assert.equal(result.linked, 0);
+});
+
+test('new careers reuse the live document ID when the incoming original is already on Drive', async () => {
+  const incoming = original('new_document_id', 'same bytes');
+  const existing = storedDocument(original('existing_document_id', 'same bytes'));
+  const input = await preparedWithNew([career('new_career', [incoming.id])], [incoming], ['new_career']);
+  const state = runtime([], [existing]);
+  const result = await applyEvidenceImport(input, { approvedNewCareerIds: ['new_career'] });
+  assert.deepEqual(state.snapshot.careers[0].documentIds, [existing.id]);
+  assert.deepEqual(state.snapshot.documents, [existing]);
+  assert.equal(state.uploads.length, 0);
+  assert.equal(result.added, 0);
+  assert.equal(result.careersAdded, 1);
+});
+
+test('new career imports leave no partial careers after cancellation, staging failure, or definite conflict', async () => {
+  const document = original('new_evidence');
+  const input = await preparedWithNew([career('new_career', [document.id])], [document], ['new_career']);
+  for (const failure of ['cancel', 'staging', 'definite-conflict']) {
+    const state = runtime([career('existing_career')]);
+    const before = structuredClone(state.snapshot);
+    const controller = new AbortController();
+    if (failure === 'cancel') state.onStage = async () => controller.abort();
+    else state.failure = failure;
+    await assert.rejects(applyEvidenceImport(input, { approvedNewCareerIds: ['new_career'], signal: controller.signal }));
+    assert.deepEqual(state.snapshot, before);
+    assert.deepEqual(state.trashed, ['owned_upload_0']);
+  }
+});
+
+test('actual Firestore activation adds reviewed careers without changing existing workspace rows or links', async () => {
+  const state = firestoreRuntimeState();
+  const workspace = normalizeWorkspace({ schemaVersion: 1, items: [{ id: 'project_one', kind: 'project', title: 'Existing project' }], links: [{ from: 'career:career_one', to: 'project:project_one' }] }, { careerIds: ['career_one'], revision: 11 });
+  const version = 'workspace_existing';
+  const pointerPath = `${rootPath}/versions/workspace_v1/documents/__workspace_pointer_v1`;
+  state.rows.set(pointerPath, { id: '__workspace_pointer_v1', rowKind: 'introduce-me-workspace', schemaVersion: 1, activeVersion: version });
+  const originalRows = workspaceToRows(workspace).map(row => [`${rootPath}/versions/${version}/documents/${row.id}`, structuredClone(row)]);
+  for (const [path, row] of originalRows) state.rows.set(path, structuredClone(row));
+  const before = await readActualStore();
+  const document = storedDocument(original('new_evidence'));
+  const newCareer = career('new_career', [document.id], { verified: false });
+  await activateActualStore({ careers: [...before.careers, newCareer], documents: [document] }, 11, 'live_version');
+  const after = await readActualStore();
+  assert.deepEqual(after.careers, [...before.careers, newCareer]);
+  assert.deepEqual(after.workspace.items, before.workspace.items);
+  assert.deepEqual(after.workspace.links, before.workspace.links);
+  assert.equal(state.rows.get(pointerPath).activeVersion, version);
+  for (const [path, row] of originalRows) assert.deepEqual(state.rows.get(path), row);
 });
 
 test('review career choices come from a fresh live snapshot without any mutation', async () => {

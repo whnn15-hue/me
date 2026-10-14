@@ -17,7 +17,7 @@ const bundle = await build({
     import {useState} from 'react';
     import {createRoot} from 'react-dom/client';
     import EvidenceImport from './src/EvidenceImport';
-    globalThis.fixture={reads:0,reviewReads:0,calls:[],errors:[],toasts:[],refreshes:0,release:null,progress:null,liveCareers:null};
+    globalThis.fixture={reads:0,reviewReads:0,calls:[],errors:[],toasts:[],refreshes:0,release:null,progress:null,liveCareers:null,newCareers:[]};
     function Fixture(){
       const [busy,setBusy]=useState(false), [drive,setDrive]=useState(true);
       globalThis.fixture.setDrive=setDrive;
@@ -49,14 +49,17 @@ const bundle = await build({
       export async function readEvidenceImportFile(file){
         globalThis.fixture.reads++;
         if(!file.size) throw new Error('증빙 파일을 확인해 주세요.');
-        return {format:'career-evidence-import',version:1,careers,documents};
+        const added=globalThis.fixture.newCareers;
+        return {format:'career-evidence-import',version:1,careers:[...careers,...added],
+          documents:documents.map(document=>({...document,recordIds:[...document.recordIds,...added.filter(career=>career.documentIds.includes(document.id)).map(career=>career.id)]})),
+          ...(added.length?{newCareerIds:added.map(career=>career.id)}:{})};
       }
       export async function readEvidenceImportReviewCareers(){
         globalThis.fixture.reviewReads++;
         return globalThis.fixture.liveCareers ?? careers;
       }
       export async function applyEvidenceImport(prepared,options){
-        globalThis.fixture.calls.push({links:JSON.parse(JSON.stringify(options.approvedLinks)),documents:prepared.documents.length});
+        globalThis.fixture.calls.push({links:JSON.parse(JSON.stringify(options.approvedLinks)),documents:prepared.documents.length,newCareerIds:options.approvedNewCareerIds});
         globalThis.fixture.progress=options.onProgress;
         options.onProgress({phase:'uploading',completed:0,total:2,fileName:documents[0].name});
         await new Promise((resolve,reject)=>{
@@ -64,7 +67,7 @@ const bundle = await build({
           options.signal.addEventListener('abort',()=>{globalThis.fixture.release=null;reject(new DOMException('Aborted','AbortError'));},{once:true});
         });
         options.onProgress({phase:'done',completed:2,total:2});
-        return {added:1,duplicates:1,linked:1,careersUpdated:1,unmatched:1};
+        return {added:1,duplicates:1,linked:1,careersUpdated:1,unmatched:1,careersAdded:options.approvedNewCareerIds?.length||0};
       }
     `}));
   }}],
@@ -205,6 +208,62 @@ test('evidence review displays fresh renamed careers and excludes deleted target
     await confirm.click();
     await page.waitForFunction(()=>fixture.calls.length===1);
     assert.deepEqual(await page.evaluate(()=>fixture.calls[0].links),{fixture_document_a:['fixture_career_a'],fixture_document_b:[]});
+    await page.evaluate(()=>fixture.release());
+    await page.getByText('증빙이 내 경력에 자리 잡았어요',{exact:true}).waitFor();
+  });
+});
+
+test('new career preview requires confirmation, deselection removes its links, and accepted records are counted',browserOptions,async()=>{
+  await fixture(async page=>{
+    await page.setViewportSize({width:390,height:844});
+    await page.evaluate(()=>{
+      fixture.newCareers=[
+        {id:'new_career_one',title:'가상 신규 강의',category:'강의·연수',tags:['영상'],startDate:'2026-03-05',endDate:'',organization:'테스트 기관',role:'강사',description:'활동일과 역할은 공문에서 확인했습니다.',documentIds:['fixture_document_a']},
+        {id:'new_career_two',title:'가상 신규 협의회',category:'위원회·지원단',tags:[],startDate:'2026-04',endDate:'',organization:'테스트 기관',role:'참석 대상',description:'참석 안내이며 실제 참석 여부를 확인해 주세요.',documentIds:['fixture_document_b']},
+      ];
+    });
+    await page.getByLabel('증빙 가져오기 코드',{exact:true}).fill('IMEV1:SYNTHETIC_FIXTURE');
+    await page.getByRole('button',{name:'증빙 목록 확인',exact:true}).click();
+    const newSection=page.getByRole('region',{name:'새 경력 2건 추가'});
+    await newSection.waitFor();
+    assert.deepEqual(await page.evaluate(()=>fixture.calls),[]);
+    assert.equal(await newSection.getByRole('checkbox',{name:/가상 신규 강의/}).isChecked(),true);
+    const declined=newSection.getByRole('checkbox',{name:/가상 신규 협의회/});
+    await declined.uncheck();
+    const documentChoice=page.locator('.evidence-review-list').getByRole('checkbox',{name:/가상 신규 협의회/});
+    assert.equal(await documentChoice.isChecked(),false);
+    assert.equal(await documentChoice.isDisabled(),true);
+    assert.equal(await page.getByRole('region',{name:'새 경력 1건 추가'}).count(),1);
+    await page.locator('.evidence-new-careers').getByText('정리한 내용과 확인 사항',{exact:true}).first().click();
+    assert.match(await page.locator('.evidence-new-careers').innerText(),/활동일과 역할은 공문에서 확인/);
+    assert.doesNotMatch(await page.locator('.evidence-new-careers').innerText(),/·/);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.getByRole('button',{name:'증빙 추가하고 연결',exact:true}).click();
+    await page.waitForFunction(()=>fixture.calls.length===1);
+    assert.deepEqual(await page.evaluate(()=>fixture.calls[0].newCareerIds),['new_career_one']);
+    assert.deepEqual(await page.evaluate(()=>fixture.calls[0].links),{fixture_document_a:['fixture_career_a','fixture_career_b','new_career_one'],fixture_document_b:[]});
+    await page.evaluate(()=>fixture.release());
+    await page.getByText('새 경력 1건을 확인 필요 상태로 추가했습니다.',{exact:true}).waitFor();
+    assert.match(await page.evaluate(()=>fixture.toasts[0]),/새 경력 1건/);
+  });
+});
+
+test('previously imported suggestions show current career labels and are never offered as new twice',browserOptions,async()=>{
+  await fixture(async page=>{
+    await page.evaluate(()=>{
+      fixture.newCareers=[{id:'new_career_one',title:'예전 이름',category:'강의·연수',tags:[],startDate:'2026-03',organization:'예전 기관',documentIds:['fixture_document_a']}];
+      fixture.liveCareers=[{id:'new_career_one',title:'내가 수정한 활동',category:'강의·연수',tags:[],startDate:'2026-03-05',organization:'현재 기관'}];
+    });
+    await page.getByLabel('증빙 가져오기 코드',{exact:true}).fill('IMEV1:SYNTHETIC_FIXTURE');
+    await page.getByRole('button',{name:'증빙 목록 확인',exact:true}).click();
+    const confirm=page.getByRole('button',{name:'증빙 추가하고 연결',exact:true});
+    await confirm.waitFor();
+    assert.equal(await page.locator('.evidence-new-careers').count(),0);
+    assert.equal(await page.getByRole('checkbox',{name:/내가 수정한 활동/}).isChecked(),true);
+    await confirm.click();
+    await page.waitForFunction(()=>fixture.calls.length===1);
+    assert.deepEqual(await page.evaluate(()=>fixture.calls[0].newCareerIds),[]);
+    assert.deepEqual(await page.evaluate(()=>fixture.calls[0].links),{fixture_document_a:['new_career_one'],fixture_document_b:[]});
     await page.evaluate(()=>fixture.release());
     await page.getByText('증빙이 내 경력에 자리 잡았어요',{exact:true}).waitFor();
   });

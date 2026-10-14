@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { evidenceFileFromImportCode } from "./backup-code";
+import { displayText } from "./display";
 import type { Career } from "./types";
 import type {
   EvidenceImportProgress,
@@ -76,6 +77,7 @@ export default function EvidenceImport({
   const [prepared, setPrepared] = useState<PreparedEvidenceImport | null>(null);
   const [reviewCareers, setReviewCareers] = useState<Career[]>([]);
   const [approvedLinks, setApprovedLinks] = useState<Record<string, string[]>>({});
+  const [approvedNewCareerIds, setApprovedNewCareerIds] = useState<string[]>([]);
   const [step, setStep] = useState<"input" | "preparing" | "review" | "importing" | "complete">("input");
   const [progress, setProgress] = useState<EvidenceImportProgress | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -102,6 +104,11 @@ export default function EvidenceImport({
     () => new Map(reviewCareers.map(career => [career.id, career])),
     [reviewCareers],
   );
+  const suggestedNewCareers = useMemo(() => {
+    const ids = new Set(prepared?.newCareerIds ?? []);
+    return prepared?.careers.filter(career => ids.has(career.id) && !careerById.has(career.id)) ?? [];
+  }, [prepared, careerById]);
+  const suggestedNewIds = new Set(suggestedNewCareers.map(career => career.id));
   const linkedCareerCount = new Set(Object.values(approvedLinks).flat()).size;
   const linkedDocumentCount = Object.values(approvedLinks).filter(ids => ids.length > 0).length;
   const unlinkedCount = (prepared?.documents.length ?? 0) - linkedDocumentCount;
@@ -129,10 +136,13 @@ export default function EvidenceImport({
       const content = await readEvidenceImportFile(archive);
       const latestCareers = await readEvidenceImportReviewCareers();
       const liveIds = new Set(latestCareers.map(career => career.id));
-      const selections = Object.fromEntries(content.documents.map(document => [document.id, document.recordIds.filter(id => liveIds.has(id))]));
+      const newIds = (content.newCareerIds ?? []).filter(id => !liveIds.has(id));
+      const availableIds = new Set([...liveIds, ...newIds]);
+      const selections = Object.fromEntries(content.documents.map(document => [document.id, document.recordIds.filter(id => availableIds.has(id))]));
       setPrepared(content);
       setReviewCareers(latestCareers);
       setApprovedLinks(selections);
+      setApprovedNewCareerIds(newIds);
       setCode("");
       setStep("review");
     } catch (cause) {
@@ -159,6 +169,7 @@ export default function EvidenceImport({
       const { applyEvidenceImport } = await import("./free/evidence-import");
       const saved = await applyEvidenceImport(prepared, {
         approvedLinks,
+        approvedNewCareerIds,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -166,8 +177,9 @@ export default function EvidenceImport({
       setPrepared(null);
       setReviewCareers([]);
       setApprovedLinks({});
+      setApprovedNewCareerIds([]);
       setStep("complete");
-      onToast(`증빙 ${saved.added}개를 추가하고 경력 연결 ${saved.linked}개를 저장했습니다.`);
+      onToast(`${saved.careersAdded ? `새 경력 ${saved.careersAdded}건, ` : ""}증빙 ${saved.added}개를 추가하고 경력 연결 ${saved.linked}개를 저장했습니다.`);
       await onRefresh();
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") setCanceled(true);
@@ -193,11 +205,22 @@ export default function EvidenceImport({
     }));
   }
 
+  function toggleNewCareer(careerId: string, checked: boolean) {
+    setApprovedNewCareerIds(current => checked ? [...new Set([...current, careerId])] : current.filter(id => id !== careerId));
+    setApprovedLinks(current => Object.fromEntries(Object.entries(current).map(([documentId, ids]) => [
+      documentId,
+      checked && prepared?.documents.find(document => document.id === documentId)?.recordIds.includes(careerId)
+        ? [...new Set([...ids, careerId])]
+        : ids.filter(id => id !== careerId),
+    ])));
+  }
+
   function reset() {
     if (operationRef.current) return;
     setPrepared(null);
     setReviewCareers([]);
     setApprovedLinks({});
+    setApprovedNewCareerIds([]);
     setCode("");
     setResult(null);
     setError("");
@@ -272,9 +295,29 @@ export default function EvidenceImport({
             <div><h3>경력 연결을 확인해 주세요</h3><p>현재 경력 목록을 불러왔어요. 연결할 경력에 체크하세요. 체크를 해제해도 원본은 보관됩니다.</p></div>
             <button type="button" className="text-button" disabled={locked} onClick={reset}><X size={14} /> 취소</button>
           </div>
+          {suggestedNewCareers.length > 0 && (
+            <section className="evidence-new-careers" aria-labelledby="evidence-new-careers-heading">
+              <div><h3 id="evidence-new-careers-heading">새 경력 {approvedNewCareerIds.length}건 추가</h3><p>공문을 바탕으로 정리한 경력입니다. 필요한 항목만 체크하세요. 새 경력은 확인 필요 상태로 저장됩니다.</p></div>
+              <fieldset disabled={locked}>
+                <legend className="visually-hidden">추가할 새 경력 선택</legend>
+                {suggestedNewCareers.map(career => (
+                  <div className="evidence-new-career" key={career.id}>
+                    <label className="evidence-career-choice">
+                      <input type="checkbox" checked={approvedNewCareerIds.includes(career.id)} onChange={event => toggleNewCareer(career.id, event.target.checked)} />
+                      <span><strong>{displayText(career.title)}</strong><small>{displayText(careerContext(career))}</small><small>{displayText(career.category)}{career.tags.length ? `, ${career.tags.map(displayText).join(", ")}` : ""}</small></span>
+                    </label>
+                    {career.description && <details className="evidence-review-note"><summary><ChevronDown size={13} /> 정리한 내용과 확인 사항</summary><p>{displayText(career.description)}</p></details>}
+                  </div>
+                ))}
+              </fieldset>
+            </section>
+          )}
           <div className="evidence-review-list" aria-label="가져올 증빙과 경력 연결">
             {prepared.documents.map((document, index) => {
-              const proposedCareers = document.recordIds.map(id => ({ id, career: careerById.get(id), archived: archivedCareerById.get(id) }));
+              const proposedCareers = document.recordIds.map(id => ({
+                id, career: careerById.get(id) ?? (suggestedNewIds.has(id) ? archivedCareerById.get(id) : undefined),
+                archived: archivedCareerById.get(id), isNew: suggestedNewIds.has(id),
+              }));
               const selected = approvedLinks[document.id] ?? [];
               const note = reviewNote(document.text);
               return (
@@ -282,30 +325,32 @@ export default function EvidenceImport({
                   <div className="evidence-file-heading">
                     <span className="evidence-file-index">{String(index + 1).padStart(2, "0")}</span>
                     <FileText size={18} className="evidence-file-icon" />
-                    <div className="evidence-file-name"><h4>{document.name}</h4><p>{sizeLabel(document.size)}{document.analysisStatus && <><span aria-hidden="true">, </span>{document.analysisStatus}</>}</p></div>
+                    <div className="evidence-file-name"><h4>{displayText(document.name)}</h4><p>{sizeLabel(document.size)}{document.analysisStatus && <><span aria-hidden="true">, </span>{displayText(document.analysisStatus)}</>}</p></div>
                     <span className={`evidence-link-count ${selected.length ? "has-links" : ""}`}>{selected.length ? <><Link2 size={12} /> {selected.length}</> : "우선 보관"}</span>
                   </div>
                   {proposedCareers.length > 0 ? (
                     <fieldset className="evidence-career-options" disabled={locked}>
-                      <legend className="visually-hidden">{document.name}에 연결할 경력</legend>
-                      {proposedCareers.map(({ id, career, archived }) => {
+                      <legend className="visually-hidden">{displayText(document.name)}에 연결할 경력</legend>
+                      {proposedCareers.map(({ id, career, archived, isNew }) => {
                         if (!career) return (
                           <label className="evidence-career-choice evidence-career-missing" key={id}>
                             <input type="checkbox" disabled checked={false} readOnly />
-                            <span><strong>{archived?.title || "묶음에 포함된 경력"}</strong><small>현재 경력 목록에서 찾을 수 없어 연결 대상에서 제외했습니다.</small></span>
+                            <span><strong>{displayText(archived?.title || "묶음에 포함된 경력")}</strong><small>현재 경력 목록에서 찾을 수 없어 연결 대상에서 제외했습니다.</small></span>
                           </label>
                         );
-                        const changes = changedCareerFields(archived, career);
+                        const changes = isNew ? [] : changedCareerFields(archived, career);
                         return (
                         <label className="evidence-career-choice" key={id}>
                           <input
                             type="checkbox"
                             checked={selected.includes(career.id)}
+                            disabled={isNew && !approvedNewCareerIds.includes(career.id)}
                             onChange={event => toggleLink(document.id, career.id, event.target.checked)}
                           />
-                          <span><strong>{career.title}</strong><small>{careerContext(career)}</small>
+                          <span><strong>{displayText(career.title)}{isNew && <em className="evidence-new-badge">새 경력</em>}</strong><small>{displayText(careerContext(career))}</small>
+                            {isNew && !approvedNewCareerIds.includes(career.id) && <small>위에서 새 경력을 선택하면 연결할 수 있어요.</small>}
                             {changes.length > 0 && <small className="evidence-career-change">현재 기록에 변경된 항목: {changes.join(", ")}
-                              <span>묶음 당시: {archived?.title}{archived && careerContext(archived) ? ` (${careerContext(archived)})` : ""}</span>
+                              <span>묶음 당시: {displayText(archived?.title ?? "")}{archived && careerContext(archived) ? ` (${displayText(careerContext(archived))})` : ""}</span>
                             </small>}
                           </span>
                         </label>
@@ -313,7 +358,7 @@ export default function EvidenceImport({
                       })}
                     </fieldset>
                   ) : <p className="evidence-unlinked-note">연결할 경력을 찾지 못했어요. 공문 보관함에 저장한 뒤 연결할 수 있어요.</p>}
-                  {note && <details className="evidence-review-note"><summary><ChevronDown size={13} /> 연결 근거와 확인 사항</summary><p>{note}</p></details>}
+                  {note && <details className="evidence-review-note"><summary><ChevronDown size={13} /> 연결 근거와 확인 사항</summary><p>{displayText(note)}</p></details>}
                 </article>
               );
             })}
@@ -324,7 +369,7 @@ export default function EvidenceImport({
             <div className="evidence-import-progress" role="status" aria-live="polite">
               <div><LoaderCircle className="spin" size={16} /><strong>{canceling ? "중단 요청을 처리하고 있어요" : progressLabel}</strong><span>{progress?.completed ?? 0} / {progress?.total ?? prepared.documents.length}</span></div>
               <progress aria-label="증빙 가져오기 진행률" max={100} value={percent} />
-              {progress?.fileName && <p>{progress.fileName}</p>}
+              {progress?.fileName && <p>{displayText(progress.fileName)}</p>}
             </div>
           )}
 
@@ -334,7 +379,7 @@ export default function EvidenceImport({
               {step === "importing" ? "증빙 추가 중" : "증빙 추가하고 연결"}
             </button>
             {step === "importing" && <button className="text-button" disabled={canceling || progress?.phase === "saving" || progress?.phase === "done"} onClick={() => { setCanceling(true); controllerRef.current?.abort(); }}>중단하기</button>}
-            {step !== "importing" && <span>원본 {prepared.documents.length}개, 경력 {linkedCareerCount}건</span>}
+            {step !== "importing" && <span>원본 {prepared.documents.length}개, 경력 연결 {linkedCareerCount}건{approvedNewCareerIds.length > 0 ? `, 새 경력 ${approvedNewCareerIds.length}건 추가` : ""}</span>}
           </div>
         </>
       )}
@@ -342,7 +387,7 @@ export default function EvidenceImport({
       {step === "complete" && result && (
         <div className="evidence-import-complete" role="status">
           <span className="evidence-complete-mark"><Check size={22} /></span>
-          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
+          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 확인 필요 상태로 추가했습니다.</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
           <div className="evidence-complete-actions">
             <button className="button secondary" disabled={disabled} onClick={() => void onBackup()}><FileCheck2 size={15} /> 지금 백업하기</button>
             <button className="text-button" disabled={disabled} onClick={reset}>다른 증빙 가져오기 <ArrowRight size={14} /></button>

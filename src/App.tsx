@@ -1232,7 +1232,7 @@ export default function App() {
         ref={uploadRef}
         type="file"
         multiple
-        accept=".pdf,.hwp,.hwpx,.docx,.txt,.xlsx,.jpg,.jpeg,.png,.webp"
+        accept=".pdf,.hwp,.hwpx,.docx,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp"
         aria-label="공문 파일 선택"
         className="visually-hidden"
         onChange={(e) => uploadFiles(e.target.files)}
@@ -1673,7 +1673,7 @@ function DocumentsView({
           파일 선택하기
         </button>
         <small>
-          PDF, HWP, HWPX, DOCX, XLSX, TXT, 이미지, 파일당 최대 25 MB, 한 번에
+          PDF, HWP, HWPX, DOCX, XLSX, CELL, TXT, 이미지, 파일당 최대 25 MB, 한 번에
           10개
           <br />
           HWP, 이미지 원본은 보관 가능하며 내용 추출 지원 범위는 설정에서 확인할

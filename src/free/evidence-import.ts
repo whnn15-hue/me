@@ -10,12 +10,13 @@ const MAX_ORIGINALS_SIZE = 200 * 1024 * 1024;
 const MAX_CAREERS = 100_000;
 const MAX_DOCUMENTS = 10_000;
 
-/** Carrier careers are labels and suggested links, never replacement records. */
+/** Existing carrier careers are labels only. Explicit new IDs may be reviewed. */
 export interface PreparedEvidenceImport {
   format: "career-evidence-import";
   version: 1;
   careers: Career[];
   documents: RestoredDocument[];
+  newCareerIds?: string[];
 }
 export interface EvidenceImportProgress {
   phase: "validating" | "uploading" | "saving" | "done";
@@ -26,6 +27,8 @@ export interface EvidenceImportProgress {
 export interface EvidenceImportOptions {
   /** Every incoming document needs an explicit decision; [] keeps it unlinked. */
   approvedLinks: Record<string, string[]>;
+  /** Omitted or [] never creates a career, even when the package suggests one. */
+  approvedNewCareerIds?: string[];
   signal?: AbortSignal;
   onProgress?: (progress: EvidenceImportProgress) => void;
 }
@@ -35,6 +38,7 @@ export interface EvidenceImportResult {
   linked: number;
   careersUpdated: number;
   unmatched: number;
+  careersAdded?: number;
 }
 
 /** Preview labels reflect the owner's current records without changing them. */
@@ -48,6 +52,17 @@ function checkCancellation(signal?: AbortSignal) {
 function plainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value)
     && [Object.prototype, null].includes(Object.getPrototypeOf(value)));
+}
+function newCareerIds(value: unknown, careers: Career[]): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_CAREERS || value.some(id => !validRecordId(id))
+    || new Set(value).size !== value.length)
+    throw new Error("추가할 새 경력 목록이 올바르지 않습니다.");
+  const counts = new Map<string, number>();
+  for (const career of careers) counts.set(career?.id, (counts.get(career?.id) || 0) + 1);
+  if (value.some(id => counts.get(id) !== 1))
+    throw new Error("새 경력의 내용이 없거나 ID가 중복되어 있습니다.");
+  return [...value];
 }
 function metadataSize(careers: Career[], documents: DocumentRecord[]) {
   const encoder = new TextEncoder();
@@ -93,8 +108,12 @@ export async function readEvidenceImportFile(
   if (!plainObject(marker) || marker.format !== "career-evidence-import" || marker.version !== 1)
     throw new Error("검토한 공문을 추가하는 전용 파일을 선택해 주세요. 전체 백업 복원 파일과 다릅니다.");
   if (!restored.documents.length) throw new Error("가져올 공문이 없는 파일입니다.");
+  const suggestedIds = newCareerIds(marker.newCareerIds, restored.careers);
   checkCancellation(options.signal);
-  return { format: "career-evidence-import", version: 1, careers: restored.careers, documents: restored.documents };
+  return {
+    format: "career-evidence-import", version: 1, careers: restored.careers, documents: restored.documents,
+    ...(marker.newCareerIds === undefined ? {} : { newCareerIds: suggestedIds }),
+  };
 }
 
 /**
@@ -111,6 +130,18 @@ export async function applyEvidenceImport(
     || !Array.isArray(prepared.documents) || !prepared.documents.length || prepared.documents.length > MAX_DOCUMENTS)
     throw new Error("검토할 공문 가져오기 파일이 올바르지 않습니다.");
   if (!plainObject(options.approvedLinks)) throw new Error("공문별 경력 연결을 확인해 주세요.");
+  const suggestedIds = new Set(newCareerIds(prepared.newCareerIds, prepared.careers));
+  const selectedIds = options.approvedNewCareerIds === undefined ? [] : options.approvedNewCareerIds;
+  if (!Array.isArray(selectedIds) || selectedIds.length > MAX_CAREERS
+    || selectedIds.some(id => !validRecordId(id) || !suggestedIds.has(id))
+    || new Set(selectedIds).size !== selectedIds.length)
+    throw new Error("묶음에 제안된 새 경력 중 추가할 항목을 확인해 주세요.");
+  const carrierById = new Map(prepared.careers.map(career => [career.id, career]));
+  // Snapshot normalized suggestions before awaits. Document links come only from
+  // explicit owner choices below; a prepared package cannot claim verification.
+  const approvedCareers = selectedIds.map(id => normalizeCareer({
+    ...carrierById.get(id), id, documentIds: [], evidenceStatus: "later", verified: false,
+  }));
   const report = (progress: EvidenceImportProgress) => options.onProgress?.(progress);
   report({ phase: "validating", completed: 0, total: prepared.documents.length });
 
@@ -149,8 +180,10 @@ export async function applyEvidenceImport(
   const current = await readFreeSnapshot();
   checkCancellation(options.signal);
   const liveCareerIds = new Set(current.careers.map(career => career.id));
+  const newCareers = approvedCareers.filter(career => !liveCareerIds.has(career.id));
+  const targetCareerIds = new Set([...liveCareerIds, ...newCareers.map(career => career.id)]);
   for (const item of incoming) {
-    if (item.links.some(id => !liveCareerIds.has(id)))
+    if (item.links.some(id => !targetCareerIds.has(id)))
       throw new Error("연결할 경력이 삭제되거나 변경되었습니다. 최신 경력 목록을 확인한 뒤 다시 시도해 주세요.");
   }
   const byId = new Map(current.documents.map(document => [document.id, document]));
@@ -170,7 +203,7 @@ export async function applyEvidenceImport(
     targetIds.set(item.document.id, duplicate?.id || item.document.id);
     if (!duplicate) newItems.push(item);
   }
-  if (current.careers.length > MAX_CAREERS || current.documents.length + newItems.length > MAX_DOCUMENTS)
+  if (current.careers.length + newCareers.length > MAX_CAREERS || current.documents.length + newItems.length > MAX_DOCUMENTS)
     throw new Error("경력 또는 공문 개수가 보관함 한도를 초과합니다.");
   const linksByCareer = new Map<string, Set<string>>();
   for (const item of incoming) {
@@ -181,21 +214,23 @@ export async function applyEvidenceImport(
     }
   }
   let linked = 0, careersUpdated = 0;
-  const careers = current.careers.map(career => {
+  const careers = [...current.careers, ...newCareers].map(career => {
     const approved = linksByCareer.get(career.id);
     if (!approved) return career;
     const additions = [...approved].filter(id => !career.documentIds.includes(id));
     if (!additions.length) return career;
-    linked += additions.length; careersUpdated++;
+    linked += additions.length;
+    if (liveCareerIds.has(career.id)) careersUpdated++;
     return normalizeCareer({ documentIds: [...career.documentIds, ...additions] }, career);
   });
   const result: EvidenceImportResult = {
     added: newItems.length, duplicates: incoming.length - newItems.length, linked, careersUpdated,
     unmatched: incoming.filter(item => !item.links.length).length,
+    ...(newCareers.length ? { careersAdded: newCareers.length } : {}),
   };
   const documents = [...current.documents, ...newItems.map(item => item.document)];
   metadataSize(careers, documents);
-  if (!result.added && !result.linked) {
+  if (!result.added && !result.linked && !result.careersAdded) {
     report({ phase: "done", completed: 1, total: 1 });
     return result;
   }
