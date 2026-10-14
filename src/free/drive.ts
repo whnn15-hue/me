@@ -14,6 +14,8 @@ type DriveAccess = { accessToken: string; folderId: string };
 
 const fileTypes: Record<string, string> = {
   pdf: "application/pdf",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ppt: "application/vnd.ms-powerpoint",
   hwp: "application/x-hwp",
   hwpx: "application/vnd.hancom.hwpx",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -39,8 +41,8 @@ export async function validateDriveUploadFile(file: File, kind: "document" | "te
   const text = new TextDecoder().decode(header);
   const valid = extension === "txt" ||
     extension === "pdf" && text.includes("%PDF-") ||
-    ["hwpx", "docx", "xlsx", "cell"].includes(extension) && starts([0x50, 0x4b]) ||
-    extension === "hwp" && starts([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) ||
+    ["hwpx", "docx", "xlsx", "cell", "pptx"].includes(extension) && starts([0x50, 0x4b]) ||
+    ["hwp", "ppt"].includes(extension) && starts([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) ||
     extension === "png" && starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
     ["jpg", "jpeg"].includes(extension) && starts([0xff, 0xd8]) ||
     extension === "webp" && starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8);

@@ -5,7 +5,7 @@ import { MAX_WORKSPACE_ITEMS, normalizeWorkspace, normalizeWorkspaceItem, validW
 import { readBackupFile, type RestoredDocument } from "./backup";
 import { sha256, trashDriveFile, uploadDriveFile, validateDriveUploadFile } from "./drive";
 import { normalizeDocumentRecord, validRecordId } from "./normalize";
-import { activateRestoredData, ArchiveRevisionConflictError, readFreeSnapshot, validateFreeSnapshotBudget } from "./store";
+import { activateRestoredData, appendFreeWorkspaceItems, ArchiveRevisionConflictError, readFreeSnapshot, validateFreeSnapshotBudget } from "./store";
 
 const MAX_METADATA_SIZE = 5 * 1024 * 1024;
 const MAX_ORIGINALS_SIZE = 200 * 1024 * 1024;
@@ -15,6 +15,7 @@ export interface MaterialImportEntry { item: MaterialItem; documentId: string; }
 export interface PreparedMaterialImport {
   format: "classroom-material-import";
   version: 1;
+  purpose?: "classroom" | "lecture";
   materials: MaterialImportEntry[];
   /** Transfer-only originals. They never become career evidence records. */
   documents: RestoredDocument[];
@@ -29,6 +30,7 @@ export interface MaterialImportOptions {
   approvedMaterialIds: string[];
   signal?: AbortSignal;
   onProgress?: (progress: MaterialImportProgress) => void;
+  enrich?: (item: MaterialItem, file: File, driveFileId: string, digest: string) => Promise<MaterialItem>;
 }
 export interface MaterialImportResult { added: number; duplicates: number; skipped: number; }
 
@@ -39,7 +41,7 @@ function plainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value)
     && [Object.prototype, null].includes(Object.getPrototypeOf(value)));
 }
-function materialEntries(value: unknown, documents: RestoredDocument[]): MaterialImportEntry[] {
+function materialEntries(value: unknown, documents: RestoredDocument[], purpose: "classroom" | "lecture" = "classroom"): MaterialImportEntry[] {
   if (!Array.isArray(value) || !value.length || value.length > MAX_WORKSPACE_ITEMS
     || value.length !== documents.length) throw new Error("수업 자료와 원본 파일 목록이 일치하지 않습니다.");
   const documentIds = new Set(documents.map(document => document.id));
@@ -49,10 +51,10 @@ function materialEntries(value: unknown, documents: RestoredDocument[]): Materia
     if (!plainObject(entry) || !validRecordId(entry.documentId) || !documentIds.has(entry.documentId)
       || usedDocuments.has(entry.documentId) || !plainObject(entry.item)
       || !validWorkspaceId(entry.item.id) || ids.has(entry.item.id)
-      || entry.item.kind !== "material" || entry.item.purpose !== "classroom"
+      || entry.item.kind !== "material" || entry.item.purpose !== purpose
       || entry.item.fileUrl !== "") throw new Error("수업 자료의 종류, ID 또는 원본 연결을 확인해 주세요.");
     const item = normalizeWorkspaceItem(entry.item);
-    if (item.kind !== "material" || item.purpose !== "classroom") throw new Error("수업 자료만 가져올 수 있습니다.");
+    if (item.kind !== "material" || item.purpose !== purpose) throw new Error("선택한 자료 분류를 확인해 주세요.");
     ids.add(item.id); usedDocuments.add(entry.documentId);
     return { item, documentId: entry.documentId };
   });
@@ -89,7 +91,8 @@ export async function applyMaterialImport(prepared: PreparedMaterialImport, opti
   if (!prepared || prepared.format !== "classroom-material-import" || prepared.version !== 1
     || !Array.isArray(prepared.documents) || !prepared.documents.length || prepared.documents.length > MAX_WORKSPACE_ITEMS)
     throw new Error("수업 자료 가져오기 파일이 올바르지 않습니다.");
-  const materials = materialEntries(prepared.materials, prepared.documents);
+  if (prepared.purpose !== undefined && !["classroom", "lecture"].includes(prepared.purpose)) throw new Error("자료를 보관할 곳을 확인해 주세요.");
+  const materials = materialEntries(prepared.materials, prepared.documents, prepared.purpose ?? "classroom");
   const offeredIds = new Set(materials.map(entry => entry.item.id));
   if (!Array.isArray(options.approvedMaterialIds) || options.approvedMaterialIds.length > MAX_WORKSPACE_ITEMS
     || options.approvedMaterialIds.some(id => !offeredIds.has(id))
@@ -156,16 +159,21 @@ export async function applyMaterialImport(prepared: PreparedMaterialImport, opti
       if (!/^[A-Za-z0-9_-]{8,200}$/.test(stored.id)) throw new Error("저장한 수업 자료의 드라이브 주소를 확인할 수 없습니다.");
       uploaded.push(stored.id);
       checkCancellation(options.signal);
-      savedItems.push({ ...entry.item, fileUrl: `https://drive.google.com/file/d/${stored.id}/view` });
+      const enriched = options.enrich ? await options.enrich(entry.item, original.file, stored.id, original.document.sha256) : entry.item;
+      // An enrichment callback can describe the source, but cannot change its identity or destination.
+      const normalized = normalizeWorkspaceItem({ ...enriched, id: entry.item.id, kind: "material", purpose: entry.item.purpose,
+        createdAt: entry.item.createdAt, sourceFile: entry.item.sourceFile, fileUrl: `https://drive.google.com/file/d/${stored.id}/view` });
+      if (normalized.kind !== "material") throw new Error("자료 항목의 종류가 올바르지 않습니다.");
+      savedItems.push(normalized);
       report({ phase: "uploading", completed: index + 1, total: additions.length, fileName: original.file.name });
     }
     checkCancellation(options.signal);
     const workspace = mergedWorkspace(savedItems);
     validateFreeSnapshotBudget(current.careers, current.documents, workspace);
     report({ phase: "saving", completed: 0, total: 1 });
-    await activateRestoredData({ careers: current.careers, documents: current.documents, workspace }, current.revision, current.activeVersion, {
-      signal: options.signal, onCommitStarted: () => { commitStarted = true; },
-    });
+    const activation = { signal: options.signal, onCommitStarted: () => { commitStarted = true; } };
+    if (prepared.purpose !== undefined) await appendFreeWorkspaceItems(savedItems, current.revision, current.activeVersion, activation);
+    else await activateRestoredData({ careers: current.careers, documents: current.documents, workspace }, current.revision, current.activeVersion, activation);
     report({ phase: "done", completed: 1, total: 1 });
     return result;
   } catch (error) {

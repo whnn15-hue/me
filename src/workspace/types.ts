@@ -13,6 +13,9 @@ export interface ProjectItem extends WorkspaceItemBase {
 export interface MaterialItem extends WorkspaceItemBase {
   kind: "material"; ownership: "created" | "collected"; author: string; eventName: string;
   purpose?: "classroom" | "lecture";
+  subjects?: string[];
+  trainings?: string[];
+  sourceFile?: { name: string; size: number; sha256: string };
   date: string; audience: string[]; format: "PPT" | "PDF" | "HWP" | "TXT" | "영상" | "기타"; fileUrl: string; summary: string;
 }
 export interface CourseItem extends WorkspaceItemBase { kind: "course"; semester: string; professor: string; }
@@ -42,6 +45,8 @@ export interface WorkspaceSectionProps {
   onSave: (item: WorkspaceItem, links: string[], expectedRevision: number) => Promise<void>;
   onDelete: (id: string, expectedRevision: number) => Promise<void>; onOpen: (ref: string) => void;
   focusId?: string; onError: (error: unknown) => void;
+  onFiles?: (files: File[], purpose: "classroom" | "lecture") => Promise<void>;
+  uploading?: boolean;
 }
 // Descriptive aliases keep individual tab code concise.
 export type Project = ProjectItem;

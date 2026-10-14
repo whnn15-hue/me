@@ -36,6 +36,9 @@ import {
   Users,
   X,
 } from "lucide-react";
+import FileDropzone from "./FileDropzone";
+import { careerCollections, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
+import { materialDraft } from "../shared/material-classification.mjs";
 import { api, download } from "./api";
 import {
   cloudMode,
@@ -74,6 +77,7 @@ const categoryIcons = {
   "연구·수상": Trophy,
   "집필·콘텐츠": BookOpen,
   "근무·파견": BriefcaseBusiness,
+  파견: BriefcaseBusiness, 근무: BriefcaseBusiness, 집필: BookOpen, "콘텐츠 제작": FileText,
   자격증: FileCheck2,
   기타: Layers3,
 };
@@ -91,7 +95,10 @@ const navItems: {
   },
   { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
   { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
-  { view: "graduate", label: "대학원", icon: GraduationCap, description: "공부와 연구의 기록" },
+  { view: "graduate", label: "대학원", icon: GraduationCap, description: "" },
+  { view: "secondment", label: "파견", icon: BriefcaseBusiness, description: "" },
+  { view: "writing", label: "집필", icon: BookOpen, description: "" },
+  { view: "content", label: "콘텐츠 제작", icon: FileText, description: "" },
   {
     view: "documents",
     label: "공문 보관함",
@@ -155,6 +162,12 @@ export function Evidence({ career }: { career: Career }) {
   );
 }
 
+function Recognition({career}: {career:Career}) {
+  if (career.category !== "연구·수상" && career.awardGrade === undefined && career.awardLevel === undefined) return null;
+  const details=recognitionDetails(career);
+  return <div className="recognition-badges" aria-label="연구 수상 등급과 단계">{details.level && <span className="award-level">{details.level}</span>}{details.grade && <strong>{details.grade}</strong>}{details.stages.map(stage=><span className="award-stage" key={stage}>{stage}</span>)}{!details.grade && <span className="award-unknown">등급 미기재</span>}</div>;
+}
+
 export default function App() {
   const [status, setStatus] = useState<Status | null>(null),
     [careers, setCareers] = useState<Career[]>([]),
@@ -163,6 +176,7 @@ export default function App() {
     [workspaceFocus, setWorkspaceFocus] = useState<string | undefined>(),
     [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0),
     [globalSearch, setGlobalSearch] = useState(false);
+  const materialUploading = useRef(false);
   const [view, setView] = useState<View>("careers"),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState<Category | "전체">("전체"),
@@ -318,18 +332,23 @@ export default function App() {
         .reverse(),
     [careers],
   );
+  const isCareerView = ["careers", "secondment", "writing", "content"].includes(view);
+  const careerViewLabel = ({ secondment: "파견", writing: "집필", content: "콘텐츠 제작" } as Record<string,string>)[view] || "나의 이력";
+  const scopedCareers = careers.filter(c => view === "careers" || careerCollections(c, documents).includes(view as "secondment"|"writing"|"content"));
+  const collectionDocuments = view === "careers" ? [] : documents.filter(document =>
+    scopedCareers.some(career => career.documentIds.includes(document.id)) || view === "secondment" && document.name.includes("파견"));
   const filtered = useMemo(
     () =>
       careers
         .filter((c) => {
           const match =
-            `${displayLabel(c.title)} ${c.organization} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
+            `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${displayLabel(c.title)} ${c.organization} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
               .normalize("NFC").toLocaleLowerCase()
               .includes(query.normalize("NFC").trim().toLocaleLowerCase());
           return (
             match &&
             (!reviewOnly || !c.verified) &&
-            (category === "전체" || category === c.category) &&
+            (view === "careers" || careerCollections(c, documents).includes(view as "secondment" | "writing" | "content")) && matchesCareerCategory(c, category, documents) &&
             (year === "전체 연도" ||
               (c.startDate.slice(0, 4) <= year &&
                 (c.endDate || c.startDate).slice(0, 4) >= year)) &&
@@ -345,7 +364,7 @@ export default function App() {
             (b.startDate || "").localeCompare(a.startDate || "") ||
             a.title.localeCompare(b.title, "ko"),
         ),
-    [careers, query, category, year, evidenceFilter, reviewOnly],
+    [careers, documents, query, category, year, evidenceFilter, reviewOnly, view],
   );
   const groups = useMemo(
     () =>
@@ -367,13 +386,13 @@ export default function App() {
     setEvidenceFilter("전체 증빙"); setReviewOnly(false);
   };
   const focusArchive = (filter: "all" | "missing" | "review") => {
-    clearFilters();
+    clearFilters(); setView("careers");
     if (filter === "missing") setEvidenceFilter("증빙 미첨부");
     if (filter === "review") setReviewOnly(true);
     document.getElementById("career-records")?.scrollIntoView({ block: "start" });
   };
   const changeView = (v: View) => {
-    if (v === "careers") clearFilters();
+    if (["careers","secondment","writing","content"].includes(v)) clearFilters();
     window.scrollTo({ top: 0 });
     setView(v);
     setQuery("");
@@ -568,6 +587,33 @@ export default function App() {
       setAnalysisNote([...new Set(notes)].join(" "));
     } else if (notes.length) setError(notes.join("\n"));
   }
+  async function uploadMaterials(files: File[], purpose: "lecture" | "classroom") {
+    if (materialUploading.current || busy) return;
+    if (!status?.driveConnected) { setError("백업 및 설정에서 구글 드라이브를 먼저 연결해 주세요."); return; }
+    materialUploading.current = true; setBusy("자료 자동 정리 중"); setError("");
+    const warnings: string[] = [];
+    try {
+      const { prepareMaterialFiles } = await import("./free/material-files");
+      const { applyMaterialImport } = await import("./free/material-import");
+      const prepared = await prepareMaterialFiles(files, purpose);
+      const result = await applyMaterialImport(prepared, {
+        approvedMaterialIds: prepared.materials.map(entry => entry.item.id),
+        onProgress: progress => setBusy(progress.phase === "saving" ? "자료 저장 중" : `자료 자동 정리 (${progress.completed}/${progress.total})`),
+        enrich: async (item, file, driveFileId, digest) => {
+          if (/\.(txt|pptx|docx|hwpx)$/i.test(file.name) && item.summary.trim()) return item;
+          try {
+            const extraction = await api<{text?:string}>("/documents/extract", {method:"POST",body:JSON.stringify({driveFileId,name:file.name,size:file.size,sha256:digest})});
+            return extraction.text?.trim() ? { ...item, ...materialDraft(file.name, extraction.text, purpose) } : item;
+          } catch { warnings.push(file.name); return item; }
+        },
+      });
+      await refresh();
+      changeView(purpose === "classroom" ? "projects" : "materials");
+      setWorkspaceFocus(prepared.materials[0]?.item.id); setWorkspaceFocusVersion(version=>version+1);
+      setToast(`자료 ${result.added}개 자동 정리, 중복 ${result.duplicates}개${warnings.length ? ", 일부 파일은 파일명으로 분류했습니다" : ""}`);
+    } catch (cause) { fail(cause); await refresh().catch(()=>{}); }
+    finally { materialUploading.current = false; setBusy(""); }
+  }
   async function uploadFiles(files: FileList | File[] | null) {
     if (!files?.length) return;
     if (files.length > 10) {
@@ -676,7 +722,14 @@ export default function App() {
   }
   const authorized = status && (status.mode === "local" || !!status.user);
   return (
-    <div className="app-shell">
+    <div className="app-shell" onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{
+      if (!event.dataTransfer.files.length) return;
+      event.preventDefault(); if(busy || document.querySelector("[role=dialog] form"))return;
+      const files=Array.from(event.dataTransfer.files);
+      if(view==="materials")void uploadMaterials(files,"lecture");
+      else if(view==="projects")void uploadMaterials(files,"classroom");
+      else if(isCareerView || view==="documents")void uploadFiles(files);
+    }}>
       <aside className={`sidebar ${mobileNav ? "is-open" : ""}`}>
         <a
           className="brand"
@@ -721,7 +774,7 @@ export default function App() {
         <div className="sidebar-divider" />
         <div className="nav-section-label">MY COLLECTIONS</div>
         <div className="collection-links">
-          {categories.slice(0, 6).map((c, i) => (
+          {careerCategoryChoices.map((c, i) => (
             <button
               key={displayLabel(c)}
               onClick={() => {
@@ -732,26 +785,11 @@ export default function App() {
             >
               <span className={`collection-dot dot-${i}`} />
               {displayLabel(c)}
-              <span>{careers.filter((x) => x.category === c).length}</span>
+              <span>{careers.filter((x) => matchesCareerCategory(x,c, documents)).length}</span>
             </button>
           ))}
         </div>
         <div className="sidebar-bottom">
-          <div className="sidebar-tip">
-            <span className="tip-icon">
-              <ShieldCheck size={18} />
-            </span>
-            <strong>{status?.driveConnected ? "드라이브와 연결되어 있어요" : "소중한 기록, 안전하게"}</strong>
-            <p>{status?.driveConnected
-              ? status.lastBackup
-                ? `마지막 백업 ${new Date(status.lastBackup).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" })}`
-                : "첫 백업으로 기록을 보관하세요."
-              : "경력 정보와 원본 공문을 함께 백업해 두세요."}</p>
-            <button onClick={() => changeView("settings")}>
-              {status?.driveConnected ? "백업 상태 확인" : "백업 설정하기"}
-              <ArrowUpRight size={14} />
-            </button>
-          </div>
           <button
             className="account-button"
             onClick={() => changeView("settings")}
@@ -876,7 +914,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {["careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {["careers", "projects", "materials", "graduate", "secondment", "writing", "content"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 7).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
               {!["projects", "materials", "graduate"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
@@ -892,8 +930,8 @@ export default function App() {
                           : "SAFE & CONNECTED"}
                   </div>
                   <h1>
-                    {view === "careers"
-                      ? "나의 경력"
+                    {isCareerView
+                      ? careerViewLabel
                       : view === "projects" ? "수업"
                       : view === "materials" ? "강의 자료"
                       : view === "graduate" ? "대학원"
@@ -904,21 +942,10 @@ export default function App() {
                           : "백업 및 설정"}
                     <span className="heading-dot">.</span>
                   </h1>
-                  <p>
-                    {view === "careers"
-                      ? "하나씩 쌓아온 경험을, 한눈에 정리하세요."
-                      : view === "projects" ? "수업의 질문부터 결과와 성찰까지, 나의 수업을 기록하세요."
-                      : view === "materials" ? "내가 만든 자료와 발견한 좋은 자료를 필요한 순간에 꺼내 쓰세요."
-                      : view === "graduate" ? "수업, 과제, 논문과 떠오른 생각을 하나의 공부 흐름으로 연결하세요."
-                      : view === "documents"
-                        ? "경력을 증명하는 원본 파일을 한곳에 모아두세요."
-                        : view === "resume"
-                          ? "필요한 경력을 골라, 다음 기회를 준비하세요."
-                          : "어디서든 이어지는 기록, 안심할 수 있는 백업."}
-                  </p>
+
                 </div>
                 <div className="page-actions">
-                  {(view === "careers" || view === "documents") && (
+                  {(isCareerView || view === "documents") && (
                     <>
                       <button
                         className="button secondary"
@@ -944,41 +971,20 @@ export default function App() {
                   )}
                 </div>
               </div>}
-              {view === "careers" && (
+              {isCareerView && (
                 <>
-                  <section className="archive-overview" aria-label="나의 아카이브 현황">
-                    <div className="overview-intro">
-                      <span className="banner-eyebrow"><span />YOUR WORK, WELL KEPT</span>
-                      <h2>쌓아온 경험을, <br />다음 기회로.</h2>
-                      <p>강의부터 연구, 일상의 작은 성취까지.<br />나를 설명하는 기록을 하나씩 연결해 보세요.</p>
-                      <button onClick={() => { setManual(true); setManualText(""); }} className="banner-link">
-                        <Plus size={16} />한 문장으로 기록하기<ArrowUpRight size={15} />
-                      </button>
-                      <div className="overview-period"><CalendarDays size={14} />
-                        {years.length ? `${years.at(-1)} – ${years[0]}, ${years.length}개 연도의 경험` : "오늘부터 시작하는 나의 아카이브"}
-                      </div>
-                    </div>
-                    <div className="archive-readiness">
-                      <div className="readiness-heading"><span><FileCheck2 size={16} />증빙 연결 현황</span><span className="readiness-caption">MY ARCHIVE</span></div>
-                      <div className="readiness-number"><strong>{linkedCareers}</strong><span>/ {evidenceRequired}건</span></div>
-                      <p>{evidenceRequired ? "증빙이 필요한 경력 중 원본을 연결한 기록" : "경력과 공문을 함께 보관해 보세요"}</p>
-                      <div className="coverage-track" role="progressbar" aria-label="증빙 연결률" aria-valuenow={coverage} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${coverage}%` }} /></div>
-                      <div className="coverage-caption"><span>연결 완료</span><strong>{coverage}%</strong></div>
-                      <button className="readiness-action" onClick={() => missingEvidence ? focusArchive("missing") : changeView("documents")}>
-                        <span>{missingEvidence ? `증빙 보완할 경력 ${missingEvidence}건` : "공문 보관함 살펴보기"}</span><ArrowRight size={17} />
-                      </button>
-                    </div>
-                  </section>
                   <section className="stats-grid" aria-label="경력 요약">
                     <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
                     <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
                     <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
                     <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
                   </section>
+                  {view !== "careers" && collectionDocuments.length > 0 && <details className="collection-evidence"><summary><FileText size={16}/>{careerViewLabel} 관련 공문 {collectionDocuments.length}개</summary><div>{collectionDocuments.map(document => <div key={document.id}><span>{displayLabel(document.name)}</span><button className="button secondary" onClick={()=>void download(`/documents/${document.id}/file`,document.name).catch(fail)}><Download size={14}/>원본</button><button className="text-button" onClick={()=>{setLinkDoc(document);setLinkId("");setLinkQuery("");}}>이력 연결</button></div>)}</div></details>}
+                  <FileDropzone onFiles={uploadFiles} busy={!!busy} label="공문을 끌어 놓으면 이력 초안 정리" />
                   <section className="career-section" id="career-records">
                     <div className="section-heading">
                       <h2>
-                        경력 모아보기 <span>{filtered.length}</span>
+                        {careerViewLabel} <span>{filtered.length}</span>
                       </h2>
                       <button
                         className="text-button"
@@ -1057,7 +1063,7 @@ export default function App() {
                       </div>
                     </div>
                     <div className="category-tabs" aria-label="분류 필터">
-                      {(["전체", ...categories] as const).map((c) => (
+                      {(["전체", ...careerCategoryChoices] as const).map((c) => (
                         <button
                           key={displayLabel(c)}
                           className={category === c ? "active" : ""}
@@ -1067,14 +1073,14 @@ export default function App() {
                           {displayLabel(c)}
                           <span>
                             {c === "전체"
-                              ? careers.length
-                              : careers.filter((x) => x.category === c).length}
+                              ? scopedCareers.length
+                              : scopedCareers.filter((x) => matchesCareerCategory(x,c, documents)).length}
                           </span>
                         </button>
                       ))}
                     </div>
                     <div className="archive-result-bar">
-                      <span aria-live="polite">{hasFilters ? `검색 결과 ${filtered.length}건` : `전체 ${careers.length}건, 최근 활동순`}</span>
+                      <span aria-live="polite">{hasFilters ? `검색 결과 ${filtered.length}건` : `전체 ${filtered.length}건, 최근 활동순`}</span>
                       <div>
                         <button className={`review-filter ${reviewOnly ? "active" : ""}`} aria-pressed={reviewOnly} onClick={() => setReviewOnly(!reviewOnly)}><CircleHelp size={14} />확인 전만 보기</button>
                         {hasFilters && <button className="reset-filters" onClick={clearFilters}><X size={13} />필터 초기화</button>}
@@ -1122,14 +1128,14 @@ export default function App() {
                                 <CategoryIcon category={c.category} />
                                 <div className="career-info">
                                   <div className="career-category">
-                                    {displayLabel(c.category)}
+                                    {careerCategoryLabel(c, documents)}
                                     {!c.verified && (
                                       <span className="unverified-label">
                                         확인 전
                                       </span>
                                     )}
                                   </div>
-                                  <h4>{displayLabel(c.title)}</h4>
+                                  <h4>{displayLabel(c.title)}</h4><Recognition career={c} />
                                   <div className="career-meta">
                                     <span>
                                       {displayLabel(c.organization || "기관 확인 필요")}
@@ -1170,8 +1176,8 @@ export default function App() {
                   </section>
                 </>
               )}
-              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
-              {view === "materials" && <MaterialsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
+              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
+              {view === "materials" && <MaterialsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
               {view === "graduate" && <GraduateView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "documents" && (
                 <DocumentsView
@@ -1233,7 +1239,7 @@ export default function App() {
         ref={uploadRef}
         type="file"
         multiple
-        accept=".pdf,.hwp,.hwpx,.docx,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp"
+        accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp"
         aria-label="공문 파일 선택"
         className="visually-hidden"
         onChange={(e) => uploadFiles(e.target.files)}
@@ -1285,7 +1291,7 @@ export default function App() {
       {manual && (
         <Modal
           title="한 문장으로 경력 기록하기"
-          subtitle="기억나는 만큼 적어주세요. 항목과 태그를 정리해 드려요."
+
           onClose={() => !busy && setManual(false)}
         >
           <div className="modal-body">
@@ -1348,8 +1354,8 @@ export default function App() {
               </button>
             </div>
             <CategoryIcon category={detail.category} />
-            <div className="detail-category">{displayLabel(detail.category)}</div>
-            <h2>{displayLabel(detail.title)}</h2>
+            <div className="detail-category">{careerCategoryLabel(detail, documents)}</div>
+            <h2>{displayLabel(detail.title)}</h2><Recognition career={detail} />
             <Evidence career={detail} />
             {!detail.verified && (
               <div className="notice detail-notice">
@@ -1526,7 +1532,7 @@ export default function App() {
                 onChange={(e) => setLinkId(e.target.value)}
               >
                 <option value="">경력을 선택해 주세요</option>
-                {careers.filter((c) => `${displayLabel(c.title)} ${c.organization} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
+                {careers.filter((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${displayLabel(c.title)} ${c.organization} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
                   <option key={c.id} value={c.id} disabled={c.documentIds.includes(linkDoc.id)}>
                     {c.startDate}, {displayLabel(c.title)}{c.documentIds.includes(linkDoc.id) ? " (연결됨)" : ""}
                   </option>
@@ -1582,7 +1588,7 @@ function Stat({
         {value}
         <small>{unit}</small>
       </div>
-      <p>{foot}<ArrowUpRight size={13} /></p>
+
     </button>
   );
 }
@@ -1637,7 +1643,7 @@ function DocumentsView({
   const linkedCount = documents.filter((d) => linkedByDocument.get(d.id)?.length).length;
   const items = documents.filter((d) => {
     const linked = linkedByDocument.get(d.id) || [];
-    return `${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${displayLabel(c.title)} ${c.organization} ${c.tags.join(" ")}`).join(" ")}`
+    return `${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${displayLabel(c.title)} ${c.organization} ${c.tags.join(" ")}`).join(" ")}`
       .normalize("NFC").toLocaleLowerCase().includes(query.normalize("NFC").trim().toLocaleLowerCase()) &&
       (filter === "전체 파일" || (filter === "연결된 파일" ? linked.length > 0 : linked.length === 0));
   });
@@ -1657,6 +1663,7 @@ function DocumentsView({
         onDragLeave={() => setDrag(false)}
         onDrop={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           setDrag(false);
           if (!busy) onDrop(e.dataTransfer.files);
         }}
@@ -1664,21 +1671,16 @@ function DocumentsView({
         <span className="upload-icon">
           <CloudUpload size={30} />
         </span>
-        <h2>공문을 올리면, 경력 정리가 시작돼요.</h2>
-        <p>
-          파일을 여기에 끌어놓거나 선택해 주세요. 여러 개를 한 번에 올릴 수
-          있어요.
-        </p>
+        <h2>공문 업로드</h2>
+
         <button className="button primary" onClick={onUpload} disabled={busy}>
           <Plus size={17} />
           파일 선택하기
         </button>
         <small>
-          PDF, HWP, HWPX, DOCX, XLSX, CELL, TXT, 이미지, 파일당 최대 25 MB, 한 번에
+          PDF, PPTX, HWP, HWPX, DOCX, XLSX, CELL, TXT, 이미지, 파일당 최대 25 MB, 한 번에
           10개
-          <br />
-          HWP, 이미지 원본은 보관 가능하며 내용 추출 지원 범위는 설정에서 확인할
-          수 있어요.
+
         </small>
       </div>
       <div className="section-heading document-section-heading">

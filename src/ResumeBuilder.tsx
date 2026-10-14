@@ -238,9 +238,7 @@ export default function ResumeBuilder({
         <FileCheck2 size={20} />
         <span>
           <strong>경력 선택 → 내용 확인 → 이력서와 증빙 다운로드</strong>
-          <small>
-            다양한 제출 양식에 맞춰 필요한 기록만 골라 사용할 수 있어요.
-          </small>
+
         </span>
         <span className="step-number">01 — 03</span>
       </div>

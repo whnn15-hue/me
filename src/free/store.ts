@@ -6,7 +6,7 @@ import { getFirebaseApp, readyCloudUser } from "../cloud";
 import { type Career, type DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId } from "./normalize";
 import { emptyWorkspace, isWorkspaceMetadataRow, mergeWorkspaceData, mutateWorkspace, normalizeWorkspace, workspaceFromRows, workspaceToRows, type WorkspaceMetadataRow } from "../../shared/workspace.mjs";
-import type { WorkspaceArchive, WorkspaceData, WorkspaceImportResult } from "../workspace/types";
+import type { WorkspaceArchive, WorkspaceData, WorkspaceImportResult, WorkspaceItem } from "../workspace/types";
 
 export interface FreeSnapshot {
   careers: Career[];
@@ -392,6 +392,46 @@ export async function mutateFreeWorkspace(operation: "create" | "update" | "dele
   requireRevision(body.expectedRevision, view.revision);
   const workspace = mutateWorkspace(view.workspace, { operation, id, item: body.item, links: body.links as string[], expectedRevision: view.revision }, view.careers);
   return commitWorkspaceChange(ctx, view, workspace, { allowOversizeDelete: operation === "delete" });
+}
+
+/** Routine file registration writes only new material rows, never copies the archive. */
+export async function appendFreeWorkspaceItems(
+  items: WorkspaceItem[], expectedRevision: number, expectedActiveVersion: string,
+  options: ActivationOptions = {},
+): Promise<void> {
+  checkCancellation(options.signal);
+  if (!Array.isArray(items) || !items.length || items.length > 350) throw new Error("한 번에 추가할 자료 목록을 확인해 주세요.");
+  const ctx = await context(), view = await snapshot(ctx);
+  requireRevision(expectedRevision, view.revision);
+  if (expectedActiveVersion !== view.activeVersion) throw new ArchiveRevisionConflictError();
+  const ids = new Set(items.map(item => item.id));
+  if (ids.size !== items.length || view.workspace.items.some(item => ids.has(item.id))) throw new ArchiveRevisionConflictError();
+  const workspace = normalizeWorkspace({ ...view.workspace, items: [...view.workspace.items, ...items] }, {
+    careerIds: view.careers.map(career => career.id), revision: nextRevision(view.revision),
+  });
+  validateFreeSnapshotBudget(view.careers, view.documents, workspace);
+  const existingRows = new Set(view.workspaceRows.map(row => row.id));
+  const previousMeta = view.workspaceRows.find(row => row.rowType === "meta");
+  const additions = workspaceToRows(workspace).filter(row => row.rowType === "meta" || !existingRows.has(row.id))
+    .map(row => row.rowType === "meta" ? { ...previousMeta, ...row } : row);
+  if (additions.length > 398) throw new Error("한 번에 저장할 자료가 너무 많습니다.");
+  const version = view.workspaceVersion || `workspace_${crypto.randomUUID()}`;
+  const careerVersion = view.activeVersion || crypto.randomUUID();
+  let mayHaveCommitted = false;
+  await runTransaction(ctx.db, async tx => {
+    const actual = rootState((await tx.get(ctx.root)).data());
+    const pointer = (await tx.get(workspacePointer(ctx))).data();
+    checkCancellation(options.signal);
+    if (!sameRoot(actual, view) || (pointer?.activeVersion || "") !== view.workspaceVersion) {
+      if (!mayHaveCommitted) throw new ArchiveRevisionConflictError();
+      throw conflict();
+    }
+    mayHaveCommitted = true;
+    options.onCommitStarted?.();
+    for (const data of additions) tx.set(row(ctx, version, "documents", data.id), data);
+    if (!view.workspaceVersion) tx.set(workspacePointer(ctx), pointerMetadata(version));
+    tx.set(ctx.root, { activeVersion: careerVersion, revision: workspace.revision }, { merge: true });
+  });
 }
 export async function exportFreeWorkspace(): Promise<WorkspaceArchive> {
   const view = await readFreeSnapshot();

@@ -5,11 +5,32 @@ import { extname } from 'node:path';
 import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
 import { CATEGORIES, cleanText, normalizeCareer } from './store.mjs';
+import { extractHwpText } from './hwp.mjs';
+import { readZipText } from '../shared/zip-text.mjs';
 const run = promisify(execFile);
 
 export async function extractText(path, filename) {
   const extension = extname(filename).toLowerCase();
   if (extension === '.txt') return { text: (await readFile(path, 'utf8')).slice(0, 100000), analysisStatus: 'text-ready' };
+  if (extension === '.hwp') {
+    try { const text = extractHwpText(await readFile(path)); return { text, analysisStatus: text.trim() ? 'text-ready' : 'extraction-unavailable' }; }
+    catch { return { text: '', analysisStatus: 'hwp-conversion-needed' }; }
+  }
+  if (extension === '.pptx') {
+    try {
+      const zip = await JSZip.loadAsync(await readFile(path)), pieces = []; let total = 0;
+      const slides = Object.values(zip.files).filter(file => /^ppt\/slides\/slide\d+\.xml$/.test(file.name)).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true})).slice(0, 100);
+      for (const slide of slides) {
+        const size = slide._data?.uncompressedSize ?? Infinity;
+        if (size > 1024 * 1024 || total + size > 8 * 1024 * 1024) continue;
+        const extracted = await readZipText(slide, Math.min(1024 * 1024, 8 * 1024 * 1024 - total));
+        total += extracted.byteLength;
+        const xml = extracted.text;
+        pieces.push([...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)].map(match => match[1].replace(/<[^>]*>/g, '').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')).join('\n'));
+      }
+      return { text: pieces.join('\n').slice(0,100000), analysisStatus: pieces.length ? 'text-ready' : 'extraction-unavailable' };
+    } catch { return {text:'',analysisStatus:'extraction-unavailable'}; }
+  }
   if (extension === '.pdf') {
     try {
       const { stdout } = await run('pdftotext', ['-layout', '-enc', 'UTF-8', path, '-'], { timeout: 15000, maxBuffer: 1024 * 1024 });

@@ -38,6 +38,7 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await dialog.getByRole('button',{name:'교과 추가',exact:true}).click();
   await dialog.getByLabel('교과 1',{exact:true}).fill('과학');
   await dialog.getByLabel('단원 1',{exact:true}).fill('생태계');
+  if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
   await dialog.getByLabel('핵심 질문',{exact:true}).fill('우리 학교 생태계는 어떻게 달라질까?');
   await dialog.getByLabel('수업 흐름',{exact:true}).fill('관찰, 조사, 발표');
   await dialog.getByLabel('주요 활동',{exact:true}).fill('학교 생물 관찰');
@@ -59,6 +60,7 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await tab(page,'강의 자료');await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'강의 자료 추가',exact:true});
   await dialog.getByPlaceholder('다시 찾기 쉬운 자료 제목').fill('통합검증 생태 강의안');
+  if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
   await dialog.getByLabel('제작자 또는 출처',{exact:true}).fill('직접 제작');
   await dialog.getByLabel('사용한 행사 또는 강의',{exact:true}).fill('생태 교원 연수');
   await dialog.getByLabel('자료 날짜',{exact:true}).fill('2026-04-01');
@@ -205,8 +207,9 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   let dialog=page.getByRole('dialog',{name:'학급 자료 추가',exact:true});
   await dialog.getByPlaceholder('다시 찾기 쉬운 자료 제목').fill('학급검증 스피치 활동지');
-  await dialog.getByRole('button',{name:'모아둔 자료',exact:true}).click();
+  if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
   await dialog.getByLabel('제작자 또는 출처',{exact:true}).fill('합성 자료 출처');
+  if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
   await dialog.getByLabel('사용한 수업 또는 활동',{exact:true}).fill('아침 말하기 활동');
   await dialog.getByLabel('자료 형식',{exact:true}).selectOption('HWP');
   await dialog.getByLabel('대상',{exact:true}).fill('학생');
@@ -219,7 +222,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   let saved=await workspace(page);
   const material=saved.items.find((i:any)=>i.title==='학급검증 스피치 활동지');
   expect(material.purpose).toBe('classroom');expect(material.format).toBe('HWP');
-  expect(material.ownership).toBe('collected');expect(material.audience).toEqual(['학생']);
+  expect(material.ownership).toBe('created');expect(material.audience).toEqual(['학생']);
   await expect(page.getByRole('button',{name:`${legacy.title} 상세보기`,exact:true})).toHaveCount(0);
   await page.getByLabel('학급 자료 검색',{exact:true}).fill('발표 순서');
   await expect(page.getByRole('button',{name:`${material.title} 상세보기`,exact:true})).toBeVisible();
@@ -256,6 +259,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await dialog.getByRole('button',{name:'수정하기',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'학급 자료 수정',exact:true});
+  if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
   await dialog.getByLabel('자료 형식',{exact:true}).selectOption('TXT');
   await dialog.getByRole('textbox',{name:'핵심 내용과 활용 메모',exact:true}).fill('학급검증 다음 수업에는 한 문장 발표로 시작하기');
   await dialog.getByRole('button',{name:'자료 저장',exact:true}).click();

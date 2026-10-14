@@ -236,7 +236,6 @@ export default function BackupSettings({
             </span>
             <div>
               <h2>구글 계정 로그인</h2>
-              <p>다른 컴퓨터에서도 같은 계정으로 내 기록을 확인하세요.</p>
             </div>
             <span
               className={`connection-badge ${status.user ? "connected" : ""}`}
@@ -300,9 +299,6 @@ export default function BackupSettings({
             </span>
             <div>
               <h2>구글 드라이브 백업</h2>
-              <p>{freeMode
-                ? "경력 정보는 날짜별로 백업하고 공문 원본은 드라이브에 보관해요."
-                : "경력 데이터와 공문 원본을 함께, 날짜별로 보관해요."}</p>
             </div>
             <span
               className={`connection-badge ${status.driveConnected ? "connected" : ""}`}
@@ -408,9 +404,6 @@ export default function BackupSettings({
             </span>
             <div>
               <h2>파일로 백업, 복원</h2>
-              <p>{freeMode
-                ? "공문 원본까지 담은 ZIP을 내려받아 별도로 보관하세요."
-                : "별도 계정 연결 없이도 내 기록을 직접 보관할 수 있어요."}</p>
             </div>
           </div>
           <div className="local-backup-options">
@@ -500,7 +493,6 @@ export default function BackupSettings({
             </span>
             <div>
               <h2>경력 자동 정리</h2>
-              <p>공문과 자유롭게 입력한 내용을 확인 가능한 초안으로 바꿔요.</p>
             </div>
             <span
               className={`connection-badge ${status.aiConfigured ? "connected" : ""}`}
@@ -526,8 +518,8 @@ export default function BackupSettings({
               <span>AI 연결 시 이미지 분석, 미연결 시 직접 입력</span>
             </li>
             <li>
-              <strong>HWP, XLSX</strong>
-              <span>원본 보관, 연결 가능, 내용은 직접 확인</span>
+              <strong>PPTX, HWP</strong>
+              <span>본문 읽기, 원본 보관</span>
             </li>
           </ul>
         </section>

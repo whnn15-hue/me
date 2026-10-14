@@ -4,6 +4,10 @@ export const categories = [
   "연구·수상",
   "집필·콘텐츠",
   "근무·파견",
+  "파견",
+  "근무",
+  "집필",
+  "콘텐츠 제작",
   "자격증",
   "기타",
 ] as const;
@@ -23,6 +27,9 @@ export interface Career {
   verified: boolean;
   documentIds: string[];
   source?: string;
+  awardLevel?: string;
+  awardGrade?: string;
+  awardStages?: string[];
 }
 export interface DocumentRecord {
   id: string;
@@ -51,7 +58,7 @@ export interface Status {
   configurationError?: string;
   authenticationError?: string;
 }
-export type View = "careers" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings";
+export type View = "careers" | "secondment" | "writing" | "content" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings";
 export interface HwpxField {
   id: string;
   label: string;

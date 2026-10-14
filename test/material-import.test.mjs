@@ -135,6 +135,53 @@ async function prepared(items) { return readMaterialImportFile(await archive(ite
 const apply = (input, options = {}) => applyMaterialImport(input, { approvedMaterialIds: input.materials.map(entry => entry.item.id), ...options });
 const noWrites = state => { assert.equal(state.uploads.length, 0); assert.equal(state.batches.length, 0); assert.equal(state.transactions.length, 0); assert.deepEqual(state.trashed, []); };
 
+test('lecture file uploads enrich descriptions and classification while preserving source identity and existing records', async () => {
+  const state = runtime(), input = await prepared();
+  input.purpose = 'lecture';
+  for (const entry of input.materials) {
+    entry.item.purpose = 'lecture';
+    const original = input.documents.find(document => document.id === entry.documentId);
+    entry.item.sourceFile = { name: original.name, size: original.size, sha256: original.sha256 };
+  }
+  const before = await readFreeSnapshot();
+  const result = await apply(input, {enrich: async item => ({...item,id:'untrusted_identity',purpose:'classroom',title:'Auto lecture',subjects:['국어'],trainings:['읽기'],summary:'Extracted source summary'})});
+  assert.equal(result.added,2);
+  const saved = await readFreeSnapshot();
+  assert.equal(saved.activeVersion,before.activeVersion,'routine registration keeps the career namespace');
+  assert.equal(saved.workspaceVersion,before.workspaceVersion,'routine registration appends in the existing workspace');
+  assert.equal(state.batches.length,0,'existing archive rows are not staged again');
+  assert.ok(state.transactions.flat().every(([path])=>path===rootPath||path.startsWith(`${rootPath}/versions/${before.workspaceVersion}/documents/`)));
+  const one = saved.workspace.items.find(item => item.id === 'one');
+  assert.equal(one.purpose,'lecture');assert.equal(one.title,'Auto lecture');assert.deepEqual(one.subjects,['국어']);assert.deepEqual(one.trainings,['읽기']);
+  assert.deepEqual(one.sourceFile,input.materials[0].item.sourceFile);assert.match(one.fileUrl,/drive\.google\.com\/file\/d\//);
+  assert.deepEqual(saved.careers,before.careers);assert.deepEqual(saved.documents,before.documents);assert.deepEqual(saved.workspace.links,before.workspace.links);
+  const writes=state.batches.length;
+  assert.deepEqual(await apply(input),{added:0,duplicates:2,skipped:0});assert.equal(state.uploads.length,2);assert.equal(state.batches.length,writes);
+});
+
+test('an extraction failure after upload cleans only the new original and leaves live workspace untouched',async()=>{
+  const state=runtime(),before=await readFreeSnapshot();
+  await assert.rejects(apply(await prepared(),{enrich:async()=>{throw Error('synthetic extraction failure');}}),/extraction failure/);
+  assert.equal(state.uploads.length,1);assert.equal(state.trashed.length,1);assert.equal(state.batches.length,0);assert.deepEqual(await readFreeSnapshot(),before);
+});
+
+test('routine registration rejects concurrent edits before writes and retains originals after an uncertain transaction',async()=>{
+  const input=await prepared();input.purpose='lecture';for(const entry of input.materials)entry.item.purpose='lecture';
+  let state=runtime();state.beforeTransaction=async()=>{state.rows.set(rootPath,{...state.rows.get(rootPath),revision:8});};
+  await assert.rejects(apply(input),/변경/);assert.equal(state.trashed.length,2);assert.equal(state.batches.length,0);
+  assert.equal((await readFreeSnapshot()).workspace.items.some(item=>item.id==='one'),false);
+  state=runtime();state.uncertainCommit=true;
+  await assert.rejects(apply(input),/response unavailable/);assert.deepEqual(state.trashed,[]);
+  assert.equal((await readFreeSnapshot()).workspace.items.filter(item=>['one','two'].includes(item.id)).length,2);
+});
+
+test('a routine transaction retry after a possible commit never trashes referenced originals',async()=>{
+  const state=runtime(),input=await prepared();input.purpose='classroom';
+  state.afterFirstAttempt=async writes=>{for(const [path,value] of writes)state.rows.set(path,value);};
+  await assert.rejects(apply(input),/변경/);assert.deepEqual(state.trashed,[]);
+  assert.equal((await readFreeSnapshot()).workspace.items.some(item=>item.id==='one'),true);
+});
+
 test('classroom packages preserve original bytes and cannot enter full backup restoration', async () => {
   runtime();
   const file = await archive(), result = await readMaterialImportFile(file);

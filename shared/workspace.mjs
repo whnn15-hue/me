@@ -78,6 +78,12 @@ export function normalizeWorkspaceItem(value, previous) {
         if (!['classroom', 'lecture'].includes(merged.purpose)) fail('자료를 보관할 곳을 확인해 주세요.');
         result.purpose = merged.purpose;
       }
+      for (const field of ['subjects', 'trainings']) if (merged[field] !== undefined) result[field] = strings(merged[field], 30, 100);
+      if (merged.sourceFile !== undefined) {
+        const file = object(merged.sourceFile);
+        if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > 25 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(file.sha256 || '')) fail('자료 원본 정보를 확인해 주세요.');
+        result.sourceFile = {name:text(file.name,300),size:file.size,sha256:file.sha256};
+      }
       Object.assign(result, { ownership, author: text(merged.author, 300), eventName: text(merged.eventName, 300), date: date(merged.date),
         audience: strings(merged.audience, 50, 100), format, fileUrl: normalizeWorkspaceUrl(merged.fileUrl, { httpsOnly: true, driveOnly: true }), summary: text(merged.summary) }); break;
     }

@@ -10,7 +10,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_CAREERS = 100_000;
 const MAX_DOCUMENTS = 10_000;
 const MAX_ENTRIES = MAX_DOCUMENTS + 10;
-const ALLOWED_EXTENSIONS = new Set(["pdf", "hwp", "hwpx", "docx", "txt", "xlsx", "cell", "png", "jpg", "jpeg", "webp"]);
+const ALLOWED_EXTENSIONS = new Set(["pdf", "ppt", "pptx", "hwp", "hwpx", "docx", "txt", "xlsx", "cell", "png", "jpg", "jpeg", "webp"]);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const invalid = (message: string): Error => new Error(message);

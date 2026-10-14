@@ -13,7 +13,7 @@ import { readWorkspace, saveWorkspaceItem, deleteWorkspaceItem, deleteWorkspaceC
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const fault = (message, status = 400) => Object.assign(new Error(message), { status });
-const types = { '.pdf': 'application/pdf', '.hwp': 'application/x-hwp', '.hwpx': 'application/vnd.hancom.hwpx', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.cell': 'application/vnd.hancom.cell', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+const types = { '.pdf': 'application/pdf', '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.hwp': 'application/x-hwp', '.hwpx': 'application/vnd.hancom.hwpx', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.cell': 'application/vnd.hancom.cell', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 function fileName(raw) {
   const converted = Buffer.from(raw, 'latin1').toString('utf8');
   const decoded = converted.includes('\ufffd') ? raw : converted;
@@ -24,7 +24,7 @@ function validateFile(file) {
   if (!ALLOWED_EXTENSIONS.has(extension)) throw fault('PDF, HWP/HWPX, Word, Excel, 한셀, 텍스트 또는 이미지 파일을 올려 주세요.');
   if (!file.buffer.length) throw fault('비어 있는 파일은 보관할 수 없습니다.');
   const magic = file.buffer.subarray(0, 12);
-  const valid = extension === '.txt' || extension === '.pdf' && file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')) || ['.hwpx', '.docx', '.xlsx', '.cell'].includes(extension) && magic.subarray(0, 2).toString() === 'PK' || extension === '.hwp' && magic.subarray(0, 8).equals(Buffer.from('d0cf11e0a1b11ae1', 'hex')) || extension === '.png' && magic.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) || ['.jpg', '.jpeg'].includes(extension) && magic[0] === 0xff && magic[1] === 0xd8 || extension === '.webp' && magic.subarray(0, 4).toString() === 'RIFF' && magic.subarray(8, 12).toString() === 'WEBP';
+  const valid = extension === '.txt' || extension === '.pdf' && file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')) || ['.hwpx', '.docx', '.xlsx', '.cell', '.pptx'].includes(extension) && magic.subarray(0, 2).toString() === 'PK' || ['.hwp', '.ppt'].includes(extension) && magic.subarray(0, 8).equals(Buffer.from('d0cf11e0a1b11ae1', 'hex')) || extension === '.png' && magic.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) || ['.jpg', '.jpeg'].includes(extension) && magic[0] === 0xff && magic[1] === 0xd8 || extension === '.webp' && magic.subarray(0, 4).toString() === 'RIFF' && magic.subarray(8, 12).toString() === 'WEBP';
   if (!valid) throw fault('파일 내용과 확장자가 일치하지 않습니다.');
   return { name, extension, mime: types[extension] };
 }

@@ -156,12 +156,12 @@ test('personal career workflow persists records, reviews uploads, exports eviden
 
 test('mobile navigation works at 375px without page overflow', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 }); await page.goto('/');
-  await expect(page.getByRole('heading', { name: '나의 경력.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '나의 이력', exact:true, level:1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
   await expect(page.locator('.sidebar')).toHaveClass(/is-open/);
   await navigate(page, '공문 보관함');
-  await expect(page.getByRole('heading', { name: '공문 보관함.', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '공문 보관함', exact: true })).toBeVisible();
   await expect(page.locator('.sidebar')).not.toHaveClass(/is-open/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });

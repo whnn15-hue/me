@@ -7,7 +7,7 @@ import { normalizeCareer, publicDocument, cleanText } from './store.mjs';
 import { networkFetch } from './auth.mjs';
 import { normalizeWorkspace } from '../shared/workspace.mjs';
 
-export const ALLOWED_EXTENSIONS = new Set(['.pdf', '.hwp', '.hwpx', '.docx', '.txt', '.xlsx', '.cell', '.png', '.jpg', '.jpeg', '.webp']);
+export const ALLOWED_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.hwp', '.hwpx', '.docx', '.txt', '.xlsx', '.cell', '.png', '.jpg', '.jpeg', '.webp']);
 const MAX_BACKUP_SIZE = 200 * 1024 * 1024;
 const MAX_MANIFEST_SIZE = 5 * 1024 * 1024;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;

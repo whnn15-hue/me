@@ -52,7 +52,7 @@ export function normalizeCareer(value: unknown, previousValue?: Career): Career 
   const startDate = date(chosen(input, previous, "startDate"));
   const endDate = date(chosen(input, previous, "endDate"));
   if (startDate && endDate && endDate < startDate) return invalid("종료일이 시작일보다 빠릅니다. 날짜를 확인해 주세요.");
-  return {
+  const result: Career = {
     id, title, category: category as Career["category"],
     organization: text(chosen(input, previous, "organization"), 300),
     role: text(chosen(input, previous, "role"), 300), startDate, endDate,
@@ -62,6 +62,16 @@ export function normalizeCareer(value: unknown, previousValue?: Career): Career 
     evidenceStatus: documentIds.length ? "attached" : status === "attached" ? "later" : status as Career["evidenceStatus"],
     verified, documentIds, source: text(chosen(input, previous, "source"), 200),
   };
+  for (const field of ["awardLevel", "awardGrade"] as const) {
+    const value = chosen(input, previous, field);
+    if (value !== undefined) result[field] = text(value, 100);
+  }
+  const stages = chosen(input, previous, "awardStages");
+  if (stages !== undefined) {
+    if (!Array.isArray(stages) || stages.length > 10 || stages.some(value => typeof value !== "string" || value.length > 100)) return invalid("대회 단계 목록을 확인해 주세요.");
+    result.awardStages = [...new Set(stages.map(value => text(value, 100)).filter(Boolean))];
+  }
+  return result;
 }
 
 export function normalizeDocumentRecord(value: unknown): DocumentRecord {
@@ -69,7 +79,7 @@ export function normalizeDocumentRecord(value: unknown): DocumentRecord {
   if (!validRecordId(input.id)) return invalid("공문 ID가 올바르지 않습니다.");
   const name = text(input.name, 300).replace(/[\/\\\u0000-\u001f]/g, "_");
   if (!name) return invalid("공문 파일명이 필요합니다.");
-  if (!/\.(pdf|hwp|hwpx|docx|txt|xlsx|cell|png|jpg|jpeg|webp)$/i.test(name)) return invalid("지원하는 공문 파일 형식이 아닙니다.");
+  if (!/\.(pdf|ppt|pptx|hwp|hwpx|docx|txt|xlsx|cell|png|jpg|jpeg|webp)$/i.test(name)) return invalid("지원하는 공문 파일 형식이 아닙니다.");
   const size = input.size;
   if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0 || size > 25 * 1024 * 1024) return invalid("공문 파일은 25MB 이하의 파일이어야 합니다.");
   const createdAt = text(input.createdAt, 50) || new Date().toISOString();

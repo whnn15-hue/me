@@ -35,7 +35,7 @@ export function LinkPicker({ workspace, careers, currentRef, value, onChange }: 
   const toggle = (ref: string, checked: boolean) => onChange(checked ? [...new Set([...value, ref])] : value.filter(item => item !== ref));
   return <div className="workspace-link-picker">
     <div className="workspace-field-heading"><span><Link2 size={15} />관련 기록 연결</span><small>{value.length}개 선택</small></div>
-    <p className="workspace-field-hint">연결한 기록의 상세 화면에서도 서로 찾아갈 수 있어요.</p>
+
     <label className="search-box workspace-link-search"><Search size={15} /><input aria-label="연결할 기록 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="이력, 수업, 자료, 대학원 기록 찾기" /></label>
     {value.length > 0 && <div className="workspace-selected-links">{value.map(ref => {
       const option = options.find(item => item.ref === ref);
@@ -73,7 +73,7 @@ export function TagsInput({ value, onChange }: { value: string[]; onChange: (tag
     setDraft(""); setError("");
   }
   return <div className="workspace-tags-editor">
-    <div className="workspace-field-heading"><span>태그</span><small>여러 기록을 하나의 주제로 묶어요</small></div>
+    <div className="workspace-field-heading"><span>태그</span></div>
     <div className="tag-editor">{value.map((tag, index) => <span key={`${tag}-${index}`}>#{displayLabel(tag)}<button type="button" aria-label={`${displayLabel(tag)} 태그 삭제`} onClick={() => onChange(value.filter((_, selected) => selected !== index))}><X size={12} /></button></span>)}<input aria-label="태그 추가" placeholder="태그 입력 후 Enter" value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); add(); } }} /><button className="icon-button" type="button" aria-label="입력한 태그 추가" onClick={add} disabled={!draft.trim()}><Plus size={16} /></button></div>
     {error && <p className="workspace-field-hint" role="alert">{error}</p>}
   </div>;

@@ -87,6 +87,7 @@ test('project filters and editor preserve structured fields, relationships, and 
     await dialog.getByRole('button',{name:'교과 추가',exact:true}).click();
     await dialog.getByLabel('교과 2',{exact:true}).fill('미술');
     await dialog.getByLabel('단원 2',{exact:true}).fill('그림 표현');
+    if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
     await dialog.getByLabel('핵심 질문').fill('질문을 그림으로 표현할 수 있을까?');
     await dialog.getByLabel('수업 흐름').fill('질문 → 그림 → 나눔');
     await dialog.getByLabel('주요 활동').fill('학생이 질문과 그림을 연결한다.');
@@ -121,6 +122,7 @@ test('project filters and editor preserve structured fields, relationships, and 
     assert.equal(result.item.photos[0].url,'https://example.test/photo.jpg');
     await page.getByRole('button',{name:'새로운 합성 수업 자세히 보기'}).click();
     await page.getByRole('button',{name:'수정',exact:true}).click();
+    await page.getByRole('dialog').locator('details.optional-fields > summary').click();
     await page.getByRole('dialog').getByLabel('수업 성찰').fill('수정한 성찰');
     await page.getByRole('button',{name:'수업 저장',exact:true}).click();
     await page.waitForFunction(()=>fixture.saved.length===2);

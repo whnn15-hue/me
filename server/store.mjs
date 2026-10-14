@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export const CATEGORIES = ['강의·연수', '위원회·지원단', '연구·수상', '집필·콘텐츠', '근무·파견', '자격증', '기타'];
+export const CATEGORIES = ['강의·연수', '위원회·지원단', '연구·수상', '집필·콘텐츠', '근무·파견', '파견', '근무', '집필', '콘텐츠 제작', '자격증', '기타'];
 export const cleanText = (value, max = 10000) => String(value ?? '').trim().slice(0, max);
 export function normalizeCareer(input, previous = {}) {
   const title = cleanText(input.title ?? previous.title, 300);
@@ -24,6 +24,15 @@ export function normalizeCareer(input, previous = {}) {
     documentIds: [...new Set(Array.isArray(input.documentIds) ? input.documentIds : previous.documentIds || [])],
     source: cleanText(input.source ?? previous.source, 200),
   };
+  for (const field of ['awardLevel', 'awardGrade']) {
+    const value = input[field] ?? previous[field];
+    if (value !== undefined) result[field] = cleanText(value, 100);
+  }
+  const stages = input.awardStages ?? previous.awardStages;
+  if (stages !== undefined) {
+    if (!Array.isArray(stages) || stages.length > 10 || stages.some(value => typeof value !== 'string' || value.length > 100)) throw Object.assign(new Error('대회 단계 목록을 확인해 주세요.'), { status: 400 });
+    result.awardStages = [...new Set(stages.map(value => cleanText(value, 100)).filter(Boolean))];
+  }
   for (const field of ['startDate', 'endDate']) {
     if (result[field] && !/^\d{4}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(result[field])) {
       throw Object.assign(new Error('날짜는 YYYY, YYYY-MM 또는 YYYY-MM-DD 형식이어야 합니다.'), { status: 400 });
