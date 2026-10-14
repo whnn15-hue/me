@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, Image, Layers3, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowUpRight, BookOpen, CalendarDays, Check, FileText, ChevronRight, Image, Layers3, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Modal } from "../CareerEditor";
 import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from "./WorkspaceUI";
 import type { WorkspaceItem, WorkspaceSectionProps } from "./types";
+import MaterialsView from "./MaterialsView";
 import "./ProjectsView.css";
 
 type Project = Extract<WorkspaceItem, { kind: "project" }>;
@@ -61,7 +62,7 @@ function ProjectEditor({ project, workspace, careers, onSave, onClose, onError }
     event.preventDefault();
     if (busy) return;
     let validation = "";
-    if (!draft.title.trim()) validation = "프로젝트 제목을 입력해 주세요.";
+    if (!draft.title.trim()) validation = "수업 제목을 입력해 주세요.";
     else if (draft.schoolYear.trim() && !/^\d{4}$/.test(draft.schoolYear.trim())) validation = "학년도는 네 자리 연도로 입력해 주세요. 예: 2026";
     else if (!validDate(draft.startDate) || !validDate(draft.endDate)) validation = "시작일과 종료일을 실제 날짜로 입력해 주세요.";
     else if (draft.startDate && draft.endDate && draft.endDate < draft.startDate) validation = "종료일이 시작일보다 빠릅니다. 날짜를 확인해 주세요.";
@@ -84,12 +85,12 @@ function ProjectEditor({ project, workspace, careers, onSave, onClose, onError }
     catch (reason) { setError("저장하지 못했습니다. 입력한 내용은 유지됩니다. 다른 곳에서 기록이 바뀌었다면 내용을 따로 복사한 뒤 닫고, 최신 기록을 다시 열어 수정해 주세요."); onError(reason); }
     finally { setBusy(false); }
   }
-  return <Modal title={project.id ? "프로젝트 수정" : "새 프로젝트 기록"} subtitle="질문에서 수업의 흐름, 결과와 성찰까지 한곳에 담아보세요." onClose={() => !busy && onClose()} wide>
+  return <Modal title={project.id ? "수업 수정" : "새 수업 기록"} subtitle="질문에서 수업의 흐름, 결과와 성찰까지 한곳에 담아보세요." onClose={() => !busy && onClose()} wide>
     <form onSubmit={submit}>
       <div className="modal-body project-editor">
         {error && <div className="alert error" role="alert">{error}</div>}
         <fieldset disabled={busy} className="project-editor-fields">
-          <label className="field"><span>프로젝트 제목 <b>*</b></span><input required maxLength={300} value={draft.title} onChange={event => change("title", event.target.value)} placeholder="예: 우리 동네를 바꾸는 작은 실천" /></label>
+          <label className="field"><span>수업 제목 <b>*</b></span><input required maxLength={300} value={draft.title} onChange={event => change("title", event.target.value)} placeholder="예: 우리 동네를 바꾸는 작은 실천" /></label>
           <div className="field-grid">
             <label className="field"><span>학년도</span><input inputMode="numeric" maxLength={4} value={draft.schoolYear} onChange={event => change("schoolYear", event.target.value)} placeholder="예: 2026" /></label>
             <label className="field"><span>학년</span><input maxLength={100} value={draft.grade} onChange={event => change("grade", event.target.value)} placeholder="예: 초등 4학년" /></label>
@@ -100,7 +101,7 @@ function ProjectEditor({ project, workspace, careers, onSave, onClose, onError }
           </div>
           <section className="project-form-section">
             <div className="project-form-heading"><h3>연계 교과와 단원</h3><button type="button" className="button text-button" disabled={draft.subjects.length >= 100} onClick={() => change("subjects", [...draft.subjects, { subject: "", unit: "" }])}><Plus size={15} />교과 추가</button></div>
-            {!draft.subjects.length && <p className="field-hint">여러 교과를 연결한 프로젝트도 교과별로 기록할 수 있어요.</p>}
+            {!draft.subjects.length && <p className="field-hint">여러 교과를 연결한 수업도 교과별로 기록할 수 있어요.</p>}
             {draft.subjects.map((pair, index) => <div className="project-pair-row" key={index}>
               <label className="field"><span>교과 {index + 1}</span><input maxLength={300} value={pair.subject} onChange={event => change("subjects", draft.subjects.map((item, i) => i === index ? { ...item, subject: event.target.value } : item))} placeholder="예: 사회" /></label>
               <label className="field"><span>단원 {index + 1}</span><input maxLength={300} value={pair.unit} onChange={event => change("subjects", draft.subjects.map((item, i) => i === index ? { ...item, unit: event.target.value } : item))} placeholder="예: 지역의 공공 기관" /></label>
@@ -118,7 +119,7 @@ function ProjectEditor({ project, workspace, careers, onSave, onClose, onError }
           <section className="project-form-section"><h3>함께 연결할 기록</h3><p className="field-hint">관련 경력, 강의 자료와 다른 기록을 연결해 다시 찾기 쉽게 정리하세요.</p><LinkPicker workspace={workspace} careers={careers} currentRef={project.id ? `project:${project.id}` : undefined} value={links} onChange={setLinks} /></section>
         </fieldset>
       </div>
-      <div className="modal-footer"><div className="footer-buttons"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>취소</button><button type="submit" className="button primary" disabled={busy}><Check size={17} />{busy ? "저장 중" : "프로젝트 저장"}</button></div></div>
+      <div className="modal-footer"><div className="footer-buttons"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>취소</button><button type="submit" className="button primary" disabled={busy}><Check size={17} />{busy ? "저장 중" : "수업 저장"}</button></div></div>
     </form>
   </Modal>;
 }
@@ -133,7 +134,7 @@ function PhotoLink({ photo }: { photo: ResourceLink }) {
   </article>;
 }
 
-export default function ProjectsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError }: WorkspaceSectionProps) {
+function ProjectRecordsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError }: WorkspaceSectionProps) {
   const projects = useMemo(() => workspace.items.filter((item): item is Project => item.kind === "project"), [workspace.items]);
   const [query, setQuery] = useState("");
   const [year, setYear] = useState("");
@@ -164,18 +165,18 @@ export default function ProjectsView({ workspace, careers, onSave, onDelete, onO
     finally { setBusy(false); }
   }
   return <section className="projects-view">
-    <header className="projects-heading"><div><span className="project-eyebrow">CLASSROOM STORIES</span><h1>프로젝트 포트폴리오</h1><p>하나의 질문에서 시작된 수업, 다음 배움으로 이어지는 기록.</p></div><button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />프로젝트 추가</button></header>
+    <header className="projects-heading"><div><span className="project-eyebrow">CLASSROOM STORIES</span><h1>수업 포트폴리오</h1><p>하나의 질문에서 시작된 수업, 다음 배움으로 이어지는 기록.</p></div><button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />수업 추가</button></header>
     <div className="projects-summary"><span><Layers3 size={18} /><strong>{projects.length}</strong>개의 수업 이야기</span><span>{subjects.length}개 교과에 걸친 배움</span></div>
-    <div className="project-filters panel"><label className="project-search"><Search size={17} /><input aria-label="프로젝트 검색" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 교과, 활동, 태그 검색" /></label><label className="project-filter-select"><span>학년도</span><select aria-label="학년도 필터" value={year} onChange={event => setYear(event.target.value)}><option value="">전체 학년도</option>{years.map(value => <option key={value} value={value}>{text(value)}학년도</option>)}</select></label><label className="project-filter-select"><span>교과</span><select aria-label="교과 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">전체 교과</option>{subjects.map(value => <option key={value} value={value}>{text(value)}</option>)}</select></label><label className="project-filter-select"><span>태그</span><select aria-label="태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">전체 태그</option>{tags.map(value => <option key={value} value={value}>{text(value)}</option>)}</select></label></div>
-    <div className="projects-result-line"><span aria-live="polite">{filtered.length}개의 프로젝트{filteredActive && ` / 전체 ${projects.length}개`}</span>{filteredActive && <button type="button" className="button text-button" onClick={() => { setQuery(""); setYear(""); setSubject(""); setTag(""); }}>필터 초기화</button>}</div>
+    <div className="project-filters panel"><label className="project-search"><Search size={17} /><input aria-label="수업 검색" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 교과, 활동, 태그 검색" /></label><label className="project-filter-select"><span>학년도</span><select aria-label="학년도 필터" value={year} onChange={event => setYear(event.target.value)}><option value="">전체 학년도</option>{years.map(value => <option key={value} value={value}>{text(value)}학년도</option>)}</select></label><label className="project-filter-select"><span>교과</span><select aria-label="교과 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">전체 교과</option>{subjects.map(value => <option key={value} value={value}>{text(value)}</option>)}</select></label><label className="project-filter-select"><span>태그</span><select aria-label="태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">전체 태그</option>{tags.map(value => <option key={value} value={value}>{text(value)}</option>)}</select></label></div>
+    <div className="projects-result-line"><span aria-live="polite">{filtered.length}개의 수업{filteredActive && ` / 전체 ${projects.length}개`}</span>{filteredActive && <button type="button" className="button text-button" onClick={() => { setQuery(""); setYear(""); setSubject(""); setTag(""); }}>필터 초기화</button>}</div>
     {filtered.length ? <div className="project-grid">{filtered.map(project => <button type="button" className="project-card" key={project.id} onClick={() => setSelectedId(project.id)} aria-label={`${text(project.title)} 자세히 보기`}>
-      <div className="project-card-top"><span className="project-card-year">{project.schoolYear ? `${text(project.schoolYear)}학년도` : "수업 프로젝트"}</span><ChevronRight size={18} /></div>
-      <h2>{text(project.title)}</h2><p className="project-card-question">{text(project.drivingQuestion || project.activities || "이 프로젝트의 수업 이야기를 펼쳐보세요.")}</p>
+      <div className="project-card-top"><span className="project-card-year">{project.schoolYear ? `${text(project.schoolYear)}학년도` : "수업 기록"}</span><ChevronRight size={18} /></div>
+      <h2>{text(project.title)}</h2><p className="project-card-question">{text(project.drivingQuestion || project.activities || "이 수업 이야기를 펼쳐보세요.")}</p>
       <div className="project-card-subjects">{project.grade && <span>{text(project.grade)}</span>}{[...new Set(project.subjects.map(pair => pair.subject))].map(value => <span key={value}>{text(value)}</span>)}</div>
       <div className="project-card-date"><CalendarDays size={14} /><span>{text(period(project))}</span></div>
       {!!project.tags.length && <div className="project-card-tags">{project.tags.slice(0, 4).map(value => <span key={value}>#{text(value)}</span>)}{project.tags.length > 4 && <span>+{project.tags.length - 4}</span>}</div>}
       <div className="project-card-bottom"><span>결과물 {project.outputs.length}개</span><span>사진 {project.photos.length}개</span><span>연결 {linkedRefs(workspace, `project:${project.id}`).length}개</span></div>
-    </button>)}</div> : <div className="panel project-empty"><BookOpen size={35} /><h2>{projects.length ? "조건에 맞는 프로젝트가 없어요" : "수업의 이야기를 한 장씩 쌓아보세요"}</h2><p>{projects.length ? "검색어나 필터를 바꾸면 다른 프로젝트를 볼 수 있어요." : "핵심 질문과 교과, 학생들의 활동과 결과물을 기록해 나만의 수업 포트폴리오를 만들어보세요."}</p>{!projects.length && <button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />첫 프로젝트 기록하기</button>}</div>}
+    </button>)}</div> : <div className="panel project-empty"><BookOpen size={35} /><h2>{projects.length ? "조건에 맞는 수업이 없어요" : "수업의 이야기를 한 장씩 쌓아보세요"}</h2><p>{projects.length ? "검색어나 필터를 바꾸면 다른 수업을 볼 수 있어요." : "핵심 질문과 교과, 학생들의 활동과 결과물을 기록해 나만의 수업 포트폴리오를 만들어보세요."}</p>{!projects.length && <button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />첫 수업 기록하기</button>}</div>}
     {selected && !editing && !deleting && <Modal title={text(selected.title)} subtitle={[selected.schoolYear && `${text(selected.schoolYear)}학년도`, selected.grade && text(selected.grade)].filter(Boolean).join(" / ")} onClose={() => setSelectedId(undefined)} wide>
       <div className="modal-body project-detail">
         <div className="project-detail-meta"><span><CalendarDays size={16} />{text(period(selected))}</span><button type="button" className="button secondary" onClick={() => setEditing(cloneProject(selected))}><Pencil size={15} />수정</button></div>
@@ -189,9 +190,38 @@ export default function ProjectsView({ workspace, careers, onSave, onDelete, onO
         {!!selected.tags.length && <div className="tags">{selected.tags.map(value => <span key={value}>#{text(value)}</span>)}</div>}
         <section className="project-text-section"><RelatedLinks workspace={workspace} careers={careers} currentRef={`project:${selected.id}`} onOpen={ref => { setSelectedId(undefined); onOpen(ref); }} /></section>
       </div>
-      <div className="modal-footer"><button type="button" className="button text-button project-delete-button" onClick={() => { setDeleteError(""); setDeleteRevision(workspace.revision); setDeleting(selected); }}><Trash2 size={16} />프로젝트 삭제</button><div className="footer-buttons"><button className="button secondary" onClick={() => setSelectedId(undefined)}>닫기</button></div></div>
+      <div className="modal-footer"><button type="button" className="button text-button project-delete-button" onClick={() => { setDeleteError(""); setDeleteRevision(workspace.revision); setDeleting(selected); }}><Trash2 size={16} />수업 삭제</button><div className="footer-buttons"><button className="button secondary" onClick={() => setSelectedId(undefined)}>닫기</button></div></div>
     </Modal>}
     {editing && <ProjectEditor key={editing.id || "new"} project={editing} workspace={workspace} careers={careers} onSave={onSave} onError={onError} onClose={() => setEditing(null)} />}
-    {deleting && <Modal title="프로젝트를 삭제할까요?" onClose={() => !busy && setDeleting(null)}><div className="modal-body"><p className="project-delete-copy">‘{text(deleting.title)}’ 기록과 다른 기록으로 연결된 관계를 삭제합니다. 연결한 경력과 자료, 외부에 보관한 결과물과 사진은 그대로 남아요.</p>{deleteError && <div className="alert error" role="alert">{deleteError}</div>}</div><div className="modal-footer"><div className="footer-buttons"><button className="button secondary" disabled={busy} onClick={() => setDeleting(null)}>취소</button><button className="button primary" disabled={busy} onClick={removeProject}>{busy ? "삭제 중" : "프로젝트 삭제"}</button></div></div></Modal>}
+    {deleting && <Modal title="수업을 삭제할까요?" onClose={() => !busy && setDeleting(null)}><div className="modal-body"><p className="project-delete-copy">‘{text(deleting.title)}’ 기록과 다른 기록으로 연결된 관계를 삭제합니다. 연결한 경력과 자료, 외부에 보관한 결과물과 사진은 그대로 남아요.</p>{deleteError && <div className="alert error" role="alert">{deleteError}</div>}</div><div className="modal-footer"><div className="footer-buttons"><button className="button secondary" disabled={busy} onClick={() => setDeleting(null)}>취소</button><button className="button primary" disabled={busy} onClick={removeProject}>{busy ? "삭제 중" : "수업 삭제"}</button></div></div></Modal>}
   </section>;
+}
+
+export interface ProjectsViewProps extends WorkspaceSectionProps {
+  classroomImport?: ReactNode;
+}
+
+export default function ProjectsView({ classroomImport, ...props }: ProjectsViewProps) {
+  const focused = props.workspace.items.find(item => item.id === props.focusId);
+  const focusedSection = focused?.kind === "material" && focused.purpose === "classroom" ? "classroom"
+    : focused?.kind === "project" ? "records" : undefined;
+  const [section, setSection] = useState<"records" | "classroom">(() => focusedSection ?? "records");
+  useEffect(() => { if (focusedSection) setSection(focusedSection); }, [props.focusId, focusedSection]);
+  const recordCount = props.workspace.items.filter(item => item.kind === "project").length;
+  const materialCount = props.workspace.items.filter(item => item.kind === "material" && item.purpose === "classroom").length;
+  return <div className="classroom-view">
+    <div className="classroom-sections" role="tablist" aria-label="수업 분류" onKeyDown={event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? "records" : event.key === "End" ? "classroom" : section === "records" ? "classroom" : "records";
+      setSection(next);
+      event.currentTarget.querySelector<HTMLButtonElement>(next === "records" ? "#classroom-records-tab" : "#classroom-materials-tab")?.focus();
+    }}>
+      <button id="classroom-records-tab" type="button" role="tab" tabIndex={section === "records" ? 0 : -1} aria-selected={section === "records"} aria-controls="classroom-content" onClick={() => setSection("records")}><BookOpen size={17} /><span>수업 기록</span><strong>{recordCount}</strong></button>
+      <button id="classroom-materials-tab" type="button" role="tab" tabIndex={section === "classroom" ? 0 : -1} aria-selected={section === "classroom"} aria-controls="classroom-content" onClick={() => setSection("classroom")}><FileText size={17} /><span>학급 자료</span><strong>{materialCount}</strong></button>
+    </div>
+    <div id="classroom-content" role="tabpanel" aria-labelledby={section === "records" ? "classroom-records-tab" : "classroom-materials-tab"}>
+      {section === "records" ? <ProjectRecordsView {...props} /> : <MaterialsView {...props} purpose="classroom" importPanel={classroomImport} />}
+    </div>
+  </div>;
 }

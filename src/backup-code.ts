@@ -103,10 +103,14 @@ export async function evidenceFileFromImportCode(code: string): Promise<File> {
   return encryptedImportFile(compactCode(code), "IMEV1", MAX_EVIDENCE_IMPORT_BYTES);
 }
 
-async function encryptedImportFile(compact: string, prefix: "IMBK2" | "IMEV1", limit: number): Promise<File> {
+export async function materialFileFromImportCode(code: string): Promise<File> {
+  return encryptedImportFile(compactCode(code), "IMMT1", MAX_EVIDENCE_IMPORT_BYTES);
+}
+
+async function encryptedImportFile(compact: string, prefix: "IMBK2" | "IMEV1" | "IMMT1", limit: number): Promise<File> {
   const matched = new RegExp(`^${prefix}:([0-9a-f]{16})\\.([A-Za-z0-9_-]{43})$`).exec(compact);
   if (!matched)
-    throw new Error(prefix === "IMEV1" ? "IMEV1:로 시작하는 증빙 가져오기 코드를 붙여넣어 주세요." : "IMBK1: 또는 IMBK2:로 시작하는 백업 코드 전체를 붙여넣어 주세요.");
+    throw new Error(prefix === "IMMT1" ? "IMMT1:로 시작하는 학급 자료 코드를 붙여넣어 주세요." : prefix === "IMEV1" ? "IMEV1:로 시작하는 증빙 가져오기 코드를 붙여넣어 주세요." : "IMBK1: 또는 IMBK2:로 시작하는 백업 코드 전체를 붙여넣어 주세요.");
   let keyBytes: Uint8Array;
   try {
     const decoded = atob(matched[2].replace(/-/g, "+").replace(/_/g, "/") + "=");

@@ -19,11 +19,11 @@ function previewArchive(archive: unknown, filename: string): Preview {
     if (typeof item.id === "string" && typeof title === "string") labels[`${prefix || item.kind}:${item.id}`] = title;
   });
   addLabels(record.careers, "career"); addLabels(record.documents, "document");
-  if (record.format === "introduce-me-workspace" && record.workspace === undefined) throw new Error("전체 기록 JSON에 프로젝트와 학습 기록 정보가 없습니다.");
+  if (record.format === "introduce-me-workspace" && record.workspace === undefined) throw new Error("전체 기록 JSON에 수업와 학습 기록 정보가 없습니다.");
   if (record.workspace !== undefined) {
-    if (!record.workspace || typeof record.workspace !== "object" || Array.isArray(record.workspace)) throw new Error("프로젝트와 학습 기록의 형식을 확인해 주세요.");
+    if (!record.workspace || typeof record.workspace !== "object" || Array.isArray(record.workspace)) throw new Error("수업와 학습 기록의 형식을 확인해 주세요.");
     const workspace = record.workspace as Record<string, unknown>;
-    if (workspace.schemaVersion !== 1 || !Array.isArray(workspace.items) || !Array.isArray(workspace.links)) throw new Error("프로젝트와 학습 기록의 형식을 확인해 주세요.");
+    if (workspace.schemaVersion !== 1 || !Array.isArray(workspace.items) || !Array.isArray(workspace.links)) throw new Error("수업와 학습 기록의 형식을 확인해 주세요.");
     items = workspace.items.length; links = workspace.links.length;
     addLabels(workspace.items);
   }
@@ -66,7 +66,7 @@ export default function WorkspaceBackup({ onImport, onError, onToast }: {
   }
   return <>
     <section className="panel settings-card workspace-json-panel" aria-labelledby="workspace-json-heading">
-      <div className="settings-card-heading"><span className="integration-icon"><FileJson size={23} /></span><div><h2 id="workspace-json-heading">전체 기록 JSON 백업</h2><p>이력, 프로젝트, 강의 자료, 대학원 기록과 연결 정보를 함께 보관하세요.</p></div></div>
+      <div className="settings-card-heading"><span className="integration-icon"><FileJson size={23} /></span><div><h2 id="workspace-json-heading">전체 기록 JSON 백업</h2><p>이력, 수업, 강의 자료, 대학원 기록과 연결 정보를 함께 보관하세요.</p></div></div>
       <p>JSON에는 기록과 원본 파일의 위치가 담깁니다. 공문 원본 파일까지 내려받으려면 기존 백업 ZIP을 함께 보관해 주세요.</p>
       <div className="workspace-json-actions"><button className="button secondary" disabled={busy} onClick={() => void exportJSON()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}전체 기록 JSON 내보내기</button><button className="button secondary" disabled={busy} onClick={() => input.current?.click()}><Upload size={16} />JSON 가져오기</button><input ref={input} className="visually-hidden" type="file" accept=".json,application/json" aria-label="가져올 전체 기록 JSON" onChange={event => void readFile(event.target.files?.[0])} /></div>
       {result && <div className="workspace-import-result" role="status">이력 {result.added.careers}개, 공문 정보 {result.added.documents}개, 학습 기록 {result.added.items}개, 연결 {result.added.links}개를 추가했습니다.{result.conflicts.length > 0 && <details><summary>현재 기록을 유지한 항목 {result.conflicts.length}개</summary><ul>{result.conflicts.map((conflict, index) => <li key={`${conflict.ref}-${index}`}>{displayLabel(resultLabels[conflict.ref] || "기록 또는 연결 정보")}: {displayLabel(conflict.reason)}</li>)}</ul></details>}</div>}

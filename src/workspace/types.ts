@@ -12,7 +12,8 @@ export interface ProjectItem extends WorkspaceItemBase {
 }
 export interface MaterialItem extends WorkspaceItemBase {
   kind: "material"; ownership: "created" | "collected"; author: string; eventName: string;
-  date: string; audience: string[]; format: "PPT" | "PDF" | "영상" | "기타"; fileUrl: string; summary: string;
+  purpose?: "classroom" | "lecture";
+  date: string; audience: string[]; format: "PPT" | "PDF" | "HWP" | "TXT" | "영상" | "기타"; fileUrl: string; summary: string;
 }
 export interface CourseItem extends WorkspaceItemBase { kind: "course"; semester: string; professor: string; }
 export interface AssignmentItem extends WorkspaceItemBase {

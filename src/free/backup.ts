@@ -197,7 +197,7 @@ function normalizedCareer(value: unknown): Career {
   return normalizeCareer(input);
 }
 
-export async function readBackupFile(file: File, options: { allowEvidenceImport?: boolean } = {}): Promise<{ careers: Career[]; documents: RestoredDocument[]; manifest: BackupManifest; workspace?: WorkspaceData }> {
+export async function readBackupFile(file: File, options: { allowEvidenceImport?: boolean; allowMaterialImport?: boolean } = {}): Promise<{ careers: Career[]; documents: RestoredDocument[]; manifest: BackupManifest; workspace?: WorkspaceData }> {
   if (!Number.isSafeInteger(file.size) || file.size > MAX_BACKUP_SIZE) throw invalid("백업 ZIP 파일은 200MB 이하여야 합니다.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const entries = inspectArchive(bytes);
@@ -219,6 +219,8 @@ export async function readBackupFile(file: File, options: { allowEvidenceImport?
   catch { throw invalid("백업 목록을 읽을 수 없습니다."); }
   if (raw.evidenceImport != null && !options.allowEvidenceImport)
     throw invalid("증빙 추가 묶음은 ‘정리한 증빙 가져오기’에서 추가해 주세요. 전체 기록 복원에는 사용할 수 없습니다.");
+  if (raw.materialImport != null && !options.allowMaterialImport)
+    throw invalid("학급 자료 묶음은 ‘수업 → 학급 자료’에서 가져와 주세요. 전체 기록 복원에는 사용할 수 없습니다.");
   if (raw.format !== "career-archive" || raw.version !== 1 || !Array.isArray(raw.careers) || !Array.isArray(raw.documents)
     || raw.careers.length > MAX_CAREERS || raw.documents.length > MAX_DOCUMENTS) throw invalid("지원하지 않는 경력 백업 형식입니다.");
   const careers = raw.careers.map(normalizedCareer);

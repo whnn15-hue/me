@@ -59,6 +59,7 @@ import { CareerEditor, Modal } from "./CareerEditor";
 import ResumeBuilder from "./ResumeBuilder";
 import BackupSettings from "./BackupSettings";
 import ProjectsView from "./workspace/ProjectsView";
+import MaterialImport from "./workspace/MaterialImport";
 import MaterialsView from "./workspace/MaterialsView";
 import GraduateView from "./workspace/GraduateView";
 import WorkspaceSearch from "./workspace/WorkspaceSearch";
@@ -88,7 +89,7 @@ const navItems: {
     icon: Layers3,
     description: "나의 모든 경험",
   },
-  { view: "projects", label: "프로젝트", icon: Folder, description: "교실에서 만들어 낸 배움" },
+  { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
   { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
   { view: "graduate", label: "대학원", icon: GraduationCap, description: "공부와 연구의 기록" },
   {
@@ -397,7 +398,7 @@ export default function App() {
     } else {
       const item = workspace.items.find(item => item.id === id && item.kind === kind);
       if (!item) return;
-      changeView(item.kind === "project" ? "projects" : item.kind === "material" ? "materials" : "graduate");
+      changeView(item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? "materials" : "graduate");
       setWorkspaceFocus(id);
       setWorkspaceFocusVersion(version => version + 1);
     }
@@ -893,7 +894,7 @@ export default function App() {
                   <h1>
                     {view === "careers"
                       ? "나의 경력"
-                      : view === "projects" ? "프로젝트"
+                      : view === "projects" ? "수업"
                       : view === "materials" ? "강의 자료"
                       : view === "graduate" ? "대학원"
                       : view === "documents"
@@ -906,7 +907,7 @@ export default function App() {
                   <p>
                     {view === "careers"
                       ? "하나씩 쌓아온 경험을, 한눈에 정리하세요."
-                      : view === "projects" ? "수업의 질문부터 결과와 성찰까지, 나의 교육 프로젝트를 기록하세요."
+                      : view === "projects" ? "수업의 질문부터 결과와 성찰까지, 나의 수업을 기록하세요."
                       : view === "materials" ? "내가 만든 자료와 발견한 좋은 자료를 필요한 순간에 꺼내 쓰세요."
                       : view === "graduate" ? "수업, 과제, 논문과 떠오른 생각을 하나의 공부 흐름으로 연결하세요."
                       : view === "documents"
@@ -1169,7 +1170,7 @@ export default function App() {
                   </section>
                 </>
               )}
-              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
+              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
               {view === "materials" && <MaterialsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "graduate" && <GraduateView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "documents" && (

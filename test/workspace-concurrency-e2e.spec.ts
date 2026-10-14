@@ -11,7 +11,7 @@ async function openTab(page: Page, name: string) {
 }
 
 for (const record of [
-  { kind: 'project', tab: '프로젝트', title: '동시 편집 프로젝트', detail: ' 자세히 보기', edit: '수정', input: '예: 우리 동네를 바꾸는 작은 실천', save: '프로젝트 저장' },
+  { kind: 'project', tab: '수업', title: '동시 편집 프로젝트', detail: ' 자세히 보기', edit: '수정', input: '예: 우리 동네를 바꾸는 작은 실천', save: '수업 저장' },
   { kind: 'material', tab: '강의 자료', title: '동시 편집 강의 자료', detail: ' 상세보기', edit: '수정하기', input: '다시 찾기 쉬운 자료 제목', save: '자료 저장' },
   { kind: 'course', tab: '대학원', title: '동시 편집 강좌', detail: '', edit: '', input: '', save: '저장' },
 ]) {
@@ -71,13 +71,13 @@ test('a stale delete confirmation cannot delete a record changed on another devi
   const base = await created.json();
   const item = base.items.find((entry: { title: string }) => entry.title === '동시 삭제 보호 프로젝트');
   await page.goto('/');
-  await openTab(page, '프로젝트');
+  await openTab(page, '수업');
   await page.getByRole('button', { name: `${item.title} 자세히 보기`, exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: '프로젝트 삭제', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '수업 삭제', exact: true }).click();
   const confirmation = page.getByRole('dialog');
   const external = await page.request.put(`/api/workspace/items/${item.id}`, { data: { item: { ...item, title: '수정되어 삭제하면 안 되는 프로젝트' }, links: [], expectedRevision: base.revision } });
   expect(external.ok()).toBeTruthy();
-  const remove = confirmation.getByRole('button', { name: '프로젝트 삭제', exact: true });
+  const remove = confirmation.getByRole('button', { name: '수업 삭제', exact: true });
   const conflict = page.waitForResponse(response => response.request().method() === 'DELETE' && response.url().endsWith(`/api/workspace/items/${item.id}`));
   await remove.click();
   expect((await conflict).status()).toBe(409);

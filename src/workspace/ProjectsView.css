@@ -1,3 +1,8 @@
+.classroom-sections { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px; width: fit-content; max-width: 100%; margin-bottom: 26px; border: 1px solid #dde5dc; border-radius: 12px; background: #f0f3eb; }
+.classroom-sections button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; border: 0; border-radius: 8px; padding: 10px 16px; background: transparent; color: #6a7b70; font: inherit; font-size: 12px; cursor: pointer; }
+.classroom-sections button[aria-selected=true] { background: #fffefb; color: #315c47; box-shadow: 0 2px 7px #24392d0a; }
+.classroom-sections button:focus-visible { outline: 2px solid #668c67; outline-offset: 2px; }
+.classroom-sections strong { padding: 2px 7px; border-radius: 5px; background: #e9efe3; font-size: 11px; font-weight: 600; }
 .projects-view { --project-forest: #315c47; --project-ink: #253b30; --project-muted: #6a7b70; --project-line: #dde5dc; }
 .projects-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
 .project-eyebrow { color: var(--project-muted); font-size: 10px; font-weight: 700; letter-spacing: .16em; }

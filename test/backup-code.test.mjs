@@ -10,7 +10,7 @@ import JSZip from 'jszip';
 const root = new URL('..', import.meta.url).pathname;
 const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium';
 const decoderOutput = await build({ entryPoints: ['src/backup-code.ts'], absWorkingDir: root, bundle: true, platform: 'browser', format: 'esm', write: false });
-const { backupFileFromCode, backupFileFromImportCode, evidenceFileFromImportCode } = await import(`data:text/javascript;base64,${Buffer.from(decoderOutput.outputFiles[0].contents).toString('base64')}`);
+const { backupFileFromCode, backupFileFromImportCode, evidenceFileFromImportCode, materialFileFromImportCode } = await import(`data:text/javascript;base64,${Buffer.from(decoderOutput.outputFiles[0].contents).toString('base64')}`);
 const backupOutput = await build({ entryPoints: ['src/free/backup.ts'], absWorkingDir: root, bundle: true, platform: 'browser', format: 'esm', write: false });
 const { readBackupFile } = await import(`data:text/javascript;base64,${Buffer.from(backupOutput.outputFiles[0].contents).toString('base64')}`);
 
@@ -223,6 +223,32 @@ test('evidence code rejects tampering and stops oversized streamed downloads at 
     await withImportFetch(() => new Response(stream, { headers }), () => assert.rejects(evidenceFileFromImportCode(encrypted.code), /16 MiB/));
     assert.equal(canceled, true);
   }
+});
+
+test('classroom material codes keep keys off requests and cannot enter full restore or evidence import', async () => {
+  const zip = new JSZip();
+  zip.file('manifest.json', JSON.stringify({ format: 'career-archive', version: 1, careers: [], documents: [],
+    materialImport: { format: 'classroom-material-import', version: 1, materials: [] } }));
+  const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  const encrypted = encryptedImport(bytes, 'IMMT1');
+  let requests = 0;
+  await withImportFetch(async (path, options) => {
+    requests++;
+    assert.equal(path, `/imports/${encrypted.id}.bin`);
+    assert.equal(options.redirect, 'error');
+    assert.ok(!JSON.stringify([path, options]).includes(encrypted.key.toString('base64url')));
+    return binaryResponse(encrypted.payload);
+  }, async () => {
+    const file = await materialFileFromImportCode(encrypted.code);
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
+    await assert.rejects(backupFileFromImportCode(encrypted.code), safeKoreanError);
+    await assert.rejects(evidenceFileFromImportCode(encrypted.code), safeKoreanError);
+    assert.equal(requests, 1);
+    await assert.rejects(readBackupFile(file), /학급 자료/);
+    await assert.rejects(readBackupFile(file, { allowEvidenceImport: true }), /학급 자료/);
+  });
+  const damaged = Buffer.from(encrypted.payload); damaged[damaged.length - 1] ^= 1;
+  await withImportFetch(() => binaryResponse(damaged), () => assert.rejects(materialFileFromImportCode(encrypted.code), safeKoreanError));
 });
 
 async function browserFixtureBundle() {

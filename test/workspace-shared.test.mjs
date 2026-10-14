@@ -19,6 +19,42 @@ const workspace = (items = [], links = [], revision = 0) => ({ schemaVersion: 1,
 const badRequest = error => error.status === 400;
 const canonical = (a, b) => { const [from, to] = [a, b].sort(); return { from, to }; };
 
+test('optional classroom purpose preserves legacy material shape and rejects unrecognized placement', () => {
+  const legacy = normalizeWorkspaceItem(item('old_material', 'material', { format: 'PPT', summary: 'Unchanged lecture material' }));
+  assert.equal(Object.hasOwn(legacy, 'purpose'), false);
+  assert.deepEqual(normalizeWorkspaceItem(legacy), legacy);
+  for (const format of ['HWP', 'TXT']) {
+    const classroom = normalizeWorkspaceItem(item(`classroom_${format}`, 'material', { purpose: 'classroom', format }));
+    assert.equal(classroom.purpose, 'classroom');
+    assert.equal(classroom.format, format);
+    assert.equal(normalizeWorkspaceItem({ title: 'Edited activity' }, classroom).purpose, 'classroom');
+  }
+  const lecture = normalizeWorkspaceItem(item('new_lecture', 'material', { purpose: 'lecture' }));
+  assert.equal(lecture.purpose, 'lecture');
+  for (const purpose of ['', null, 'project', false, 0, {}]) {
+    assert.throws(() => normalizeWorkspaceItem(item('invalid_material', 'material', { purpose })), badRequest);
+  }
+});
+
+test('classroom rows survive metadata and backup merges without changing lectures, lessons or their links', () => {
+  const old = normalizeWorkspace(workspace([
+    item('old_material', 'material', { format: 'PDF', summary: 'Saved lecture' }),
+    item('old_project', 'project', { schoolYear: '2025', drivingQuestion: 'Saved question' }),
+  ], [{ from: 'material:old_material', to: 'project:old_project' }], 4));
+  const before = structuredClone(old);
+  const incoming = workspace([item('classroom_material', 'material', { purpose: 'classroom', format: 'HWP', summary: 'Class activity' }), ...old.items], [
+    { from: 'material:classroom_material', to: 'project:old_project' }, ...old.links,
+  ]);
+  const merged = mergeWorkspaceData(old, incoming, []);
+  assert.deepEqual(merged.added, { items: 1, links: 1 });
+  assert.deepEqual(merged.conflicts, []);
+  for (const previous of old.items) assert.deepEqual(merged.workspace.items.find(value => value.id === previous.id), previous);
+  const restored = workspaceFromRows(workspaceToRows(merged.workspace), [], 4);
+  assert.deepEqual(restored, merged.workspace);
+  assert.deepEqual(mergeWorkspaceData(restored, incoming, []).added, { items: 0, links: 0 });
+  assert.deepEqual(old, before);
+});
+
 test('web links reject executable schemes, credentials and Drive lookalikes; photos require HTTPS', () => {
   assert.equal(normalizeWorkspaceUrl('  https://example.test/path?q=one#two  '), 'https://example.test/path?q=one#two');
   assert.equal(normalizeWorkspaceUrl('http://example.test'), 'http://example.test/');

@@ -138,6 +138,7 @@ export async function restoreBackup(store, buffer) {
   try { manifest = JSON.parse(await readEntry(manifestFile, MAX_MANIFEST_SIZE, true)); } catch (error) { if (error.status) throw error; throw bad('백업 목록을 읽을 수 없습니다.'); }
   if (!manifest || manifest.format !== 'career-archive' || manifest.version !== 1 || !Array.isArray(manifest.careers) || !Array.isArray(manifest.documents) || manifest.careers.length > MAX_CAREERS || manifest.documents.length > MAX_DOCUMENTS) throw bad('지원하지 않는 경력 백업 형식입니다.');
   if (manifest.evidenceImport != null) throw bad('증빙 추가 묶음은 정리한 증빙 가져오기에서 추가해 주세요. 전체 기록 복원에는 사용할 수 없습니다.');
+  if (manifest.materialImport != null) throw bad('학급 자료 묶음은 수업 탭의 학급 자료에서 가져와 주세요. 전체 기록 복원에는 사용할 수 없습니다.');
   const idOK = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
   const docIds = new Set(), recordIds = new Set(), hashes = new Set();
   const docs = [], careers = [];
