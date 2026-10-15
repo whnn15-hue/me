@@ -25,7 +25,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   await expect(page.locator('.nav-count')).toHaveText(String(initialCount));
   if (initial.careers.some((career: { title: string }) => career.title.includes('KERIS'))) {
     await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill('KERIS');
-    await expect(page.locator('.career-row')).toHaveCount(1);
+    await expect(page.locator('.career-row').filter({hasText:initial.careers.find((career:{title:string})=>career.title.includes('KERIS')).title})).toBeVisible();
     await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill('');
   }
 
@@ -156,7 +156,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
 
 test('mobile navigation works at 375px without page overflow', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 }); await page.goto('/');
-  await expect(page.getByRole('heading', { name: '나의 이력', exact:true, level:1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '이력', exact:true, level:1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
   await expect(page.locator('.sidebar')).toHaveClass(/is-open/);

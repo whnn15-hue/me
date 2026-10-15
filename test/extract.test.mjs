@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { analyze, ruleAnalysis } from '../server/extract.mjs';
 
 test('specific awards and employment beat generic education terms in rule suggestions',()=>{
-  assert.equal(ruleAnalysis('2024년 교육방송연구대회 시도1등급')[0].category,'연구·수상');
-  assert.equal(ruleAnalysis('2025년 한국교육학술정보원 파견근무 AI디지털교과서 교육 지원')[0].category,'근무·파견');
+  assert.equal(ruleAnalysis('2024년 교육방송연구대회 시도1등급')[0].category,'연구대회');
+  assert.equal(ruleAnalysis('2025년 한국교육학술정보원 파견근무 AI디지털교과서 교육 지원')[0].category,'파견');
+  assert.equal(ruleAnalysis('2026년 교육 유공 장관 표창')[0].category,'표창');
   assert.equal(ruleAnalysis('2025년 디지털 미디어 리터러시 연수 강사')[0].category,'강의·연수');
 });
 

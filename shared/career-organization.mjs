@@ -1,35 +1,57 @@
-export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구·수상', '집필', '콘텐츠 제작', '근무', '파견', '자격증', '기타'];
+// Presentation categories are exclusive. Legacy stored values remain valid for backups.
+export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '표창', '파견', '집필', '콘텐츠 제작', '자격증', '기타'];
+const fold = value => String(value || '').normalize('NFC').replaceAll('_', ' ');
+const isKeris = text => /KERIS|한국교육학술정보원/i.test(text);
+const internalProgramme = /수학탐험대.*디지털\s*교구.*활용사례집.*제작|연구학교.*성과보고회.*시도.*운영\s*용역|인공지능.*초등수학.*온라인\s*연수.*운영\s*계획|AI\s*디지털교과서.*수정\s*보완.*검토위원회.*운영\s*계획/i;
 
-/** Virtual collections preserve IDs, original category values and evidence links. */
-export function careerCollections(career, documents = []) {
-  const text = [career.title, career.role, career.description, ...(career.tags || [])].join(' ');
-  const collections = [];
+/** Internal KERIS plans are secondment work, not outside invitations to teach. */
+function secondmentWork(career, originals) {
+  const title = fold(career.title), role = fold(career.role);
+  const text = [title, role, career.organization, career.description, ...(career.tags || []), originals].map(fold).join(' ');
+  if (career.category === '파견' || /파견/.test(`${title} ${role} ${originals}`) || career.tags?.includes('파견')) return true;
+  if (/파견\s*(근무|업무|기간|중)/.test(fold(career.description))) return true;
+  // These named public programmes identify internal plans even in old imports with an empty institution.
+  if (internalProgramme.test(title)) return true;
+  return isKeris(text) && /운영\s*(용역\s*)?(추진\s*)?계획|제작\s*계획|사업\s*(기획|운영)|구매\s*계획/.test(title) && !/강사|출강|강의\s*요청|초빙/.test(`${title} ${role}`);
+}
+
+/** One destination per career; classification never changes the original record. */
+export function careerSection(career, documents = []) {
   const originals = documents.filter(document => career.documentIds?.includes(document.id)).map(document => document.name).join(' ');
-  if (career.category === '파견' || /파견/.test(`${text} ${originals}`)) collections.push('secondment');
-  const combined = career.category === '집필·콘텐츠';
-  const writing = /집필|저술|저서|저자|원고\s*작성|책\s*출판/.test(text);
-  const creator = /제작|촬영|집필|개발|저작/.test([career.title, career.role].join(' '));
-  const reviewer = /평가위원|심사위원|질관리|품질\s*관리/.test([career.title, career.role].join(' '));
-  const content = /콘텐츠|컨텐츠|영상|동영상|미디어/.test(text);
-  if (career.category === '집필' || writing && (combined || /집필|저술|저자|집필진/.test(career.role || ''))) collections.push('writing');
-  if (career.category === '콘텐츠 제작' || content && creator && !reviewer && (combined || !['강의·연수', '연구·수상'].includes(career.category))) collections.push('content');
-  if (combined && !collections.some(value => ['writing', 'content'].includes(value))) collections.push(content ? 'content' : 'writing');
-  return collections;
+  if (secondmentWork(career, originals)) return '파견';
+  const title = fold(career.title), role = fold(career.role), primary = `${title} ${role}`;
+  if (career.category === '표창' || /표창|감사장|공로상|훈장|포장\s*수여/.test(primary)) return '표창';
+  if (career.category === '연구대회' || career.category === '연구·수상') return '연구대회';
+  const combined = ['집필·콘텐츠', '집필'].includes(career.category);
+  const author = /집필|저술|저서|저자|출판/.test(primary);
+  const book = /(?:^|[\s「『〈《])책(?:[\s」』〉》]|$)|단행본|도서|저서|공저|출판|ISBN/.test(primary) || /학교폭력/.test(primary) && /자료집|집필/.test(primary);
+  // Explicit book records may have an abstract title without the word 'book'.
+  const nonBook = !book && /영상|콘텐츠|컨텐츠|교육자료|홍보자료|안내자료|활용사례집|학습지/.test(primary);
+  if (career.category === '집필' && !nonBook || author && book && (combined || !['강의·연수','위원회·지원단'].includes(career.category))) return '집필';
+  const reviewer = /평가위원|심사위원|질관리|품질\s*관리/.test(primary) || /검토/.test(primary) && !/제작|촬영|편집|집필|저작/.test(primary);
+  const creator = /제작|촬영|편집|개발|저작|집필/.test(primary);
+  if (career.category === '콘텐츠 제작' || creator && !reviewer && (combined || !['강의·연수','위원회·지원단'].includes(career.category))) return '콘텐츠 제작';
+  if (combined) return reviewer ? '위원회·지원단' : '콘텐츠 제작';
+  if (['근무·파견', '근무'].includes(career.category)) return '기타';
+  return careerCategoryChoices.includes(career.category) ? career.category : '기타';
+}
+
+export function careerCollections(career, documents = []) {
+  const collection = { '파견': 'secondment', '집필': 'writing', '콘텐츠 제작': 'content' }[careerSection(career, documents)];
+  return collection ? [collection] : [];
 }
 export function careerCategoryLabel(career, documents = []) {
-  const collections = careerCollections(career, documents);
-  if (collections.includes('secondment')) return '파견';
-  if (career.category === '근무·파견') return '근무';
-  if (career.category === '집필·콘텐츠') return collections.filter(value => value !== 'secondment').map(value => value === 'writing' ? '집필' : '콘텐츠 제작').join(', ');
-  return career.category.replaceAll('·', ', ');
+  return careerSection(career, documents).replaceAll('·', ', ');
 }
 export function matchesCareerCategory(career, category, documents = []) {
   if (category === '전체') return true;
-  if (category === '파견') return careerCollections(career, documents).includes('secondment');
-  if (category === '집필') return careerCollections(career).includes('writing');
-  if (category === '콘텐츠 제작') return careerCollections(career).includes('content');
-  if (category === '근무') return ['근무·파견', '근무'].includes(career.category) && !careerCollections(career, documents).includes('secondment');
-  return career.category === category;
+  return careerSection(career, documents) === category;
+}
+export function careerOrganization(career, documents = []) {
+  const original = fold(career.organization).trim();
+  if (original) return original.replaceAll('·', ', ');
+  if (careerSection(career, documents) === '파견' && (isKeris([career.title, career.description, ...(career.tags || [])].join(' ')) || internalProgramme.test(fold(career.title)))) return '한국교육학술정보원(KERIS)';
+  return '기관 미입력';
 }
 export function recognitionDetails(career) {
   const text = [career.title, career.description, ...(career.tags || [])].join(' ');

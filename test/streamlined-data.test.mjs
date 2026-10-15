@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import { build } from 'esbuild';
 import JSZip from 'jszip';
-import { careerCollections, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from '../shared/career-organization.mjs';
+import { careerCollections, careerCategoryChoices, careerSection, careerOrganization, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from '../shared/career-organization.mjs';
 import { materialDraft, materialClassification } from '../shared/material-classification.mjs';
 import { normalizeWorkspaceItem } from '../shared/workspace.mjs';
 import { normalizeCareer } from '../server/store.mjs';
@@ -20,19 +20,50 @@ const output = await build({stdin:{resolveDir:root,loader:'ts',contents:`export 
 const {prepareMaterialFiles,normalizeCareer:normalizeBrowserCareer}=await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].contents).toString('base64')}`);
 const fixtureCareer = fields => normalizeCareer({title:'가상 경력',category:'기타',...fields});
 
-test('collections split legacy writing and content without changing records and distinguish dispatch from travel',()=>{
+test('exclusive collections preserve legacy records and distinguish secondment from travel',()=>{
   const combined=fixtureCareer({category:'집필·콘텐츠',title:'합성 영상 콘텐츠',role:'집필, 촬영, 검토'}),before=structuredClone(combined);
-  assert.deepEqual(careerCollections(combined),['writing','content']);
-  assert.equal(matchesCareerCategory(combined,'집필'),true);assert.equal(matchesCareerCategory(combined,'콘텐츠 제작'),true);
-  assert.equal(careerCategoryLabel(combined),'집필, 콘텐츠 제작');assert.deepEqual(combined,before);
+  assert.deepEqual(careerCollections(combined),['content']);
+  assert.equal(matchesCareerCategory(combined,'집필'),false);assert.equal(matchesCareerCategory(combined,'콘텐츠 제작'),true);
+  assert.equal(careerCategoryLabel(combined),'콘텐츠 제작');assert.deepEqual(combined,before);
   const work=fixtureCareer({category:'근무·파견',title:'합성학교 근무'});
-  assert.deepEqual(careerCollections(work),[]);assert.equal(careerCategoryLabel(work),'근무');
+  assert.deepEqual(careerCollections(work),[]);assert.equal(careerCategoryLabel(work),'기타');
   assert.equal(careerCollections(fixtureCareer({title:'회의 출장'})).includes('secondment'),false);
   assert.equal(careerCollections(fixtureCareer({title:'현장교사 파견'})).includes('secondment'),true);
   const linked=fixtureCareer({documentIds:['proof_one']});
   assert.equal(matchesCareerCategory(linked,'파견',[{id:'proof_one',name:'가상 현장교사 파견 요청.pdf'}]),true);
   assert.equal(careerCollections(fixtureCareer({category:'강의·연수',title:'영상 제작 강의',role:'강사'})).includes('content'),false);
   assert.equal(careerCollections(fixtureCareer({category:'위원회·지원단',title:'콘텐츠 개발 사업',role:'평가위원'})).includes('content'),false);
+});
+
+test('legacy awards, book writing and KERIS operations each have exactly one destination',()=>{
+  const cases = [
+    [{category:'연구·수상',title:'가상 교육연구대회 시도 1등급'}, '연구대회'],
+    [{category:'연구·수상',title:'가상 장관 표창',description:'교육 혁신 유공'}, '표창'],
+    [{category:'집필·콘텐츠',title:'학교폭력 사안처리 Q&A 자료집',role:'집필위원'}, '집필'],
+    [{category:'집필·콘텐츠',title:'가상 교육 단행본 출판',role:'공동 저자'}, '집필'],
+    [{category:'집필·콘텐츠',title:'가상 학습 자료집 개발',role:'집필'}, '콘텐츠 제작'],
+    [{category:'집필',title:'가상 영상 콘텐츠 제작',role:'집필'}, '콘텐츠 제작'],
+    [{category:'집필·콘텐츠',title:'가상 교육자료 개발 TF'}, '콘텐츠 제작'],
+    [{category:'집필·콘텐츠',title:'똑똑! 수학탐험대 디지털 교구 활용사례집 제작 계획'}, '파견'],
+    [{category:'기타',title:'연구학교 성과보고회 및 시도담당자 협의회 운영 용역 추진 계획'}, '파견'],
+    [{category:'강의·연수',title:'인공지능 활용 초등수학 수업 지원시스템 온라인 연수 운영 계획'}, '파견'],
+    [{category:'위원회·지원단',title:'AI 디지털교과서 수정보완 검토위원회 운영 계획'}, '파견'],
+    [{category:'강의·연수',title:'가상 지식 공유 강사 위촉',role:'강사',organization:'한국교육학술정보원'}, '강의·연수'],
+    [{category:'위원회·지원단',title:'가상 콘텐츠 개발 사업 제안서 평가위원',organization:'한국교육학술정보원'}, '위원회·지원단'],
+    [{category:'위원회·지원단',title:'가상 교사 콘텐츠 검토 협의회'}, '위원회·지원단'],
+    [{category:'근무·파견',title:'가상 초등학교 근무'}, '기타'],
+  ];
+  for(const [fields,expected] of cases){
+    const career=fixtureCareer({...fields,documentIds:['evidence_original']}),before=structuredClone(career);
+    assert.equal(careerSection(career),expected,career.title);
+    assert.deepEqual(careerCategoryChoices.filter(choice=>matchesCareerCategory(career,choice)),[expected]);
+    assert.deepEqual(career,before);assert.deepEqual(normalizeBrowserCareer(career),career);
+  }
+  assert.ok(!careerCategoryChoices.includes('근무'));assert.ok(!careerCategoryChoices.includes('연구·수상'));
+  for(const category of ['연구대회','표창'])assert.equal(normalizeBrowserCareer(fixtureCareer({category})).category,category);
+  assert.equal(careerOrganization(fixtureCareer({title:'가상 강의'})),'기관 미입력');
+  assert.equal(careerOrganization(fixtureCareer({title:'가상 AI 디지털교과서 현장교사 파견'})),'기관 미입력');
+  assert.equal(careerOrganization(fixtureCareer(cases.find(([fields])=>fields.title.includes('수학탐험대'))[0])),'한국교육학술정보원(KERIS)');
 });
 
 test('recognition keeps explicit overrides and preserves multiple stages and grades through both validators',()=>{

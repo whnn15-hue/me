@@ -4,6 +4,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
+  Building2,
+  Medal,
+  Clapperboard,
   BriefcaseBusiness,
   CalendarDays,
   CheckCheck,
@@ -37,7 +40,7 @@ import {
   X,
 } from "lucide-react";
 import FileDropzone from "./FileDropzone";
-import { careerCollections, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
+import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
 import { api, download } from "./api";
 import {
@@ -75,9 +78,10 @@ const categoryIcons = {
   "강의·연수": GraduationCap,
   "위원회·지원단": Users,
   "연구·수상": Trophy,
+  연구대회: Trophy, 표창: Medal,
   "집필·콘텐츠": BookOpen,
   "근무·파견": BriefcaseBusiness,
-  파견: BriefcaseBusiness, 근무: BriefcaseBusiness, 집필: BookOpen, "콘텐츠 제작": FileText,
+  파견: BriefcaseBusiness, 근무: BriefcaseBusiness, 집필: BookOpen, "콘텐츠 제작": Clapperboard,
   자격증: FileCheck2,
   기타: Layers3,
 };
@@ -96,9 +100,6 @@ const navItems: {
   { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
   { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
   { view: "graduate", label: "대학원", icon: GraduationCap, description: "" },
-  { view: "secondment", label: "파견", icon: BriefcaseBusiness, description: "" },
-  { view: "writing", label: "집필", icon: BookOpen, description: "" },
-  { view: "content", label: "콘텐츠 제작", icon: FileText, description: "" },
   {
     view: "documents",
     label: "공문 보관함",
@@ -163,9 +164,9 @@ export function Evidence({ career }: { career: Career }) {
 }
 
 function Recognition({career}: {career:Career}) {
-  if (career.category !== "연구·수상" && career.awardGrade === undefined && career.awardLevel === undefined) return null;
+  if (careerSection(career) !== "연구대회") return null;
   const details=recognitionDetails(career);
-  return <div className="recognition-badges" aria-label="연구 수상 등급과 단계">{details.level && <span className="award-level">{details.level}</span>}{details.grade && <strong>{details.grade}</strong>}{details.stages.map(stage=><span className="award-stage" key={stage}>{stage}</span>)}{!details.grade && <span className="award-unknown">등급 미기재</span>}</div>;
+  return <div className="recognition-badges" aria-label="연구대회 등급과 단계">{details.level && <span className="award-level">{details.level}</span>}{details.grade && <strong>{details.grade}</strong>}{details.stages.map(stage=><span className="award-stage" key={stage}>{stage}</span>)}{!details.grade && <span className="award-unknown">등급 미기재</span>}</div>;
 }
 
 export default function App() {
@@ -181,6 +182,8 @@ export default function App() {
     [query, setQuery] = useState(""),
     [category, setCategory] = useState<Category | "전체">("전체"),
     [year, setYear] = useState("전체 연도"),
+    [institution, setInstitution] = useState("전체 기관"),
+    [groupBy, setGroupBy] = useState<"year" | "organization">("year"),
     [evidenceFilter, setEvidenceFilter] = useState("전체 증빙"),
     [reviewOnly, setReviewOnly] = useState(false),
     [layout, setLayout] = useState<"list" | "grid">("list");
@@ -332,23 +335,25 @@ export default function App() {
         .reverse(),
     [careers],
   );
-  const isCareerView = ["careers", "secondment", "writing", "content"].includes(view);
-  const careerViewLabel = ({ secondment: "파견", writing: "집필", content: "콘텐츠 제작" } as Record<string,string>)[view] || "나의 이력";
-  const scopedCareers = careers.filter(c => view === "careers" || careerCollections(c, documents).includes(view as "secondment"|"writing"|"content"));
-  const collectionDocuments = view === "careers" ? [] : documents.filter(document =>
-    scopedCareers.some(career => career.documentIds.includes(document.id)) || view === "secondment" && document.name.includes("파견"));
+  const isCareerView = view === "careers";
+  const careerViewLabel = category === "전체" ? "전체 기록" : displayLabel(category);
+  const scopedCareers = useMemo(() => careers.filter(c => matchesCareerCategory(c, category, documents)), [careers, category, documents]);
+  const institutions = useMemo(() => [...new Set(scopedCareers.map(c => careerOrganization(c, documents)))].sort((a,b) => a.localeCompare(b,"ko")), [scopedCareers, documents]);
+  const collectionDocuments = category === "전체" ? [] : documents.filter(document =>
+    scopedCareers.some(career => career.documentIds.includes(document.id)) || category === "파견" && document.name.includes("파견"));
   const filtered = useMemo(
     () =>
       careers
         .filter((c) => {
           const match =
-            `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${displayLabel(c.title)} ${c.organization} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
+            `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
               .normalize("NFC").toLocaleLowerCase()
               .includes(query.normalize("NFC").trim().toLocaleLowerCase());
           return (
             match &&
             (!reviewOnly || !c.verified) &&
-            (view === "careers" || careerCollections(c, documents).includes(view as "secondment" | "writing" | "content")) && matchesCareerCategory(c, category, documents) &&
+            matchesCareerCategory(c, category, documents) &&
+            (institution === "전체 기관" || careerOrganization(c, documents) === institution) &&
             (year === "전체 연도" ||
               (c.startDate.slice(0, 4) <= year &&
                 (c.endDate || c.startDate).slice(0, 4) >= year)) &&
@@ -364,26 +369,26 @@ export default function App() {
             (b.startDate || "").localeCompare(a.startDate || "") ||
             a.title.localeCompare(b.title, "ko"),
         ),
-    [careers, documents, query, category, year, evidenceFilter, reviewOnly, view],
+    [careers, documents, query, category, year, institution, evidenceFilter, reviewOnly],
   );
-  const groups = useMemo(
-    () =>
-      Object.entries(
-        Object.groupBy(filtered, (c) => c.startDate.slice(0, 4) || "확인 필요"),
-      ).sort(([a], [b]) =>
-        a === "확인 필요" ? 1 : b === "확인 필요" ? -1 : b.localeCompare(a),
-      ),
-    [filtered],
-  );
+  const groups = useMemo(() => Object.entries(Object.groupBy(filtered, c => groupBy === "organization"
+    ? careerOrganization(c, documents) : c.startDate.slice(0, 4) || "확인 필요"))
+    .sort(([a], [b]) => groupBy === "organization" ? a === "기관 미입력" ? 1 : b === "기관 미입력" ? -1 : a.localeCompare(b,"ko")
+      : a === "확인 필요" ? 1 : b === "확인 필요" ? -1 : b.localeCompare(a)), [filtered, groupBy, documents]);
   const linkedCareers = careers.filter((c) => c.documentIds.length > 0).length;
   const missingEvidence = careers.filter((c) => !c.documentIds.length && c.evidenceStatus !== "unneeded").length;
   const unreviewed = careers.filter((c) => !c.verified).length;
   const evidenceRequired = careers.filter((c) => c.documentIds.length || c.evidenceStatus !== "unneeded").length;
   const coverage = evidenceRequired ? Math.round(linkedCareers / evidenceRequired * 100) : 0;
-  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || evidenceFilter !== "전체 증빙" || reviewOnly;
+  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || institution !== "전체 기관" || evidenceFilter !== "전체 증빙" || reviewOnly;
   const clearFilters = () => {
-    setQuery(""); setCategory("전체"); setYear("전체 연도");
+    setQuery(""); setCategory("전체"); setYear("전체 연도"); setInstitution("전체 기관"); setGroupBy("year");
     setEvidenceFilter("전체 증빙"); setReviewOnly(false);
+  };
+  const chooseCategory = (next: Category | "전체") => {
+    setCategory(next); setInstitution("전체 기관"); setQuery(""); setYear("전체 연도");
+    setEvidenceFilter("전체 증빙"); setReviewOnly(false);
+    setGroupBy(next === "강의·연수" ? "organization" : "year");
   };
   const focusArchive = (filter: "all" | "missing" | "review") => {
     clearFilters(); setView("careers");
@@ -392,7 +397,7 @@ export default function App() {
     document.getElementById("career-records")?.scrollIntoView({ block: "start" });
   };
   const changeView = (v: View) => {
-    if (["careers","secondment","writing","content"].includes(v)) clearFilters();
+    if (v === "careers") clearFilters();
     window.scrollTo({ top: 0 });
     setView(v);
     setQuery("");
@@ -771,24 +776,6 @@ export default function App() {
             </div>
           ))}
         </nav>
-        <div className="sidebar-divider" />
-        <div className="nav-section-label">MY COLLECTIONS</div>
-        <div className="collection-links">
-          {careerCategoryChoices.map((c, i) => (
-            <button
-              key={displayLabel(c)}
-              onClick={() => {
-                changeView("careers");
-                setCategory(c);
-              }}
-              className={view === "careers" && category === c ? "selected" : ""}
-            >
-              <span className={`collection-dot dot-${i}`} />
-              {displayLabel(c)}
-              <span>{careers.filter((x) => matchesCareerCategory(x,c, documents)).length}</span>
-            </button>
-          ))}
-        </div>
         <div className="sidebar-bottom">
           <button
             className="account-button"
@@ -914,7 +901,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {["careers", "projects", "materials", "graduate", "secondment", "writing", "content"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 7).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {["careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
               {!["projects", "materials", "graduate"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
@@ -931,7 +918,7 @@ export default function App() {
                   </div>
                   <h1>
                     {isCareerView
-                      ? careerViewLabel
+                      ? "이력"
                       : view === "projects" ? "수업"
                       : view === "materials" ? "강의 자료"
                       : view === "graduate" ? "대학원"
@@ -958,7 +945,7 @@ export default function App() {
                       <button
                         className="button primary"
                         onClick={() => {
-                          setEditor(emptyCareer());
+                          setEditor({ ...emptyCareer(), ...(category !== "전체" ? { category } : {}) });
                           setQueue([]);
                           setAnalysisNote("");
                         }}
@@ -973,14 +960,23 @@ export default function App() {
               </div>}
               {isCareerView && (
                 <>
+                  <nav className="category-tabs career-collections" aria-label="이력 분류">
+                    {(["전체", ...careerCategoryChoices] as const).map(c => {
+                      const count = c === "전체" ? careers.length : careers.filter(item => matchesCareerCategory(item,c,documents)).length;
+                      const Icon = c === "전체" ? Layers3 : categoryIcons[c];
+                      return <button key={c} className={category === c ? "active" : ""} aria-pressed={category === c} onClick={()=>chooseCategory(c)}>
+                        <Icon size={17}/><strong>{displayLabel(c)}</strong><span>{count}</span>
+                      </button>;
+                    })}
+                  </nav>
                   <section className="stats-grid" aria-label="경력 요약">
                     <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
                     <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
                     <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
                     <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
                   </section>
-                  {view !== "careers" && collectionDocuments.length > 0 && <details className="collection-evidence"><summary><FileText size={16}/>{careerViewLabel} 관련 공문 {collectionDocuments.length}개</summary><div>{collectionDocuments.map(document => <div key={document.id}><span>{displayLabel(document.name)}</span><button className="button secondary" onClick={()=>void download(`/documents/${document.id}/file`,document.name).catch(fail)}><Download size={14}/>원본</button><button className="text-button" onClick={()=>{setLinkDoc(document);setLinkId("");setLinkQuery("");}}>이력 연결</button></div>)}</div></details>}
-                  <FileDropzone onFiles={uploadFiles} busy={!!busy} label="공문을 끌어 놓으면 이력 초안 정리" />
+                  {category !== "전체" && collectionDocuments.length > 0 && <details className="collection-evidence"><summary><FileText size={16}/>{careerViewLabel} 관련 공문 {collectionDocuments.length}개</summary><div>{collectionDocuments.map(document => <div key={document.id}><span>{displayLabel(document.name)}</span><button className="button secondary" onClick={()=>void download(`/documents/${document.id}/file`,document.name).catch(fail)}><Download size={14}/>원본</button><button className="text-button" onClick={()=>{setLinkDoc(document);setLinkId("");setLinkQuery("");}}>이력 연결</button></div>)}</div></details>}
+                  <FileDropzone onFiles={uploadFiles} busy={!!busy} label="공문 끌어 놓기" />
                   <section className="career-section" id="career-records">
                     <div className="section-heading">
                       <h2>
@@ -1000,7 +996,7 @@ export default function App() {
                         <input
                           ref={searchRef}
                           aria-label="경력 검색"
-                          placeholder="경력, 기관, 태그로 검색해 보세요"
+                          placeholder="활동명, 기관, 태그 검색"
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
                         />
@@ -1016,6 +1012,7 @@ export default function App() {
                         )}
                       </label>
                       <div className="filter-selects">
+                        <label className="select-wrap institution-select"><Building2 size={15}/><select aria-label="기관 필터" value={institution} onChange={e=>setInstitution(e.target.value)}><option>전체 기관</option>{institutions.map(name=><option key={name}>{name}</option>)}</select><ChevronDown size={13}/></label>
                         <label className="select-wrap">
                           <CalendarDays size={15} />
                           <select
@@ -1062,26 +1059,10 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                    <div className="category-tabs" aria-label="분류 필터">
-                      {(["전체", ...careerCategoryChoices] as const).map((c) => (
-                        <button
-                          key={displayLabel(c)}
-                          className={category === c ? "active" : ""}
-                          aria-pressed={category === c}
-                          onClick={() => setCategory(c)}
-                        >
-                          {displayLabel(c)}
-                          <span>
-                            {c === "전체"
-                              ? scopedCareers.length
-                              : scopedCareers.filter((x) => matchesCareerCategory(x,c, documents)).length}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
                     <div className="archive-result-bar">
-                      <span aria-live="polite">{hasFilters ? `검색 결과 ${filtered.length}건` : `전체 ${filtered.length}건, 최근 활동순`}</span>
+                      <span aria-live="polite">{filtered.length}건{groupBy === "organization" ? `, ${groups.length}개 기관` : ", 최근 활동순"}</span>
                       <div>
+                        <label className="group-select"><select aria-label="이력 묶어보기" value={groupBy} onChange={e=>setGroupBy(e.target.value as "year" | "organization")}><option value="year">연도별 보기</option><option value="organization">기관별 보기</option></select><ChevronDown size={12}/></label>
                         <button className={`review-filter ${reviewOnly ? "active" : ""}`} aria-pressed={reviewOnly} onClick={() => setReviewOnly(!reviewOnly)}><CircleHelp size={14} />확인 전만 보기</button>
                         {hasFilters && <button className="reset-filters" onClick={clearFilters}><X size={13} />필터 초기화</button>}
                       </div>
@@ -1102,12 +1083,12 @@ export default function App() {
                       />
                     ) : (
                       groups.map(([y, records]) => (
-                        <div className="year-group" key={y}>
+                        <div className={`year-group ${groupBy === "organization" ? "institution-group" : ""}`} key={y}>
                           <div className="year-heading">
-                            <span className="year-marker" />
+                            {groupBy === "organization" ? <Building2 className="institution-marker" size={19}/> : <span className="year-marker" />}
                             <h3>
                               {y}
-                              {y !== "확인 필요" && <span>년</span>}
+                              {groupBy === "year" && y !== "확인 필요" && <span>년</span>}
                             </h3>
                             <span className="year-count">
                               {records?.length}개의 기록
@@ -1125,7 +1106,7 @@ export default function App() {
                                 key={c.id}
                                 onClick={() => setDetail(c)}
                               >
-                                <CategoryIcon category={c.category} />
+                                <CategoryIcon category={careerSection(c, documents)} />
                                 <div className="career-info">
                                   <div className="career-category">
                                     {careerCategoryLabel(c, documents)}
@@ -1135,14 +1116,13 @@ export default function App() {
                                       </span>
                                     )}
                                   </div>
+                                  {careerSection(c, documents) === "강의·연수" && <div className="lecture-institution"><Building2 size={14}/><span>{careerOrganization(c, documents)}</span></div>}
                                   <h4>{displayLabel(c.title)}</h4><Recognition career={c} />
                                   <div className="career-meta">
-                                    <span>
-                                      {displayLabel(c.organization || "기관 확인 필요")}
-                                    </span>
+                                    {careerSection(c, documents) !== "강의·연수" && <span>{careerOrganization(c, documents)}</span>}
                                     {c.role && (
                                       <>
-                                        <i />
+                                        {careerSection(c, documents) !== "강의·연수" && <i />}
                                         {displayLabel(c.role)}
                                       </>
                                     )}
@@ -1216,6 +1196,7 @@ export default function App() {
               {view === "resume" && (
                 <ResumeBuilder
                   careers={careers}
+                  documents={documents}
                   onError={fail}
                   onToast={setToast}
                 />
@@ -1353,7 +1334,7 @@ export default function App() {
                 <X size={21} />
               </button>
             </div>
-            <CategoryIcon category={detail.category} />
+            <CategoryIcon category={careerSection(detail, documents)} />
             <div className="detail-category">{careerCategoryLabel(detail, documents)}</div>
             <h2>{displayLabel(detail.title)}</h2><Recognition career={detail} />
             <Evidence career={detail} />
@@ -1375,7 +1356,7 @@ export default function App() {
                   <BriefcaseBusiness size={15} />
                   기관
                 </dt>
-                <dd>{displayLabel(detail.organization || "미입력")}</dd>
+                <dd>{careerOrganization(detail, documents)}</dd>
               </div>
               <div>
                 <dt>
@@ -1532,7 +1513,7 @@ export default function App() {
                 onChange={(e) => setLinkId(e.target.value)}
               >
                 <option value="">경력을 선택해 주세요</option>
-                {careers.filter((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${displayLabel(c.title)} ${c.organization} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
+                {careers.filter((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${c.startDate}`.normalize("NFC").toLocaleLowerCase().includes(linkQuery.normalize("NFC").trim().toLocaleLowerCase())).map((c) => (
                   <option key={c.id} value={c.id} disabled={c.documentIds.includes(linkDoc.id)}>
                     {c.startDate}, {displayLabel(c.title)}{c.documentIds.includes(linkDoc.id) ? " (연결됨)" : ""}
                   </option>
@@ -1643,7 +1624,7 @@ function DocumentsView({
   const linkedCount = documents.filter((d) => linkedByDocument.get(d.id)?.length).length;
   const items = documents.filter((d) => {
     const linked = linkedByDocument.get(d.id) || [];
-    return `${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${displayLabel(c.title)} ${c.organization} ${c.tags.join(" ")}`).join(" ")}`
+    return `${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${c.tags.join(" ")}`).join(" ")}`
       .normalize("NFC").toLocaleLowerCase().includes(query.normalize("NFC").trim().toLocaleLowerCase()) &&
       (filter === "전체 파일" || (filter === "연결된 파일" ? linked.length > 0 : linked.length === 0));
   });

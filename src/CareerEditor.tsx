@@ -1,5 +1,5 @@
 import { displayText } from "./display";
-import { careerCategoryChoices, recognitionDetails } from "../shared/career-organization.mjs";
+import { careerCategoryChoices, careerSection, recognitionDetails } from "../shared/career-organization.mjs";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -234,10 +234,10 @@ export function CareerEditor({
             <label className="field">
               <span>분류</span>
               <select
-                value={draft.category}
+                value={careerSection(draft, documents)}
                 onChange={(e) => change("category", e.target.value as Category)}
               >
-                {[...careerCategoryChoices, ...(!careerCategoryChoices.includes(draft.category) ? [draft.category] : [])].map((c) => (
+                {careerCategoryChoices.map((c) => (
                   <option key={c} value={c}>{displayText(c)}</option>
                 ))}
               </select>
@@ -252,7 +252,7 @@ export function CareerEditor({
               />
             </label>
           </div>
-          {draft.category === "연구·수상" && <div className="recognition-editor">
+          {careerSection(draft, documents) === "연구대회" && <div className="recognition-editor">
             <div className="field-grid">
               <label className="field"><span>대회 범위</span><input value={draft.awardLevel ?? recognitionDetails(draft).level} placeholder="전국, 시도, 지역" maxLength={100} onChange={e => change("awardLevel", e.target.value)} /></label>
               <label className="field"><span>등급 또는 수상 결과</span><input value={draft.awardGrade ?? recognitionDetails(draft).grade} placeholder="1등급, 최우수상 등" maxLength={100} onChange={e => change("awardGrade", e.target.value)} /></label>
@@ -260,7 +260,7 @@ export function CareerEditor({
             <div className="field"><span>대회 단계</span><div className="stage-picker">{["예선", "본선", "최종"].map(stage => <label key={stage}><input type="checkbox" checked={(draft.awardStages ?? recognitionDetails(draft).stages).includes(stage)} onChange={e => { const values = draft.awardStages ?? recognitionDetails(draft).stages; change("awardStages", e.target.checked ? [...values, stage] : values.filter(value => value !== stage)); }} />{stage}</label>)}</div></div>
           </div>}
           <label className="field">
-            <span>활동 기관</span>
+            <span>{careerSection(draft, documents) === "강의·연수" ? "강의 또는 연수 기관" : careerSection(draft, documents) === "표창" ? "수여 기관" : "활동 기관"}</span>
             <input
               maxLength={200}
               placeholder="예: 대구광역시교육청"

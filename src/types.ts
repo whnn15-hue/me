@@ -2,6 +2,8 @@ export const categories = [
   "강의·연수",
   "위원회·지원단",
   "연구·수상",
+  "연구대회",
+  "표창",
   "집필·콘텐츠",
   "근무·파견",
   "파견",
@@ -58,7 +60,7 @@ export interface Status {
   configurationError?: string;
   authenticationError?: string;
 }
-export type View = "careers" | "secondment" | "writing" | "content" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings";
+export type View = "careers" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings";
 export interface HwpxField {
   id: string;
   label: string;

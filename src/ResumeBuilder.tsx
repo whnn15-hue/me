@@ -1,3 +1,4 @@
+import { careerCategoryChoices, careerCategoryLabel, matchesCareerCategory } from "../shared/career-organization.mjs";
 import { displayText } from "./display";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -15,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { api, download, saveBlob } from "./api";
-import { categories, type Career, type HwpxField } from "./types";
+import { type DocumentRecord, type Career, type HwpxField } from "./types";
 
 const period = (c: Career) =>
   !c.startDate
@@ -35,10 +36,12 @@ const csvCell = (s: string) =>
   `"${(s.match(/^[=+@-]/) ? "'" + s : s).replaceAll('"', '""')}"`;
 export default function ResumeBuilder({
   careers,
+  documents = [],
   onError,
   onToast,
 }: {
   careers: Career[];
+  documents?: DocumentRecord[];
   onError: (e: unknown) => void;
   onToast: (s: string) => void;
 }) {
@@ -65,7 +68,7 @@ export default function ResumeBuilder({
   const filtered = careers
     .filter(
       (c) =>
-        (category === "전체" || c.category === category) &&
+        matchesCareerCategory(c, category, documents) &&
         `${c.title} ${c.organization} ${c.tags.join(" ")}`
           .toLowerCase()
           .includes(query.toLowerCase()),
@@ -110,7 +113,7 @@ export default function ResumeBuilder({
       ],
       ...chosen.map((c) => [
         period(c),
-        c.category,
+        careerCategoryLabel(c, documents),
         c.title,
         c.organization,
         c.role,
@@ -264,7 +267,7 @@ export default function ResumeBuilder({
               onChange={(e) => setCategory(e.target.value)}
             >
               <option>전체</option>
-              {categories.map((c) => (
+              {careerCategoryChoices.map((c) => (
                 <option key={c} value={c}>{displayText(c)}</option>
               ))}
             </select>
@@ -299,7 +302,7 @@ export default function ResumeBuilder({
                 />
                 <span>
                   <small>
-                    {period(c)}, {displayText(c.category)}
+                    {period(c)}, {careerCategoryLabel(c, documents)}
                   </small>
                   <strong>{c.title}</strong>
                   <em>

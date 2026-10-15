@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export const CATEGORIES = ['강의·연수', '위원회·지원단', '연구·수상', '집필·콘텐츠', '근무·파견', '파견', '근무', '집필', '콘텐츠 제작', '자격증', '기타'];
+export const CATEGORIES = ['강의·연수', '위원회·지원단', '연구·수상', '연구대회', '표창', '집필·콘텐츠', '근무·파견', '파견', '근무', '집필', '콘텐츠 제작', '자격증', '기타'];
 export const cleanText = (value, max = 10000) => String(value ?? '').trim().slice(0, max);
 export function normalizeCareer(input, previous = {}) {
   const title = cleanText(input.title ?? previous.title, 300);

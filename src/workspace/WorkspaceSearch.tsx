@@ -1,3 +1,4 @@
+import { careerCategoryLabel, recognitionDetails } from "../../shared/career-organization.mjs";
 import { useMemo, useState } from "react";
 import { ArrowUpRight, ChevronDown, Search } from "lucide-react";
 import { materialClassification } from "../../shared/material-classification.mjs";
@@ -15,7 +16,7 @@ export default function WorkspaceSearch({ workspace, careers, documents, onOpen,
 }) {
   const [query, setQuery] = useState(""), [kind, setKind] = useState("all"), [tag, setTag] = useState("");
   const entries = useMemo<SearchResult[]>(() => [
-    ...careers.map(career => ({ ref: `career:${career.id}`, kind: "career" as const, title: career.title, detail: [career.startDate, career.organization, career.role].filter(Boolean).join(" / "), body: `${career.title} ${career.category} ${career.organization} ${career.role} ${career.description} ${career.startDate} ${career.endDate} ${career.tags.join(" ")}`, tags: career.tags, date: career.startDate })),
+    ...careers.map(career => ({ ref: `career:${career.id}`, kind: "career" as const, title: career.title, detail: [careerCategoryLabel(career, documents), career.startDate, career.organization, career.role].filter(Boolean).join(" / "), body: `${career.title} ${careerCategoryLabel(career, documents)} ${recognitionDetails(career).grade} ${recognitionDetails(career).stages.join(" ")} ${career.organization} ${career.role} ${career.description} ${career.startDate} ${career.endDate} ${career.tags.join(" ")}`, tags: career.tags, date: career.startDate })),
     ...documents.map(document => {
       const linked = careers.filter(career => career.documentIds.includes(document.id));
       return { ref: `document:${document.id}`, kind: "document" as const, title: document.name, detail: linked.length ? `${linked.length}개 경력에 연결` : "경력 미연결", body: `${document.name} ${document.text || ""} ${linked.map(career => `${career.title} ${career.organization} ${career.tags.join(" ")}`).join(" ")}`, tags: [...new Set(linked.flatMap(career => career.tags))], date: document.createdAt };
