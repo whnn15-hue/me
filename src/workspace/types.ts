@@ -2,6 +2,7 @@ import type { Career, DocumentRecord } from "../types";
 
 export type WorkspaceKind = "project" | "material" | "course" | "assignment" | "paper" | "idea";
 export interface WorkspaceItemBase {
+  favorite?: boolean;
   id: string; kind: WorkspaceKind; title: string; tags: string[]; createdAt: string; updatedAt: string;
 }
 export interface ProjectItem extends WorkspaceItemBase {
@@ -16,7 +17,7 @@ export interface MaterialItem extends WorkspaceItemBase {
   subjects?: string[];
   trainings?: string[];
   sourceFile?: { name: string; size: number; sha256: string };
-  date: string; audience: string[]; format: "PPT" | "PDF" | "HWP" | "TXT" | "영상" | "기타"; fileUrl: string; summary: string;
+  date: string; audience: string[]; format: "PPT" | "PDF" | "HWP" | "TXT" | "HTML" | "영상" | "기타"; fileUrl: string; summary: string;
 }
 export interface CourseItem extends WorkspaceItemBase { kind: "course"; semester: string; professor: string; }
 export interface AssignmentItem extends WorkspaceItemBase {
@@ -47,6 +48,7 @@ export interface WorkspaceSectionProps {
   focusId?: string; onError: (error: unknown) => void;
   onFiles?: (files: File[], purpose: "classroom" | "lecture") => Promise<void>;
   uploading?: boolean;
+  loadHtmlPreview?: (item: MaterialItem) => Promise<string>;
 }
 // Descriptive aliases keep individual tab code concise.
 export type Project = ProjectItem;

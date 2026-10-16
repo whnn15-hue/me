@@ -168,3 +168,20 @@ test('Drive snapshot rejects wrong formats, unsafe IDs, duplicate records, missi
   await assert.rejects(() => readDriveSnapshotFile({ name: 'oversized.json', size: 6 * 1024 * 1024, arrayBuffer() { throw new Error('must not read'); } }), /5MB/);
   await assert.rejects(() => readDriveSnapshotFile(new File(['{}'], 'wrong.zip')), /JSON/);
 });
+
+test('HTML originals and favorite metadata round-trip through browser ZIP and local restore unchanged',async()=>{
+  const content=Buffer.from('<!doctype html><html><head><title>가상 수업</title></head><body><h1>수학</h1><script>window.test=1</script></body></html>');
+  const htmlDoc={...document,name:'수학.HTML',mime:'text/html',size:content.length,sha256:createHash('sha256').update(content).digest('hex'),bytes:new Uint8Array(content)};
+  const {normalizeWorkspaceItem}=await import('../shared/workspace.mjs');
+  const item=normalizeWorkspaceItem({id:'favorite_html',kind:'material',title:'수학',format:'HTML',favorite:true,fileUrl:'https://drive.google.com/file/d/sample123/view',sourceFile:{name:htmlDoc.name,size:content.length,sha256:htmlDoc.sha256}});
+  const workspace={schemaVersion:1,items:[item],links:[{from:'career:career_one',to:'material:favorite_html'}],revision:0};
+  const blob=await createBackupBlob({careers:[career],documents:[htmlDoc],workspace});
+  const archive=Buffer.from(await blob.arrayBuffer());
+  const restored=await readBackupFile(file(archive));
+  assert.deepEqual(Buffer.from(restored.documents[0].bytes),content);assert.equal(restored.workspace.items[0].favorite,true);
+  await withStore(async store=>{
+    await restoreBackup(store,archive);
+    const next=await readBackupFile(file(await exportBackup(store)));
+    assert.deepEqual(Buffer.from(next.documents[0].bytes),content);assert.equal(next.workspace.items[0].format,'HTML');assert.equal(next.workspace.items[0].favorite,true);assert.deepEqual(next.workspace.links,workspace.links);
+  });
+});

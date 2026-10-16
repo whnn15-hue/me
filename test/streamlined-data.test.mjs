@@ -149,3 +149,42 @@ test('compressed text rejects actual inflation beyond its bound even if declared
   const entry=loaded.file('payload.xml');entry._data.uncompressedSize=1;
   await assert.rejects(readZipText(entry,1024),/용량 제한/);
 });
+
+test('HTML and HTM material uploads derive document metadata without executing code or altering bytes', async()=>{
+  const {isHtmlBytes,decodeHtml,htmlMetadata}=await import('../shared/html.mjs');
+  const {validateFile}=await import('../server/cloud/files.mjs');
+  const source=`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>분수 &amp; 연산 수업</title><meta content='분수의 크기를 비교하는 활동' name='description'><meta name="author" content="가상 교사"><style>body{color:red}</style></head><body><h1>수학 탐험</h1><p>분수 연산 활동</p><script>globalThis.HTML_EXECUTED=true; secret</script></body></html>`;
+  for (const extension of ['html','HTM']) {
+    const bytes=Buffer.from(source),input=await prepareMaterialFiles([new File([bytes],`수업.${extension}`)],'classroom');
+    const item=input.materials[0].item;
+    assert.equal(item.title,'분수 & 연산 수업');assert.equal(item.format,'HTML');assert.equal(item.author,'가상 교사');
+    assert.equal(item.summary,'분수의 크기를 비교하는 활동');assert.ok(item.subjects.includes('수학'));assert.ok(item.trainings.includes('수 연산'));
+    assert.deepEqual(Buffer.from(input.documents[0].bytes),bytes);assert.equal(normalizeWorkspaceItem(item).format,'HTML');
+    assert.equal(validateFile({originalname:`test.${extension}`,buffer:bytes}).mime,'text/html');
+  }
+  assert.equal(globalThis.HTML_EXECUTED,undefined);
+  const meta=htmlMetadata(source);assert.doesNotMatch(meta.text,/secret|globalThis|color:red/);
+  assert.doesNotMatch(htmlMetadata('<h1>본문</h1><script>never closed').text,/never closed/);
+  const utf16=Buffer.concat([Buffer.from([255,254]),Buffer.from(source,'utf16le')]);
+  assert.ok(isHtmlBytes(utf16));assert.equal(htmlMetadata(decodeHtml(utf16)).title,'분수 & 연산 수업');
+  assert.equal(isHtmlBytes(Buffer.from('MZ\0\0not html')),false);
+  await assert.rejects(prepareMaterialFiles([new File(['not html'],'spoof.html')],'lecture'),/확장자/);
+  assert.throws(()=>validateFile({originalname:'fake.htm',buffer:Buffer.from('PK\0\0')}),/확장자/);
+  const directory=await mkdtemp(join(tmpdir(),'html-extraction-'));
+  try{const path=join(directory,'sample.html');await writeFile(path,source);const extracted=await extractText(path,'sample.html');assert.match(extracted.text,/분수 & 연산/);assert.doesNotMatch(extracted.text,/secret/);assert.equal(await readFile(path,'utf8'),source);}
+  finally{await rm(directory,{recursive:true,force:true});}
+});
+
+test('favorites preserve old row shape, cross-links, backup data and revision conflict checks',async()=>{
+  const {normalizeWorkspace,mutateWorkspace,emptyWorkspace}=await import('../shared/workspace.mjs');
+  const item=normalizeWorkspaceItem({id:'html_favorite',kind:'material',title:'수학 웹 자료',format:'HTML',fileUrl:'https://drive.google.com/file/d/example123/view'});
+  assert.equal(Object.hasOwn(item,'favorite'),false);
+  const career=fixtureCareer({id:'favorite_career'});
+  const workspace=normalizeWorkspace({...emptyWorkspace(4),items:[item],links:[{from:'career:favorite_career',to:'material:html_favorite'}]},{careerIds:[career.id]});
+  const updated=mutateWorkspace(workspace,{operation:'update',id:'html_favorite',item:{...item,favorite:true},links:['career:favorite_career'],expectedRevision:4},[career]);
+  assert.equal(updated.items[0].favorite,true);assert.deepEqual(updated.links,workspace.links);
+  assert.deepEqual(normalizeWorkspace(JSON.parse(JSON.stringify(updated)),{careerIds:[career.id]}),updated);
+  assert.throws(()=>mutateWorkspace(updated,{operation:'update',id:'html_favorite',item:{...item,favorite:false},links:[],expectedRevision:4},[career]),/다른 화면/);
+  assert.throws(()=>normalizeWorkspaceItem({...item,favorite:'true'}),/즐겨찾기/);
+  assert.deepEqual(workspace.items,[item]);
+});

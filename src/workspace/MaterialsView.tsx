@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowDownAZ, ArrowUpRight, Bookmark, CalendarDays, Check, Clapperboard,
-  ExternalLink, FileText, FolderOpen, GraduationCap, Link2, LoaderCircle,
+  ArrowDownAZ, ArrowUpRight, Code2, Star, CalendarDays, Check, Clapperboard,
+  ExternalLink, FileText, GraduationCap, Link2, LoaderCircle,
   PencilLine, Plus, Presentation, Search, SlidersHorizontal, Trash2, Users, X,
 } from "lucide-react";
+import HtmlPreview from "./HtmlPreview";
+import { FavoriteButton, useFavorites, useLibraryView, ViewSwitch } from "./LibraryControls";
 import FileDropzone from "../FileDropzone";
 import { materialClassification, materialSubjects, materialTrainings } from "../../shared/material-classification.mjs";
 import { Modal } from "../CareerEditor";
@@ -11,7 +13,7 @@ import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from ".
 import type { MaterialItem, WorkspaceSectionProps } from "./types";
 import "./MaterialsView.css";
 
-const formats: MaterialItem["format"][] = ["PPT", "PDF", "영상", "기타", "HWP", "TXT"];
+const formats: MaterialItem["format"][] = ["PPT", "PDF", "영상", "기타", "HWP", "TXT", "HTML"];
 const audienceSuggestions = ["교원", "학생", "학부모", "관리자"];
 
 
@@ -44,6 +46,7 @@ function ClassificationPicker({draft,onChange}: {draft:MaterialItem;onChange:(fi
   return <details className="classification-options"><summary>{[...current.subjects,...current.trainings].join(", ") || "과목과 기초훈련 선택"}</summary><div className="classification-editor">{([['subjects','과목',materialSubjects],['trainings','기초훈련',materialTrainings]] as const).map(([field,label,values]) => <fieldset key={field}><legend>{label}</legend><div>{values.map(value => <label key={value} className={current[field].includes(value)?'selected':''}><input type="checkbox" checked={current[field].includes(value)} onChange={event => onChange(field,event.target.checked?[...current[field],value]:current[field].filter(item=>item!==value))}/>{value}</label>)}</div></fieldset>)}</div></details>;
 }
 function FormatIcon({ format, size = 23 }: { format: MaterialItem["format"]; size?: number }) {
+  if (format === "HTML") return <Code2 size={size} />;
   if (format === "PPT") return <Presentation size={size} />;
   if (format === "영상") return <Clapperboard size={size} />;
   return <FileText size={size} />;
@@ -125,9 +128,12 @@ export interface MaterialsViewProps extends WorkspaceSectionProps {
   importPanel?: ReactNode;
 }
 
-export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", importPanel, onFiles, uploading }: MaterialsViewProps) {
+export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", importPanel, onFiles, uploading, loadHtmlPreview }: MaterialsViewProps) {
   const classroom = purpose === "classroom";
   const materialLabel = classroom ? "학급 자료" : "강의 자료";
+  const [view, setView] = useLibraryView(`materials-${purpose}`);
+  const [quick, setQuick] = useState("all");
+  const favorites = useFavorites({ workspace, onSave, onError });
   const [query, setQuery] = useState("");
   const [subject, setSubject] = useState("");
   const [training, setTraining] = useState("");
@@ -150,13 +156,14 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   const allTags = [...new Set(materials.flatMap(item => item.tags))].sort((a, b) => a.localeCompare(b, "ko"));
   const normalizedQuery = query.trim().normalize("NFC").toLocaleLowerCase("ko-KR");
   const filtered = materials.filter(item => {
+    if (quick === "favorites" && !item.favorite || quick === "linked" && !fileUrl(item.fileUrl) || quick === "missing" && fileUrl(item.fileUrl)) return false;
     if (subject && (subject === "unclassified" ? classified.get(item.id)!.subjects.length > 0 : !classified.get(item.id)!.subjects.includes(subject)) || training && !classified.get(item.id)!.trainings.includes(training) || audience && !item.audience.includes(audience)
       || format && item.format !== format || tag && !item.tags.includes(tag)) return false;
     return !normalizedQuery || [item.title, item.author, item.eventName, item.summary, item.date, item.format, ...classified.get(item.id)!.subjects, ...classified.get(item.id)!.trainings, ...item.audience, ...item.tags]
       .join(" ").normalize("NFC").toLocaleLowerCase("ko-KR").includes(normalizedQuery);
   }).sort((a, b) => sort === "title" ? a.title.localeCompare(b.title, "ko") : sort === "date" ? b.date.localeCompare(a.date) || b.updatedAt.localeCompare(a.updatedAt) : b.updatedAt.localeCompare(a.updatedAt));
-  const hasFilters = Boolean(query || subject || training || audience || format || tag);
-  const resetFilters = () => { setQuery(""); setSubject(""); setTraining(""); setAudience(""); setFormat(""); setTag(""); };
+  const hasFilters = Boolean(query || subject || training || audience || format || tag || quick !== "all");
+  const resetFilters = () => { setQuick("all"); setQuery(""); setSubject(""); setTraining(""); setAudience(""); setFormat(""); setTag(""); };
 
   useEffect(() => {
     if (focusId && materials.some(item => item.id === focusId)) setSelectedId(focusId);
@@ -173,7 +180,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   return (
     <div className="materials-view">
       <div className="materials-heading">
-        <div><h1>{materialLabel}</h1></div>
+        <div><span className="library-kicker">{classroom ? "CLASSROOM LIBRARY" : "LECTURE LIBRARY"}</span><h1>{materialLabel}<span className="library-total" aria-hidden="true">{materials.length}</span></h1></div>
         <button className="button primary" onClick={() => setEditing(newMaterial(purpose))}><Plus size={17} /> 자료 추가</button>
       </div>
       {onFiles && <FileDropzone onFiles={files=>onFiles(files,purpose)} busy={uploading} label="자료 파일을 끌어 놓으면 자동 정리" />}
@@ -181,6 +188,10 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
       <div className="materials-collection-switch subject-collections" role="group" aria-label="과목 필터">
         {[["","전체 자료"],...allSubjects.map(value=>[value,value]),["unclassified","미분류"]].map(([value,label]) => <button key={value} aria-pressed={subject===value} className={subject===value?'active':''} onClick={()=>setSubject(value)}><span>{label}</span><strong>{value ? materials.filter(item=>value==='unclassified' ? !classified.get(item.id)!.subjects.length : classified.get(item.id)!.subjects.includes(value)).length : materials.length}</strong></button>)}
       </div>
+      <div className="library-quick-filters" role="group" aria-label="자료 빠른 필터">
+        {[["all", "모든 자료", materials.length], ["favorites", "즐겨찾기", materials.filter(item=>item.favorite).length], ["linked", "파일 연결됨", materials.filter(item=>fileUrl(item.fileUrl)).length], ["missing", "링크 미등록", materials.filter(item=>!fileUrl(item.fileUrl)).length]].map(([value,label,count]) => <button key={value} aria-pressed={quick===value} onClick={()=>setQuick(String(value))}>{value === "favorites" && <Star size={14}/>}<span>{label}</span><strong>{count}</strong></button>)}
+      </div>
+      {favorites.error && <p role="alert" className="alert error">{displayLabel(favorites.error)}</p>}
       <div className="materials-toolbar">
         <label className="materials-search"><Search size={17} /><input aria-label={`${materialLabel} 검색`} value={query} onChange={event => setQuery(event.target.value)} placeholder={classroom ? "제목, 제작자, 수업, 활동 내용 검색" : "제목, 제작자, 행사, 내용 검색"} />{query && <button className="icon-button" aria-label="자료 검색어 지우기" onClick={() => setQuery("")}><X size={14} /></button>}</label>
         <div className="materials-select-filters"><SlidersHorizontal size={15} aria-hidden="true" />
@@ -190,17 +201,22 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
           <select aria-label="자료 태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">모든 태그</option>{allTags.map(value => <option key={value} value={value}>{displayLabel(value)}</option>)}</select>
         </div>
       </div>
-      <div className="materials-results-header"><p>{hasFilters ? "찾은 자료" : "서가에 보관한 자료"} <strong>{filtered.length}</strong>개{hasFilters && <button className="text-button" onClick={resetFilters}>필터 초기화 <X size={12} /></button>}</p><label><ArrowDownAZ size={14} /><select aria-label={`${materialLabel} 정렬`} value={sort} onChange={event => setSort(event.target.value)}><option value="recent">최근 수정순</option><option value="date">자료 날짜순</option><option value="title">제목순</option></select></label></div>
+      <div className="materials-results-header"><p aria-live="polite">{hasFilters ? "찾은 자료" : "전체 자료"} <strong>{filtered.length}</strong>개{hasFilters && <button className="text-button" onClick={resetFilters}>필터 초기화 <X size={12} /></button>}</p><div className="library-result-controls"><label><ArrowDownAZ size={14} /><select aria-label={`${materialLabel} 정렬`} value={sort} onChange={event => setSort(event.target.value)}><option value="recent">최근 수정순</option><option value="date">자료 날짜순</option><option value="title">제목순</option></select></label><ViewSwitch view={view} onChange={setView}/></div></div>
       {filtered.length ? (
-        <div className="materials-grid">
-          {filtered.map(item => <button type="button" className="material-card" key={item.id} onClick={() => setSelectedId(item.id)} aria-label={`${displayLabel(item.title)} 상세보기`}>
-            <div className="material-card-top"><span className={`material-format-icon format-${formats.indexOf(item.format)}`}><FormatIcon format={item.format} /></span><span className="material-subject-badge">{classified.get(item.id)!.subjects.join(", ") || "미분류"}</span></div>
+        <div className={`materials-grid library-${view}`}>
+          {filtered.map(item => <article className="material-card" data-format={item.format} key={item.id}>
+            <FavoriteButton item={item} pending={favorites.pending} onToggle={favorites.toggle}/>
+            <button type="button" className="material-card-open" onClick={() => setSelectedId(item.id)} aria-label={`${displayLabel(item.title)} 상세보기`}>
+            <div className="material-cover" aria-hidden="true"><span className="cover-type">{item.format}</span><FormatIcon format={item.format} size={42}/><span className="cover-caption">{classified.get(item.id)!.subjects.slice(0,2).join(" / ") || (classroom ? "학급 자료" : "강의 자료")}</span><i/><i/></div>
+            <div className="material-card-body">
+            <div className="material-card-top"><span className="material-subject-badge">{classified.get(item.id)!.subjects.join(", ") || "미분류"}</span><span className={`material-file-status ${fileUrl(item.fileUrl)?"connected":""}`}><Link2 size={12}/>{fileUrl(item.fileUrl)?"파일 연결됨":"링크 미등록"}</span></div>
             <span className="material-format-label">{item.format}{item.date && <span>{dateLabel(item.date)}</span>}</span>
             <h3>{displayLabel(item.title)}</h3>
             <p className="material-card-summary">{displayLabel(item.summary)}</p>
             <div className="material-card-context">{item.author && <p><Users size={12} /><span>{displayLabel(item.author)}</span></p>}{item.eventName && <p><GraduationCap size={12} /><span>{displayLabel(item.eventName)}</span></p>}</div>
             <div className="material-training-labels">{classified.get(item.id)!.trainings.map(value=><span key={value}>{value}</span>)}</div><div className="material-card-footer"><div>{item.audience.length > 0 ? <span>{item.audience.map(displayLabel).join(", ")}</span> : <span className="material-unspecified">대상 미지정</span>}{item.tags.length > 0 && <span className="material-card-tags">{item.tags.slice(0, 3).map(value => `#${displayLabel(value)}`).join(" ")}{item.tags.length > 3 ? ` +${item.tags.length - 3}` : ""}</span>}</div><ArrowUpRight size={17} /></div>
-          </button>)}
+            </div></button><div className="library-card-actions">{fileUrl(item.fileUrl) && <a href={fileUrl(item.fileUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" aria-label={`${displayLabel(item.title)} 원본 열기`}><ExternalLink size={13}/>원본 열기</a>}<button onClick={()=>setEditing(item)} aria-label={`${displayLabel(item.title)} 수정`}><PencilLine size={13}/>수정</button></div>
+          </article>)}
         </div>
       ) : (
         <div className="materials-empty"><span><Presentation size={31} /></span><h3>{materials.length ? "조건에 맞는 자료가 없어요" : "등록된 자료가 없습니다"}</h3><button className="button secondary" onClick={materials.length ? resetFilters : () => setEditing(newMaterial(purpose))}>{materials.length ? <X size={15} /> : <Plus size={15} />}{materials.length ? "필터 초기화" : "첫 자료 추가하기"}</button></div>
@@ -211,6 +227,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
         <Modal title={displayLabel(selected.title)} subtitle={materialClassification(selected).subjects.join(", ")} wide onClose={() => setSelectedId("")}>
           <div className="modal-body material-detail">
             <div className="material-detail-feature"><span className={`material-format-icon format-${formats.indexOf(selected.format)}`}><FormatIcon format={selected.format} size={29} /></span><div><strong>{selected.format} 자료</strong><span>{selected.date ? dateLabel(selected.date) : "자료 날짜 미지정"}</span></div>{fileUrl(selected.fileUrl) ? <a className="button primary" href={fileUrl(selected.fileUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"><ExternalLink size={15} />드라이브에서 열기</a> : <span className="material-no-file">파일 링크 미등록</span>}</div>
+            {selected.format === "HTML" && selected.sourceFile && fileUrl(selected.fileUrl) && loadHtmlPreview && <HtmlPreview key={`${selected.id}-${selected.updatedAt}`} item={selected} load={loadHtmlPreview}/>}
             <dl className="material-detail-meta"><div><dt><Users size={14} />제작자 또는 출처</dt><dd>{displayLabel(selected.author) || "미등록"}</dd></div><div><dt><GraduationCap size={14} />{classroom ? "수업 또는 활동" : "행사 또는 강의"}</dt><dd>{displayLabel(selected.eventName) || "미등록"}</dd></div><div><dt><Users size={14} />대상</dt><dd>{selected.audience.map(displayLabel).join(", ") || "미지정"}</dd></div><div><dt><CalendarDays size={14} />자료 날짜</dt><dd>{selected.date ? dateLabel(selected.date) : "미지정"}</dd></div></dl>
             <section className="material-detail-notes"><h3><FileText size={16} />핵심 내용과 활용 메모</h3><p>{displayLabel(selected.summary)}</p></section>
             <div className="material-training-labels">{materialClassification(selected).trainings.map(value=><span key={value}>{value}</span>)}</div>

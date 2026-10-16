@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowUpRight, BookOpen, CalendarDays, Check, FileText, ChevronRight, Image, Layers3, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowUpRight, BookOpen, CalendarDays, Check, FileText, ChevronRight, Image, Layers3, Pencil, Plus, Search, Star, Trash2, X } from "lucide-react";
 import { Modal } from "../CareerEditor";
 import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from "./WorkspaceUI";
 import type { WorkspaceItem, WorkspaceSectionProps } from "./types";
 import FileDropzone from "../FileDropzone";
+import { FavoriteButton, useFavorites, useLibraryView, ViewSwitch } from "./LibraryControls";
 import MaterialsView from "./MaterialsView";
 import "./ProjectsView.css";
 
@@ -139,6 +140,9 @@ function PhotoLink({ photo }: { photo: ResourceLink }) {
 
 function ProjectRecordsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError }: WorkspaceSectionProps) {
   const projects = useMemo(() => workspace.items.filter((item): item is Project => item.kind === "project"), [workspace.items]);
+  const [view, setView] = useLibraryView("projects");
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const favorites = useFavorites({ workspace, onSave, onError });
   const [query, setQuery] = useState("");
   const [year, setYear] = useState("");
   const [subject, setSubject] = useState("");
@@ -156,10 +160,10 @@ function ProjectRecordsView({ workspace, careers, onSave, onDelete, onOpen, focu
   const tokens = text(query).normalize("NFC").trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const filtered = projects.filter(project => {
     const haystack = text([project.title, project.schoolYear, project.grade, project.drivingQuestion, project.lessonFlow, project.activities, project.reflection, ...project.tags, ...project.tools, ...project.subjects.flatMap(pair => [pair.subject, pair.unit])].join(" ")).normalize("NFC").toLocaleLowerCase();
-    return (!year || project.schoolYear === year) && (!subject || project.subjects.some(pair => pair.subject === subject)) && (!tag || project.tags.includes(tag)) && tokens.every(token => haystack.includes(token));
+    return (!onlyFavorites || project.favorite) && (!year || project.schoolYear === year) && (!subject || project.subjects.some(pair => pair.subject === subject)) && (!tag || project.tags.includes(tag)) && tokens.every(token => haystack.includes(token));
   }).sort((a, b) => (b.startDate || b.schoolYear || b.updatedAt).localeCompare(a.startDate || a.schoolYear || a.updatedAt) || a.title.localeCompare(b.title, "ko"));
   const selected = projects.find(project => project.id === selectedId);
-  const filteredActive = Boolean(query || year || subject || tag);
+  const filteredActive = Boolean(query || year || subject || tag || onlyFavorites);
   async function removeProject() {
     if (!deleting || busy) return;
     setBusy(true); setDeleteError("");
@@ -168,18 +172,23 @@ function ProjectRecordsView({ workspace, careers, onSave, onDelete, onOpen, focu
     finally { setBusy(false); }
   }
   return <section className="projects-view">
-    <header className="projects-heading"><div><h1>수업 기록</h1></div><button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />수업 추가</button></header>
-    <div className="projects-summary"><span><Layers3 size={18} /><strong>{projects.length}</strong>개의 수업 이야기</span><span>{subjects.length}개 교과에 걸친 배움</span></div>
+    <header className="projects-heading"><div><span className="library-kicker">CLASSROOM PORTFOLIO</span><h1>수업 기록<span className="library-total" aria-hidden="true">{projects.length}</span></h1></div><button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />수업 추가</button></header>
+    <div className="projects-summary"><span><Layers3 size={18} /><strong>{projects.length}</strong>개 수업</span><span>{subjects.length}개 교과</span></div>
+    <div className="library-quick-filters" role="group" aria-label="수업 빠른 필터"><button aria-pressed={!onlyFavorites} onClick={()=>setOnlyFavorites(false)}>전체 수업 <strong>{projects.length}</strong></button><button aria-pressed={onlyFavorites} onClick={()=>setOnlyFavorites(!onlyFavorites)}><Star size={14}/>즐겨찾기 <strong>{projects.filter(item=>item.favorite).length}</strong></button></div>
+    {favorites.error && <p role="alert" className="alert error">{text(favorites.error)}</p>}
     <div className="project-filters panel"><label className="project-search"><Search size={17} /><input aria-label="수업 검색" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 교과, 활동, 태그 검색" /></label><label className="project-filter-select"><span>학년도</span><select aria-label="학년도 필터" value={year} onChange={event => setYear(event.target.value)}><option value="">전체 학년도</option>{years.map(value => <option key={value} value={value}>{text(value)}학년도</option>)}</select></label><label className="project-filter-select"><span>교과</span><select aria-label="교과 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">전체 교과</option>{subjects.map(value => <option key={value} value={value}>{text(value)}</option>)}</select></label><label className="project-filter-select"><span>태그</span><select aria-label="태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">전체 태그</option>{tags.map(value => <option key={value} value={value}>{text(value)}</option>)}</select></label></div>
-    <div className="projects-result-line"><span aria-live="polite">{filtered.length}개의 수업{filteredActive && ` / 전체 ${projects.length}개`}</span>{filteredActive && <button type="button" className="button text-button" onClick={() => { setQuery(""); setYear(""); setSubject(""); setTag(""); }}>필터 초기화</button>}</div>
-    {filtered.length ? <div className="project-grid">{filtered.map(project => <button type="button" className="project-card" key={project.id} onClick={() => setSelectedId(project.id)} aria-label={`${text(project.title)} 자세히 보기`}>
+    <div className="projects-result-line"><span aria-live="polite">{filtered.length}개의 수업{filteredActive && ` / 전체 ${projects.length}개`}</span>{filteredActive && <button type="button" className="button text-button" onClick={() => { setOnlyFavorites(false); setQuery(""); setYear(""); setSubject(""); setTag(""); }}>필터 초기화</button>}<ViewSwitch view={view} onChange={setView}/></div>
+    {filtered.length ? <div className={`project-grid library-${view}`}>{filtered.map(project => <article className="project-card" key={project.id}>
+      <FavoriteButton item={project} pending={favorites.pending} onToggle={favorites.toggle}/>
+      <button type="button" className="project-card-open" onClick={() => setSelectedId(project.id)} aria-label={`${text(project.title)} 자세히 보기`}>
+      <div className="project-cover" aria-hidden="true"><span>{text(project.schoolYear) || "CLASS"}</span><BookOpen size={34}/><small>{[...new Set(project.subjects.map(pair=>text(pair.subject)))].slice(0,3).join(" / ") || "수업 기록"}</small></div><div className="project-card-body">
       <div className="project-card-top"><span className="project-card-year">{project.schoolYear ? `${text(project.schoolYear)}학년도` : "수업 기록"}</span><ChevronRight size={18} /></div>
       <h2>{text(project.title)}</h2><p className="project-card-question">{text(project.drivingQuestion || project.activities)}</p>
       <div className="project-card-subjects">{project.grade && <span>{text(project.grade)}</span>}{[...new Set(project.subjects.map(pair => pair.subject))].map(value => <span key={value}>{text(value)}</span>)}</div>
       <div className="project-card-date"><CalendarDays size={14} /><span>{text(period(project))}</span></div>
       {!!project.tags.length && <div className="project-card-tags">{project.tags.slice(0, 4).map(value => <span key={value}>#{text(value)}</span>)}{project.tags.length > 4 && <span>+{project.tags.length - 4}</span>}</div>}
       <div className="project-card-bottom"><span>결과물 {project.outputs.length}개</span><span>사진 {project.photos.length}개</span><span>연결 {linkedRefs(workspace, `project:${project.id}`).length}개</span></div>
-    </button>)}</div> : <div className="panel project-empty"><BookOpen size={35} /><h2>{projects.length ? "조건에 맞는 수업이 없어요" : "등록된 수업이 없습니다"}</h2>{!projects.length && <button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />첫 수업 기록하기</button>}</div>}
+    </div></button></article>)}</div> : <div className="panel project-empty"><BookOpen size={35} /><h2>{projects.length ? "조건에 맞는 수업이 없어요" : "등록된 수업이 없습니다"}</h2>{!projects.length && <button className="button primary" onClick={() => setEditing(newProject())}><Plus size={17} />첫 수업 기록하기</button>}</div>}
     {selected && !editing && !deleting && <Modal title={text(selected.title)} subtitle={[selected.schoolYear && `${text(selected.schoolYear)}학년도`, selected.grade && text(selected.grade)].filter(Boolean).join(" / ")} onClose={() => setSelectedId(undefined)} wide>
       <div className="modal-body project-detail">
         <div className="project-detail-meta"><span><CalendarDays size={16} />{text(period(selected))}</span><button type="button" className="button secondary" onClick={() => setEditing(cloneProject(selected))}><Pencil size={15} />수정</button></div>

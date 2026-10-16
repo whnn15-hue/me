@@ -34,7 +34,7 @@ const bundle = await build({
 });
 const browserOptions={skip:!existsSync(chromiumPath)&&!existsSync(chromium.executablePath())};
 async function fixture(run){
-  const styles=['styles.css','workspace/Workspace.css','workspace/ProjectsView.css'].map(file=>{
+  const styles=['styles.css','workspace/Workspace.css','workspace/ProjectsView.css','refinements.css','portfolio-library.css'].map(file=>{
     const path=new URL('../src/'+file,import.meta.url);return existsSync(path)?readFileSync(path,'utf8'):'';
   }).join('\n');
   const server=createServer((request,response)=>{

@@ -22,7 +22,7 @@ export function materialClassification(item) {
 }
 export function materialFileFormat(name) {
   const extension = name.split('.').at(-1)?.toLowerCase();
-  return { ppt: 'PPT', pptx: 'PPT', pdf: 'PDF', hwp: 'HWP', hwpx: 'HWP', txt: 'TXT', mp4: '영상', mov: '영상' }[extension] || '기타';
+  return { html: 'HTML', htm: 'HTML', ppt: 'PPT', pptx: 'PPT', pdf: 'PDF', hwp: 'HWP', hwpx: 'HWP', txt: 'TXT', mp4: '영상', mov: '영상' }[extension] || '기타';
 }
 export function materialDraft(name, text = '', purpose = 'lecture') {
   const title = name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/^\d{8}[_ -]+/, '').trim().slice(0, 300) || '새 자료';

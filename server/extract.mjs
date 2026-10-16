@@ -8,10 +8,16 @@ import { CATEGORIES, cleanText, normalizeCareer } from './store.mjs';
 import { extractHwpText } from './hwp.mjs';
 import { careerCategoryChoices, careerSection } from '../shared/career-organization.mjs';
 import { readZipText } from '../shared/zip-text.mjs';
+import { decodeHtml, htmlMetadata } from '../shared/html.mjs';
 const run = promisify(execFile);
 
 export async function extractText(path, filename) {
   const extension = extname(filename).toLowerCase();
+  if (['.html', '.htm'].includes(extension)) {
+    const meta = htmlMetadata(decodeHtml((await readFile(path)).subarray(0, 1024 * 1024)));
+    const text = [meta.title, meta.description, meta.author, meta.text].filter(Boolean).join('\n');
+    return { text, analysisStatus: text.trim() ? 'text-ready' : 'extraction-unavailable' };
+  }
   if (extension === '.txt') return { text: (await readFile(path, 'utf8')).slice(0, 100000), analysisStatus: 'text-ready' };
   if (extension === '.hwp') {
     try { const text = extractHwpText(await readFile(path)); return { text, analysisStatus: text.trim() ? 'text-ready' : 'extraction-unavailable' }; }

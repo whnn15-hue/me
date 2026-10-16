@@ -1,3 +1,4 @@
+import { isHtmlBytes } from "../../shared/html.mjs";
 import { api } from "../api";
 import { cloudUserError, readyCloudUser } from "../cloud";
 
@@ -21,6 +22,8 @@ const fileTypes: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   cell: "application/vnd.hancom.cell",
+  html: "text/html",
+  htm: "text/html",
   txt: "text/plain",
   png: "image/png",
   jpg: "image/jpeg",
@@ -35,11 +38,12 @@ export async function validateDriveUploadFile(file: File, kind: "document" | "te
   if (!fileTypes[extension] || (kind === "template" && extension !== "hwpx"))
     throw new Error(kind === "template"
       ? "HWPX 양식을 올려 주세요. HWP는 한글에서 HWPX로 저장해 주세요."
-      : "PDF, HWP/HWPX, Word, Excel, 한셀, 텍스트 또는 이미지 파일을 올려 주세요.");
-  const header = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+      : "PDF, PPT, HTML, HWP/HWPX, Word, Excel, 한셀, 텍스트 또는 이미지 파일을 올려 주세요.");
+  const header = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
   const starts = (values: number[], offset = 0) => values.every((value, index) => header[offset + index] === value);
   const text = new TextDecoder().decode(header);
   const valid = extension === "txt" ||
+    ["html", "htm"].includes(extension) && isHtmlBytes(header) ||
     extension === "pdf" && text.includes("%PDF-") ||
     ["hwpx", "docx", "xlsx", "cell", "pptx"].includes(extension) && starts([0x50, 0x4b]) ||
     ["hwp", "ppt"].includes(extension) && starts([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) ||

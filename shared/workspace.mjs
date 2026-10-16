@@ -58,6 +58,10 @@ export function normalizeWorkspaceItem(value, previous) {
   const now = new Date().toISOString();
   const result = { id, kind: merged.kind, title: text(merged.title, 300), tags: strings(merged.tags),
     createdAt: timestamp(previous?.createdAt ?? merged.createdAt, now), updatedAt: timestamp(merged.updatedAt, now) };
+  if (merged.favorite !== undefined) {
+    if (typeof merged.favorite !== 'boolean') fail('즐겨찾기 값이 올바르지 않습니다.');
+    result.favorite = merged.favorite;
+  }
   if (!result.title) fail('기록 제목을 입력해 주세요.');
   const linkList = (value, max, httpsOnly = false) => list(value, max, entry => {
     const input = object(entry); return { label: text(input.label, 300), url: normalizeWorkspaceUrl(input.url, { httpsOnly }) };
@@ -71,7 +75,7 @@ export function normalizeWorkspaceItem(value, previous) {
     }); if (result.startDate && result.endDate && result.endDate < result.startDate) fail('종료일이 시작일보다 빠릅니다.'); break;
     case 'material': {
       const ownership = merged.ownership ?? 'created', format = merged.format ?? '기타';
-      if (!['created', 'collected'].includes(ownership) || !['PPT', 'PDF', 'HWP', 'TXT', '영상', '기타'].includes(format)) fail('자료 종류를 확인해 주세요.');
+      if (!['created', 'collected'].includes(ownership) || !['PPT', 'PDF', 'HWP', 'TXT', 'HTML', '영상', '기타'].includes(format)) fail('자료 종류를 확인해 주세요.');
       // Legacy material rows stay byte-for-byte shaped as before. An absent
       // purpose is interpreted as lecture by the view, not persisted here.
       if (merged.purpose !== undefined) {

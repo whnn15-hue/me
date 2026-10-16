@@ -53,7 +53,7 @@ async function fixture(run, purpose = "lecture") {
   const bundle = output.outputFiles.find(file => file.path.endsWith('.js')).text;
   const ownCss = output.outputFiles.find(file => file.path.endsWith('.css'))?.text || '';
   const sharedCssPath = new URL('../src/workspace/Workspace.css', import.meta.url);
-  const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8') + (existsSync(sharedCssPath) ? readFileSync(sharedCssPath, 'utf8') : '') + ownCss + readFileSync(new URL('../src/refinements.css',import.meta.url),'utf8');
+  const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8') + (existsSync(sharedCssPath) ? readFileSync(sharedCssPath, 'utf8') : '') + ownCss + readFileSync(new URL('../src/refinements.css',import.meta.url),'utf8') + readFileSync(new URL('../src/portfolio-library.css',import.meta.url),'utf8');
   const server = createServer((request, response) => {
     if (request.url === '/bundle.js') return response.writeHead(200, { 'Content-Type': 'application/javascript' }).end(bundle);
     if (request.url?.startsWith('/fixture?')) return response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(`<style>${styles}body{padding:24px}#root{max-width:1200px;margin:auto}@media(max-width:650px){body{padding:16px}}</style><div id="root"></div><script src="/bundle.js"></script>`);
@@ -275,4 +275,25 @@ test('classroom additions retain purpose through editing, link to lesson records
     assert.deepEqual(await page.evaluate(() => fixture.deletes), ['material_new']);
     assert.equal(await page.locator('.material-card').count(), 2);
   }, 'classroom');
+});
+
+test('gallery, list and favorite actions keep career links and work on a phone',browserOptions,async()=>{
+  await fixture(async page=>{
+    await page.getByRole('button',{name:'가상 강의 자료 즐겨찾기',exact:true}).click();
+    const saved=await page.evaluate(()=>fixture.saves.at(-1));
+    assert.equal(saved.item.favorite,true);assert.deepEqual(saved.links,['career:career_one']);assert.equal(saved.expectedRevision,0);
+    await page.getByRole('button',{name:/^즐겨찾기 1$/}).click();
+    assert.equal(await page.locator('.material-card').count(),1);
+    await page.getByRole('button',{name:'목록 보기',exact:true}).click();
+    assert.ok(await page.locator('.materials-grid').evaluate(element=>element.classList.contains('library-list')));
+    await page.setViewportSize({width:375,height:812});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.equal(await page.getByRole('link',{name:'가상 강의 자료 원본 열기'}).getAttribute('target'),'_blank');
+    await page.getByRole('button',{name:'가상 강의 자료 즐겨찾기',exact:true}).click();
+    assert.equal(await page.locator('.material-card').count(),0);
+    await page.getByRole('button',{name:/필터 초기화/}).first().click();
+    assert.equal(await page.locator('.material-card').count(),2);
+    await page.reload();
+    assert.equal(await page.getByRole('button',{name:'목록 보기',exact:true}).getAttribute('aria-pressed'),'true');
+  });
 });

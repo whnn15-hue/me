@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { decodeHtml, htmlMetadata } from "../../shared/html.mjs";
 import { readZipText } from "../../shared/zip-text.mjs";
 import { materialDraft } from "../../shared/material-classification.mjs";
 import { sha256, validateDriveUploadFile } from "./drive";
@@ -16,6 +17,7 @@ export async function prepareMaterialFiles(files: File[], purpose: "lecture" | "
     if (hashes.has(digest)) continue;
     hashes.add(digest);
     let text = "";
+    const html = /\.html?$/i.test(file.name) ? htmlMetadata(decodeHtml(bytes.subarray(0, 1024 * 1024))) : undefined;
     if (/\.txt$/i.test(file.name)) text = (await file.text()).slice(0, 60000);
     else if (/\.(pptx|docx|hwpx)$/i.test(file.name)) {
       try {
@@ -33,8 +35,13 @@ export async function prepareMaterialFiles(files: File[], purpose: "lecture" | "
         text = pieces.join("\n").slice(0, 60000);
       } catch { /* The original is retained; filename classification remains usable. */ }
     }
+    if (html) text = [html.title, html.description, html.text].filter(Boolean).join("\n");
+    const draft = materialDraft(file.name, text, purpose);
+    if (html?.title) draft.title = html.title;
+    if (html?.description) draft.summary = html.description;
+    if (html?.author) draft.author = html.author;
     const id = `${purpose}-${digest.slice(0, 24)}`, documentId = `file-${digest.slice(0, 24)}`;
-    materials.push({ item: { ...materialDraft(file.name, text, purpose), id, createdAt: now, updatedAt: now, sourceFile: { name: file.name, size: file.size, sha256: digest } }, documentId });
+    materials.push({ item: { ...draft, id, createdAt: now, updatedAt: now, sourceFile: { name: file.name, size: file.size, sha256: digest } }, documentId });
     documents.push({ id: documentId, name: file.name, mime, size: file.size, sha256: digest, bytes, recordIds: [], createdAt: now, text: "", analysisStatus: "자료 자동 정리" });
   }
   return { format: "classroom-material-import", version: 1, purpose, materials, documents };

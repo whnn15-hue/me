@@ -605,6 +605,7 @@ export default function App() {
         approvedMaterialIds: prepared.materials.map(entry => entry.item.id),
         onProgress: progress => setBusy(progress.phase === "saving" ? "자료 저장 중" : `자료 자동 정리 (${progress.completed}/${progress.total})`),
         enrich: async (item, file, driveFileId, digest) => {
+          if (/\.html?$/i.test(file.name)) return item;
           if (/\.(txt|pptx|docx|hwpx)$/i.test(file.name) && item.summary.trim()) return item;
           try {
             const extraction = await api<{text?:string}>("/documents/extract", {method:"POST",body:JSON.stringify({driveFileId,name:file.name,size:file.size,sha256:digest})});
@@ -1156,8 +1157,8 @@ export default function App() {
                   </section>
                 </>
               )}
-              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
-              {view === "materials" && <MaterialsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
+              {view === "projects" && <ProjectsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
+              {view === "materials" && <MaterialsView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
               {view === "graduate" && <GraduateView key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "documents" && (
                 <DocumentsView
@@ -1220,7 +1221,7 @@ export default function App() {
         ref={uploadRef}
         type="file"
         multiple
-        accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp"
+        accept=".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.html,.htm,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp"
         aria-label="공문 파일 선택"
         className="visually-hidden"
         onChange={(e) => uploadFiles(e.target.files)}
