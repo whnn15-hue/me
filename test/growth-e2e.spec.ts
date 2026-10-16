@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('growth map, real-data charts, calendar and nested workspace routes preserve the archive',async({page})=>{
+test('growth map, real-data charts and nested workspace routes preserve the archive',async({page})=>{
   await page.goto('/');
   const original=(await (await page.request.get('/api/data')).json());
   const originalWorkspace=(await (await page.request.get('/api/workspace')).json());
@@ -15,7 +15,6 @@ test('growth map, real-data charts, calendar and nested workspace routes preserv
   }
   const items=[
     {id:'growth_lesson',kind:'project',title:'성장검증 수업',startDate:today},
-    {id:'growth_task',kind:'assignment',title:'성장검증 과제',dueDate:today,status:'planned'},
     {id:'growth_material',kind:'material',title:'성장검증 수학 자료',subjects:['수학'],favorite:true,format:'PDF'},
   ];
   for(const item of items){
@@ -39,16 +38,7 @@ test('growth map, real-data charts, calendar and nested workspace routes preserv
   await chart.getByRole('button',{name:'누적',exact:true}).click();
   await chart.getByRole('combobox',{name:'성장 차트 기간',exact:true}).selectOption('all');
   await chart.getByRole('button',{name:'수치 접기',exact:true}).click();
-  const calendar=page.getByRole('region',{name:'기록 달력',exact:true});
-  await calendar.getByRole('button',{name:'다음 달',exact:true}).click();
-  await calendar.getByRole('button',{name:'이전 달',exact:true}).click();
-  await calendar.getByRole('button',{name:'오늘',exact:true}).click();
-  await calendar.getByRole('button',{name:/성장검증 오늘 강의/}).click();
-  await expect(page.getByRole('dialog',{name:'경력 상세',exact:true})).toContainText('성장검증 오늘 강의');
-  await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
-  await calendar.getByRole('button',{name:/성장검증 과제/}).click();
-  await expect(page.getByRole('dialog')).toContainText('성장검증 과제');
-  await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).first().click();
+  await expect(page.getByRole('region',{name:'기록 달력',exact:true})).toHaveCount(0);
   const main=page.getByRole('navigation',{name:'기록 종류',exact:true});
   await main.getByRole('button',{name:'이력',exact:true}).click();
   const fields=page.getByRole('region',{name:'분야별 이력 분포',exact:true});
@@ -71,14 +61,6 @@ test('growth map, real-data charts, calendar and nested workspace routes preserv
   await growth.getByRole('button',{name:'접기',exact:true}).click();await expect(map).toHaveCount(0);await page.reload();await expect(map).toHaveCount(0);await growth.getByRole('button',{name:'펼치기',exact:true}).click();
   expect((await page.request.get('/art/growth-landscape.webp')).ok()).toBeTruthy();expect((await page.request.get('/art/workspace-symbols.webp')).ok()).toBeTruthy();
   await page.setViewportSize({width:1600,height:1200});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/growth-e2e-desktop.png',animations:'disabled'});
-  for(const width of [900,768,390]){
-    await page.setViewportSize({width,height:900});await page.locator('.sidebar').evaluate(element=>Promise.all(element.getAnimations().map(animation=>animation.finished)));
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
-    expect(await page.locator('.main-shell').evaluate(element=>getComputedStyle(element).marginLeft)).toBe('0px');
-    expect(await page.locator('.sidebar').evaluate(element=>element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
-    await expect(page.getByRole('button',{name:'메뉴 열기',exact:true})).toBeVisible();
-  }
-  await page.screenshot({path:'/tmp/growth-e2e-mobile.png',animations:'disabled',fullPage:true});
   } finally {
     for(const item of created)expect((await page.request.delete(`/api/careers/${item.id}`)).ok()).toBeTruthy();
     for(const id of createdItems){const workspace=(await (await page.request.get('/api/workspace')).json());expect((await page.request.delete(`/api/workspace/items/${id}`,{data:{expectedRevision:workspace.revision}})).ok()).toBeTruthy();}

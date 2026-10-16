@@ -1,20 +1,20 @@
 /* The four workspaces and the career collections have separate visual levels. */
-.workspace-main-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; padding: 5px; background: #edf1e9; border: 1px solid #e1e7dc; border-radius: 12px; margin-bottom: 30px; }
-.workspace-main-tabs button { justify-content: center; border: 0; border-radius: 8px; padding: 13px 8px; min-height: 46px; color: #697767; font-size: 14px; }
-.workspace-main-tabs button.active { background: #fff; color: #254f3b; box-shadow: 0 2px 7px #243e2910; }
+.workspace-main-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; padding: 5px; background: var(--ui-inset, #edf1e9); border: 1px solid var(--ui-border, #e1e7dc); border-radius: 12px; margin-bottom: 30px; }
+.workspace-main-tabs button { justify-content: center; border: 0; border-radius: 8px; padding: 13px 8px; min-height: 46px; color: var(--ui-muted, #697767); font-size: 14px; }
+.workspace-main-tabs button.active { background: var(--ui-surface, #fff); color: var(--ui-text, #254f3b); box-shadow: 0 2px 7px rgb(var(--ui-shadow-rgb, 0 0 0) / 0.063); }
 .page-heading h1 { font-size: 32px; letter-spacing: -.04em; }
 .career-collections { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; overflow: visible; border: 0; margin: 0 0 22px; padding: 0; }
-.career-collections button { display: flex; align-items: center; gap: 9px; padding: 14px 12px; min-height: 51px; border: 1px solid #e2e8dc; border-radius: 9px; background: #fff; color: #596b55; text-align: left; white-space: nowrap; }
+.career-collections button { display: flex; align-items: center; gap: 9px; padding: 14px 12px; min-height: 51px; border: 1px solid var(--ui-border, #e2e8dc); border-radius: 9px; background: var(--ui-surface, #fff); color: var(--ui-muted, #596b55); text-align: left; white-space: nowrap; }
 .career-collections button strong { font-size: 12px; font-weight: 500; }
 .career-collections button > span { margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; }
 .career-collections button svg { flex-shrink: 0; opacity: .85; }
-.career-collections button:hover { border-color: #b9cbb0; background: #f5f8f0; }
-.career-collections button.active { color: #fff; background: #315c45; border-color: #315c45; box-shadow: 0 3px 8px #315c4515; }
-.career-collections button.active > span { color: #e1ecd7; }
-.stats-grid { gap: 0; background: #f0f3ec; border: 1px solid #e0e6d9; border-radius: 10px; overflow: hidden; margin-bottom: 18px; }
-.stat-card { min-height: 70px; padding: 14px 18px; background: transparent; border: 0; box-shadow: none; border-radius: 0; border-right: 1px solid #e0e6d9; }
+.career-collections button:hover { border-color: var(--ui-border, #b9cbb0); background: var(--ui-inset, #f5f8f0); }
+.career-collections button.active { color: var(--ui-on-solid, #fff); background: var(--ui-solid, #315c45); border-color: var(--ui-solid, #315c45); box-shadow: 0 3px 8px rgb(var(--ui-shadow-rgb, 0 0 0) / 0.082); }
+.career-collections button.active > span { color: var(--ui-subtle, #e1ecd7); }
+.stats-grid { gap: 0; background: var(--ui-inset, #f0f3ec); border: 1px solid var(--ui-border, #e0e6d9); border-radius: 10px; overflow: hidden; margin-bottom: 18px; }
+.stat-card { min-height: 70px; padding: 14px 18px; background: transparent; border: 0; box-shadow: none; border-radius: 0; border-right: 1px solid var(--ui-border, #e0e6d9); }
 .stat-card:last-child { border-right: 0; }
-.stat-card:hover { background: #e8eee1; box-shadow: none; transform: none; }
+.stat-card:hover { background: var(--ui-inset, #e8eee1); box-shadow: none; transform: none; }
 .stat-label { font-size: 11px; }
 .stat-icon { display: none; }
 .stat-value { font-size: 23px; margin-top: 7px; }
@@ -29,32 +29,32 @@
 .institution-select { flex: 1; min-width: 180px; max-width: 360px; }
 .institution-select select { width: 100%; min-width: 0; text-overflow: ellipsis; }
 .filter-selects .view-switch { margin-left: auto; }
-.archive-result-bar { margin-top: 14px; padding-bottom: 16px; border-bottom: 1px solid #e1e7da; }
+.archive-result-bar { margin-top: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--ui-border, #e1e7da); }
 .group-select { display: inline-flex; align-items: center; position: relative; min-height: 34px; }
-.group-select select { appearance: none; border: 0; background: transparent; padding: 8px 20px 8px 2px; font: inherit; color: #3f5945; cursor: pointer; }
+.group-select select { appearance: none; border: 0; background: transparent; padding: 8px 20px 8px 2px; font: inherit; color: var(--ui-text, #3f5945); cursor: pointer; }
 .group-select svg { position: absolute; right: 2px; pointer-events: none; }
 .year-heading { gap: 10px; margin-bottom: 13px; }
 .year-heading h3 { font-size: 22px; }
 .institution-group .year-heading h3 { font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
-.institution-marker { color: #527157; flex-shrink: 0; }
+.institution-marker { color: var(--ui-muted, #527157); flex-shrink: 0; }
 .institution-group .year-marker { display: none; }
 .career-list { border: 0; background: transparent; box-shadow: none; }
-.career-row { border-radius: 12px; border: 1px solid #e0e6da; transition: box-shadow .15s, border-color .15s, background .15s; }
-.career-row:hover { box-shadow: 0 3px 14px #27493108; border-color: #bdcdb1; background: #fff; }
+.career-row { border-radius: 12px; border: 1px solid var(--ui-border, #e0e6da); transition: box-shadow .15s, border-color .15s, background .15s; }
+.career-row:hover { box-shadow: 0 3px 14px rgb(var(--ui-shadow-rgb, 0 0 0) / 0.031); border-color: var(--ui-border, #bdcdb1); background: var(--ui-surface, #fff); }
 .career-info h4 { font-size: 16px; line-height: 1.65; font-weight: 500; }
-.career-category { letter-spacing: 0; color: #7d8b74; }
-.lecture-institution { display: flex; align-items: center; gap: 6px; margin: 9px 0 5px; color: #315d43; font-size: 13px; font-weight: 600; line-height: 1.65; }
+.career-category { letter-spacing: 0; color: var(--ui-muted, #7d8b74); }
+.lecture-institution { display: flex; align-items: center; gap: 6px; margin: 9px 0 5px; color: var(--ui-text, #315d43); font-size: 13px; font-weight: 600; line-height: 1.65; }
 .lecture-institution svg { flex-shrink: 0; }
 .lecture-institution span { overflow-wrap: anywhere; }
 .career-row-date { flex-shrink: 0; width: 112px; font-size: 11px; }
 .career-info .row-tags { margin-top: 10px; }
 .recognition-badges { margin-top: 11px; }
 .recognition-badges strong { line-height: 1.6; }
-.category-3 { color: #8b6d2c; background: #f7f0dc; }
-.category-4 { color: #8c6931; background: #f6ecd7; }
+.category-3 { color: var(--ui-warning-ink, #8b6d2c); background: var(--ui-warning-soft, #f7f0dc); }
+.category-4 { color: var(--ui-warning-ink, #8c6931); background: var(--ui-warning-soft, #f6ecd7); }
 .collection-evidence summary { list-style-position: inside; }
 .sidebar nav { margin-bottom: 24px; }
-button:focus-visible, select:focus-visible { outline: 2px solid #447b5b; outline-offset: 3px; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--ui-solid, #447b5b); outline-offset: 3px; }
 @media (max-width: 1100px) {
   .career-collections button { gap: 6px; padding: 12px 9px; }
   .career-collections button svg { display: none; }
@@ -72,7 +72,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid #447b5b; outline
   .stats-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0; overflow: hidden; }
   .stat-card { min-height: 62px; padding: 11px 14px; }
   .stat-card:nth-child(2) { border-right: 0; }
-  .stat-card:nth-child(-n+2) { border-bottom: 1px solid #e0e6d9; }
+  .stat-card:nth-child(-n+2) { border-bottom: 1px solid var(--ui-border, #e0e6d9); }
   .stat-value { font-size: 21px; margin-top: 5px; }
   .stats-grid + .file-dropzone > button, .collection-evidence + .file-dropzone > button { min-height: 48px; padding: 12px; }
   .file-dropzone strong { font-size: 12px; }

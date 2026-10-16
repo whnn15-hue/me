@@ -1,14 +1,12 @@
 import { useId, useMemo, useState } from "react";
 import { ArrowUpRight, ChartNoAxesCombined, ChevronDown, ChevronLeft, ChevronRight, Compass, Eye, Map, Sparkles } from "lucide-react";
 import type { Career, Category, DocumentRecord } from "../types";
-import type { WorkspaceData } from "../workspace/types";
 import { displayLabel } from "../workspace/WorkspaceUI";
 import { careerCategoryLabel, careerOrganization, recognitionDetails } from "../../shared/career-organization.mjs";
 import { growthModel, seoulToday } from "./growth-model";
-import RecordCalendar from "./RecordCalendar";
 
 interface Props {
-  careers: Career[]; documents: DocumentRecord[]; workspace: WorkspaceData;
+  careers: Career[]; documents: DocumentRecord[];
   onOpen: (ref: string) => void; onCategory: (category: Category) => void;
   today?: string;
 }
@@ -16,7 +14,7 @@ const mapY = [69, 43, 63, 28, 49, 24];
 function smoothPath(points: { x: number; y: number }[]) {
   return points.map((point, i) => !i ? `M${point.x},${point.y}` : `C${(points[i - 1].x + point.x) / 2},${points[i - 1].y} ${(points[i - 1].x + point.x) / 2},${point.y} ${point.x},${point.y}`).join(" ");
 }
-export default function GrowthOverview({ careers, documents, workspace, onOpen, onCategory, today = seoulToday() }: Props) {
+export default function GrowthOverview({ careers, documents, onOpen, onCategory, today = seoulToday() }: Props) {
   const model = useMemo(() => growthModel(careers, documents, today), [careers, documents, today]);
   const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem("introduce-me-growth-open") !== "false"; } catch { return true; } });
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
@@ -72,10 +70,10 @@ export default function GrowthOverview({ careers, documents, workspace, onOpen, 
         <div className="chart-overview-line"><div aria-live="polite"><strong>{chartFocus ? chartMode === "annual" ? chartFocus.count : chartFocus.cumulative : 0}<small>건</small></strong><span>{chartFocus?.year}년 {chartMode === "annual" ? "시작한 이력" : "누적 기록"}</span></div><div className="segmented-control" role="group" aria-label="성장 차트 방식"><button aria-pressed={chartMode === "cumulative"} onClick={() => setChartMode("cumulative")}>누적</button><button aria-pressed={chartMode === "annual"} onClick={() => setChartMode("annual")}>연도별</button></div></div>
         <div className="chart-drawing">
           <svg viewBox="0 0 640 210" role="img" aria-label={`${chartMode === "annual" ? "연도별" : "누적"} 이력 건수, 아래 연도 버튼과 수치 표에서 상세 확인`}>
-            <defs><linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#5ba997" stopOpacity=".24"/><stop offset="100%" stopColor="#5ba997" stopOpacity=".01"/></linearGradient></defs>
-            {[0, .5, 1].map(ratio => <g key={ratio}><line x1="38" x2="606" y1={170 - ratio * 132} y2={170 - ratio * 132} stroke="#edf0ed" strokeDasharray="4 5"/><text x="25" y={174 - ratio * 132} textAnchor="end" className="chart-axis">{Number((maxValue * ratio).toFixed(1))}</text></g>)}
-            {chartMode === "cumulative" && chartPoints.length > 0 && <><path d={`${chartPath} L${chartPoints.at(-1)!.x},170 L${chartPoints[0].x},170 Z`} fill={`url(#${id}-fill)`}/><path d={chartPath} fill="none" stroke="#3c9a83" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></>}
-            {chartPoints.map((point, i) => <g key={point.year}>{chartMode === "annual" ? <rect x={point.x - Math.min(12, 180 / chartPoints.length)} y={point.y} width={Math.min(24, 360 / chartPoints.length)} height={170 - point.y} rx="4" fill={point.year === active?.year ? "#265e4d" : "#8fc6b5"}/> : <circle cx={point.x} cy={point.y} r={point.year === hoverYear ? 5 : 3.5} fill="#fff" stroke="#3c9a83" strokeWidth="2"/>}{(chartPoints.length < 10 || i % Math.ceil(chartPoints.length / 7) === 0 || i === chartPoints.length - 1) && <text x={point.x} y="197" textAnchor="middle" className="chart-axis">{point.year}</text>}</g>)}
+            <defs><linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="var(--ui-chart)" stopOpacity=".24"/><stop offset="100%" stopColor="var(--ui-chart)" stopOpacity=".01"/></linearGradient></defs>
+            {[0, .5, 1].map(ratio => <g key={ratio}><line x1="38" x2="606" y1={170 - ratio * 132} y2={170 - ratio * 132} stroke="var(--ui-border)" strokeDasharray="4 5"/><text x="25" y={174 - ratio * 132} textAnchor="end" className="chart-axis">{Number((maxValue * ratio).toFixed(1))}</text></g>)}
+            {chartMode === "cumulative" && chartPoints.length > 0 && <><path d={`${chartPath} L${chartPoints.at(-1)!.x},170 L${chartPoints[0].x},170 Z`} fill={`url(#${id}-fill)`}/><path d={chartPath} fill="none" stroke="var(--ui-chart)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></>}
+            {chartPoints.map((point, i) => <g key={point.year}>{chartMode === "annual" ? <rect x={point.x - Math.min(12, 180 / chartPoints.length)} y={point.y} width={Math.min(24, 360 / chartPoints.length)} height={170 - point.y} rx="4" fill={point.year === active?.year ? "var(--ui-chart)" : "var(--ui-chart-soft)"}/> : <circle cx={point.x} cy={point.y} r={point.year === hoverYear ? 5 : 3.5} fill="var(--ui-surface)" stroke="var(--ui-chart)" strokeWidth="2"/>}{(chartPoints.length < 10 || i % Math.ceil(chartPoints.length / 7) === 0 || i === chartPoints.length - 1) && <text x={point.x} y="197" textAnchor="middle" className="chart-axis">{point.year}</text>}</g>)}
           </svg>
           <div className="chart-hit-targets">{chartPoints.map(point => <button key={point.year} style={{ left: `${point.x / 640 * 100}%`, width: `${Math.min(8, 85 / chartPoints.length)}%` }} aria-label={`${point.year}년 ${chartMode === "annual" ? point.count : point.cumulative}건 보기`} onMouseEnter={() => setHoverYear(point.year)} onMouseLeave={() => setHoverYear(null)} onFocus={() => setHoverYear(point.year)} onBlur={() => setHoverYear(null)} onClick={() => selectYear(point.year)} />)}</div>
         </div>
@@ -85,11 +83,10 @@ export default function GrowthOverview({ careers, documents, workspace, onOpen, 
       </section>
       <section className="growth-card field-chart" aria-label="분야별 이력 분포">
         <header className="growth-card-heading"><h3>활동 분야</h3><span>{allCategories.length}개 분야</span></header>
-        <div className="field-chart-main"><div className="field-ring" style={{ background: gradient ? `conic-gradient(${gradient})` : "#edf0ed" }} role="img" aria-label={`전체 이력 ${categoryTotal}건, 분야별 건수는 아래 목록`}><div><strong>{categoryTotal}</strong><span>전체 이력</span></div></div></div>
+        <div className="field-chart-main"><div className="field-ring" style={{ background: gradient ? `conic-gradient(${gradient})` : "var(--ui-inset)" }} role="img" aria-label={`전체 이력 ${categoryTotal}건, 분야별 건수는 아래 목록`}><div><strong>{categoryTotal}</strong><span>전체 이력</span></div></div></div>
         <ul className="field-legend">{allCategories.map(item => <li key={item.category}><button onClick={() => onCategory(item.category)}><i style={{ background: item.color }}/><span>{displayLabel(item.category)}</span><strong>{item.count}</strong><small>{Math.round(item.count / categoryTotal * 100)}%</small><ArrowUpRight size={12}/></button></li>)}</ul>
         {!allCategories.length && <p className="growth-empty">등록된 이력이 없습니다.</p>}
       </section>
-      <RecordCalendar careers={careers} workspace={workspace} today={today} onOpen={onOpen}/>
       <div className="growth-data-note"><span>성장 지도와 흐름은 오늘까지 시작된 이력 기준</span>{model.unknown.length > 0 && <span>연도 미입력 {model.unknown.length}건 제외</span>}{model.future.length > 0 && <span>예정 {model.future.length}건 제외</span>}<span>단위: 기록 건수</span></div>
     </div>}
   </section>;

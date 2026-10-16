@@ -1,0 +1,140 @@
+/* Shared semantic colors. Existing component layouts and data stay independent
+   of the system theme. CSS media queries update an open page without JS state. */
+:root {
+  color-scheme: light;
+  --ui-canvas: #f3f3f3;
+  --ui-surface: #ffffff;
+  --ui-inset: #f5f5f5;
+  --ui-border: #e6e6e6;
+  --ui-text: #242424;
+  --ui-muted: #666666;
+  --ui-subtle: #737373;
+  --ui-mark: #bbbbbb;
+  --ui-solid: #292929;
+  --ui-on-solid: #ffffff;
+  --ui-accent: #23b494;
+  --ui-accent-ink: #137b65;
+  --ui-accent-soft: #e9f6f1;
+  --ui-accent-line: #b8dbd0;
+  --ui-warning: #967035;
+  --ui-warning-ink: #876021;
+  --ui-warning-soft: #faf3e7;
+  --ui-warning-line: #e6d7ba;
+  --ui-danger: #b34f4f;
+  --ui-danger-ink: #a63f3f;
+  --ui-danger-soft: #fbeeee;
+  --ui-danger-line: #ebcbcb;
+  --ui-info: #597fa9;
+  --ui-info-ink: #476e9a;
+  --ui-purple: #8b729e;
+  --ui-purple-ink: #7a608f;
+  --ui-chart: #23ae90;
+  --ui-chart-soft: #b3dfd2;
+  --ui-shadow-rgb: 0 0 0;
+  --ui-overlay: rgb(0 0 0 / .32);
+  --ui-map-opacity: .48;
+  --green: var(--ui-solid);
+  --green-dark: var(--ui-text);
+  --muted: var(--ui-muted);
+  --line: var(--ui-border);
+  --cream: var(--ui-inset);
+  --studio-bg: var(--ui-canvas);
+  --studio-green: var(--ui-accent);
+  --library-ink: var(--ui-text);
+  --library-muted: var(--ui-muted);
+  --library-line: var(--ui-border);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ui-canvas: #141414;
+    --ui-surface: #202020;
+    --ui-inset: #292929;
+    --ui-border: #383838;
+    --ui-text: #ededed;
+    --ui-muted: #b6b6b6;
+    --ui-subtle: #a6a6a6;
+    --ui-mark: #646464;
+    --ui-solid: #dedede;
+    --ui-on-solid: #202020;
+    --ui-accent: #51c9ab;
+    --ui-accent-ink: #7cddc4;
+    --ui-accent-soft: #223a32;
+    --ui-accent-line: #3e6659;
+    --ui-warning: #cca368;
+    --ui-warning-ink: #e5bd83;
+    --ui-warning-soft: #3b3022;
+    --ui-warning-line: #625039;
+    --ui-danger: #d18080;
+    --ui-danger-ink: #f0a3a3;
+    --ui-danger-soft: #3e2929;
+    --ui-danger-line: #674242;
+    --ui-info: #8aaed7;
+    --ui-info-ink: #a6c4e7;
+    --ui-purple: #b19ac5;
+    --ui-purple-ink: #cab5dc;
+    --ui-chart: #5dccb0;
+    --ui-chart-soft: #35695a;
+    --ui-overlay: rgb(0 0 0 / .65);
+    --ui-map-opacity: .12;
+  }
+}
+html, body, .app-shell, .main-shell { color: var(--ui-text); background: var(--ui-canvas); }
+.sidebar, .sidebar-bottom, .account-button { background: var(--ui-surface); }
+.topbar { background: var(--ui-canvas); border-bottom-color: var(--ui-border); }
+:where(input, textarea, select, button, a, summary) { accent-color: var(--ui-accent); }
+input::placeholder, textarea::placeholder { color: var(--ui-subtle); opacity: 1; }
+input:focus, textarea:focus, select:focus { border-color: var(--ui-accent) !important; box-shadow: 0 0 0 3px var(--ui-accent-soft); }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline-color: var(--ui-accent); }
+::selection { color: var(--ui-text); background: var(--ui-accent-soft); }
+.brand-icon, .button.primary { color: var(--ui-on-solid); background: var(--ui-solid); border-color: var(--ui-solid); }
+.button.primary:hover { color: var(--ui-on-solid); background: var(--ui-text); border-color: var(--ui-text); }
+.button.secondary { color: var(--ui-text); background: var(--ui-surface); border-color: var(--ui-border); }
+.button.secondary:hover, .icon-button:hover { background: var(--ui-inset); }
+.workspace-main-tabs { background: var(--ui-border); }
+.workspace-main-tabs button.active { color: var(--ui-text); background: var(--ui-surface); }
+.workspace-label, .avatar, .top-avatar { background: var(--ui-inset); color: var(--ui-muted); }
+.nav-item.active, .tree-parent .nav-item.active { color: var(--ui-text); background: var(--ui-inset); box-shadow: inset 3px 0 var(--ui-accent); }
+.tree-children > button.selected, .workspace-tree > .nav-item.active { color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.tree-parent .nav-count { color: var(--ui-muted); background: var(--ui-surface); }
+.tree-toggle:hover, .tree-children > button:hover { color: var(--ui-text); background: var(--ui-inset); }
+.career-collections button, .subject-collections button { color: var(--ui-muted); background: var(--ui-surface); border-color: var(--ui-border); }
+.career-collections button.active, .subject-collections button.active { color: var(--ui-accent-ink); background: var(--ui-accent-soft); border-color: var(--ui-accent-line); }
+.career-collections button.active > span, .subject-collections button.active strong { color: var(--ui-accent-ink); }
+.file-dropzone, .materials-view .file-dropzone, .classroom-view > .file-dropzone { color: var(--ui-muted); background: var(--ui-inset); border-color: var(--ui-border); }
+.file-dropzone:hover, .file-dropzone.is-dragging { background: var(--ui-accent-soft); border-color: var(--ui-accent-line); }
+.file-dropzone strong { color: var(--ui-text); }
+.growth-landscape { opacity: var(--ui-map-opacity); }
+.growth-map-canvas { background: var(--ui-inset); }
+.growth-map-canvas::after { background: none; }
+.route-shadow { stroke: var(--ui-surface); }
+.route-line { stroke: var(--ui-accent); }
+.journey-pin .pin-dot { background: var(--ui-surface); border-color: var(--ui-border); }
+.pin-dot i { background: var(--ui-mark); }
+.journey-pin.active .pin-dot { background: var(--ui-accent); border-color: var(--ui-surface); box-shadow: 0 0 0 1px var(--ui-accent-line), 0 5px 14px rgb(0 0 0 / .08); }
+.journey-pin.active .pin-dot i { background: var(--ui-surface); }
+.pin-label { background: color-mix(in srgb, var(--ui-surface) 94%, transparent); border-color: var(--ui-border); }
+.pin-label strong, .journey-detail-total > strong, .chart-overview-line strong, .chart-context strong, .field-ring strong { color: var(--ui-text); }
+.segmented-control, .library-view-switch, .classroom-sections, .grad-tabs { background: var(--ui-inset); }
+.segmented-control button[aria-pressed=true], .library-view-switch button[aria-pressed=true], .classroom-sections button[aria-selected=true], .grad-tabs button[aria-selected=true] { background: var(--ui-surface); color: var(--ui-text); }
+.field-legend button:hover, .journey-records button:hover { color: var(--ui-accent-ink); }
+.field-chart-main { margin-top: 18px; }
+.field-ring { width: 150px; height: 150px; }
+.field-ring > div { width: 122px; height: 122px; background: var(--ui-surface); }
+.field-legend { gap: 5px; }
+.field-legend button { min-height: 30px; }
+.field-legend strong, .field-legend small { color: var(--ui-muted); }
+.material-cover, .project-cover { color: var(--ui-muted); background: var(--ui-inset); }
+.material-subject-badge, .material-card h3, .project-card h2, .grad-card h3, .lecture-institution { color: var(--ui-text); }
+.library-favorite { color: var(--ui-muted); background: var(--ui-surface); border-color: var(--ui-border); }
+.library-favorite[aria-pressed=true] { color: var(--ui-warning-ink); background: var(--ui-warning-soft); border-color: var(--ui-warning-line); }
+.library-favorite:hover { background: var(--ui-inset); }
+.material-file-status.connected, .connection-badge.connected { color: var(--ui-accent-ink); }
+.workspace-related-link, .workspace-link-option, .global-search-result { background: var(--ui-surface); border-color: var(--ui-border); }
+.workspace-related-link:hover, .global-search-result:hover, .workspace-link-option:has(input:checked) { background: var(--ui-inset); }
+.modal, .detail-drawer, .settings-card, .panel, .global-search-results { color: var(--ui-text); background: var(--ui-surface); border-color: var(--ui-border); }
+.modal-footer, .drawer-actions { background: var(--ui-surface); }
+.alert.error, .form-error { color: var(--ui-danger-ink); background: var(--ui-danger-soft); border-color: var(--ui-danger-line); }
+.chart-axis { fill: var(--ui-muted); }
+/* Keep text and its surface in sync during a live OS theme change. */
+.button, .nav-item, .tree-parent .nav-item, .pin-dot { transition-property: box-shadow, transform; }

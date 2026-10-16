@@ -955,7 +955,7 @@ export default function App() {
                     <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
                     <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
                   </section>
-                  <GrowthOverview careers={careers} documents={documents} workspace={workspace} onOpen={openWorkspaceRef} onCategory={next=>{chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
+                  <GrowthOverview careers={careers} documents={documents} onOpen={openWorkspaceRef} onCategory={next=>{chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
                   <nav className="category-tabs career-collections" aria-label="이력 분류">
                     {(["전체", ...careerCategoryChoices] as const).map(c => {
                       const count = c === "전체" ? careers.length : careers.filter(item => matchesCareerCategory(item,c,documents)).length;
