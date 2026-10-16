@@ -56,9 +56,9 @@ function TextSection({ title, text }: { title: string; text: string }) {
   return text ? <section className="grad-text-section"><h3>{title}</h3><p>{displayLabel(text)}</p></section> : null;
 }
 
-export default function GraduateView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError }: WorkspaceSectionProps) {
+export default function GraduateView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, initialSection }: WorkspaceSectionProps) {
   const lastFocus = useRef("");
-  const [kind, setKind] = useState<GraduateKind>("course");
+  const [kind, setKind] = useState<GraduateKind>(sections.some(section=>section.kind===initialSection) ? initialSection as GraduateKind : "course");
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState("");
   const [semester, setSemester] = useState("");

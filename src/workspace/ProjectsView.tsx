@@ -217,7 +217,7 @@ export default function ProjectsView({ classroomImport, ...props }: ProjectsView
   const focused = props.workspace.items.find(item => item.id === props.focusId);
   const focusedSection = focused?.kind === "material" && focused.purpose === "classroom" ? "classroom"
     : focused?.kind === "project" ? "records" : undefined;
-  const [section, setSection] = useState<"records" | "classroom">(() => focusedSection ?? "records");
+  const [section, setSection] = useState<"records" | "classroom">(() => focusedSection ?? (props.initialSection === "classroom" ? "classroom" : "records"));
   useEffect(() => { if (focusedSection) setSection(focusedSection); }, [props.focusId, focusedSection]);
   const recordCount = props.workspace.items.filter(item => item.kind === "project").length;
   const materialCount = props.workspace.items.filter(item => item.kind === "material" && item.purpose === "classroom").length;

@@ -128,14 +128,14 @@ export interface MaterialsViewProps extends WorkspaceSectionProps {
   importPanel?: ReactNode;
 }
 
-export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", importPanel, onFiles, uploading, loadHtmlPreview }: MaterialsViewProps) {
+export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", importPanel, onFiles, uploading, loadHtmlPreview, initialSection, initialSubject }: MaterialsViewProps) {
   const classroom = purpose === "classroom";
   const materialLabel = classroom ? "학급 자료" : "강의 자료";
   const [view, setView] = useLibraryView(`materials-${purpose}`);
-  const [quick, setQuick] = useState("all");
+  const [quick, setQuick] = useState(initialSection === "favorites" ? "favorites" : "all");
   const favorites = useFavorites({ workspace, onSave, onError });
   const [query, setQuery] = useState("");
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(initialSubject || "");
   const [training, setTraining] = useState("");
   const [audience, setAudience] = useState("");
   const [format, setFormat] = useState("");

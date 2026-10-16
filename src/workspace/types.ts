@@ -48,6 +48,8 @@ export interface WorkspaceSectionProps {
   focusId?: string; onError: (error: unknown) => void;
   onFiles?: (files: File[], purpose: "classroom" | "lecture") => Promise<void>;
   uploading?: boolean;
+  initialSection?: string;
+  initialSubject?: string;
   loadHtmlPreview?: (item: MaterialItem) => Promise<string>;
 }
 // Descriptive aliases keep individual tab code concise.
