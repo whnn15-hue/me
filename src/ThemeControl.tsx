@@ -8,10 +8,10 @@ const options = [
   { value: "system", label: "시스템", icon: Monitor, hint: "PC의 화면 모드에 맞춰 자동 전환" },
 ] satisfies { value: ThemePreference; label: string; icon: typeof Sun; hint: string }[];
 
-export default function ThemeControl() {
+export default function ThemeControl({ label = "화면 모드" }: { label?: string }) {
   const preference = useSyncExternalStore(subscribeTheme, getThemePreference);
 
-  return <div className="theme-control" role="group" aria-label="화면 모드">
+  return <div className="theme-control" role="group" aria-label={label}>
     {options.map(({ value, label, icon: Icon, hint }) => <button
       key={value}
       type="button"

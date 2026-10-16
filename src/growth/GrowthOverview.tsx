@@ -37,9 +37,6 @@ export default function GrowthOverview({ careers, documents, onOpen, onCategory,
   const chartFocus = chartSeries.find(point => point.year === hoverYear) ?? chartSeries.at(-1);
   const rows = active?.records.slice().sort((a, b) => b.startDate.localeCompare(a.startDate)) ?? [];
   const allCategories = model.categories;
-  const categoryTotal = allCategories.reduce((sum, item) => sum + item.count, 0);
-  let angle = 0;
-  const gradient = allCategories.map(item => { const begin = angle; angle += item.count / categoryTotal * 360; return `${item.color} ${begin}deg ${angle}deg`; }).join(", ");
   function selectYear(year: number) { setSelectedYear(year); const index = journeyYears.findIndex(point => point.year === year); if (index >= 0 && (index < start || index >= start + 6)) setWindowStart(Math.min(index, Math.max(0, journeyYears.length - 6))); }
   function toggleExpanded() { const next = !expanded; setExpanded(next); try { localStorage.setItem("introduce-me-growth-open", String(next)); } catch { /* Presentation preference only. */ } }
   return <section className="growth-overview" aria-label="나의 성장">
@@ -81,10 +78,9 @@ export default function GrowthOverview({ careers, documents, onOpen, onCategory,
         <div className="chart-context"><div><span>기록된 기관</span><strong>{model.organizations}<small>곳</small></strong></div><div><span>활동한 연도</span><strong>{journeyYears.length}<small>개년</small></strong></div></div>
         {showTable && <div className="growth-data-table"><table><caption>활동 시작 연도별 이력 건수</caption><thead><tr><th>연도</th><th>해당 연도</th><th>누적</th></tr></thead><tbody>{chartSeries.map(point => <tr key={point.year}><th><button onClick={() => selectYear(point.year)}>{point.year}년</button></th><td>{point.count}건</td><td>{point.cumulative}건</td></tr>)}</tbody></table></div>}
       </section>
-      <section className="growth-card field-chart" aria-label="분야별 이력 분포">
+      <section className="growth-card field-chart" aria-label="분야별 이력 건수">
         <header className="growth-card-heading"><h3>활동 분야</h3><span>{allCategories.length}개 분야</span></header>
-        <div className="field-chart-main"><div className="field-ring" style={{ background: gradient ? `conic-gradient(${gradient})` : "var(--ui-inset)" }} role="img" aria-label={`전체 이력 ${categoryTotal}건, 분야별 건수는 아래 목록`}><div><strong>{categoryTotal}</strong><span>전체 이력</span></div></div></div>
-        <ul className="field-legend">{allCategories.map(item => <li key={item.category}><button onClick={() => onCategory(item.category)}><i style={{ background: item.color }}/><span>{displayLabel(item.category)}</span><strong>{item.count}</strong><small>{Math.round(item.count / categoryTotal * 100)}%</small><ArrowUpRight size={12}/></button></li>)}</ul>
+        <ul className="field-legend">{allCategories.map(item => <li key={item.category}><button onClick={() => onCategory(item.category)}><i style={{ background: item.color }}/><span>{displayLabel(item.category)}</span><strong>{item.count}건</strong><ArrowUpRight size={12}/></button></li>)}</ul>
         {!allCategories.length && <p className="growth-empty">등록된 이력이 없습니다.</p>}
       </section>
       <div className="growth-data-note"><span>성장 지도와 흐름은 오늘까지 시작된 이력 기준</span>{model.unknown.length > 0 && <span>연도 미입력 {model.unknown.length}건 제외</span>}{model.future.length > 0 && <span>예정 {model.future.length}건 제외</span>}<span>단위: 기록 건수</span></div>

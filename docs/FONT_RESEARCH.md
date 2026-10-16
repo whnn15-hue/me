@@ -13,7 +13,7 @@
 
 업무 도구나 개인 포트폴리오가 모두 한 글꼴을 사용하는 것은 아닙니다. 특정 사이트가 현재 모든 화면에서 위 글꼴을 쓰는지는 별도 확인이 필요합니다. 참고로 받은 네 번째 이미지의 정확한 폰트는 이미지 만으로 확정할 수 없습니다.
 
-## 현재 앱 확인
+## 조사 당시 앱 확인
 
 - 본문 `src/styles.css`는 Pretendard를 첫 번째 후보로 선언하지만, 실제 Pretendard 파일이나 웹폰트 로딩 선언은 없습니다. 설치하지 않은 PC에서는 다음 후보 글꼴로 표시됩니다.
 - 제목과 주요 탐색 메뉴에는 `src/refinements.css`가 Paperlogy를 지정합니다. 500, 600, 700 굵기를 `public/fonts/`에서 직접 제공합니다.
@@ -25,7 +25,14 @@
 
 영문과 숫자에 Inter를 별도로 적용하는 것은 선택 사항입니다. Pretendard 자체가 Inter를 기반으로 하므로 처음부터 글꼴을 세 종류로 늘릴 필요는 없습니다. 차트 수치와 날짜 열에는 `font-variant-numeric: tabular-nums` 적용을 검토할 수 있습니다.
 
-실제 적용 시 라이선스와 함께 WOFF2 파일을 직접 제공해야 PC마다 같은 모양을 유지할 수 있습니다. 현재 사이트는 `font-src 'self'` 정책이므로 외부 CDN만 연결하는 방식은 맞지 않습니다. 이번 작업에서는 조사와 추천만 수행하며 앱의 폰트는 바꾸지 않았습니다.
+실제 적용 시 라이선스와 함께 WOFF2 파일을 직접 제공해야 PC마다 같은 모양을 유지할 수 있습니다. 현재 사이트는 `font-src 'self'` 정책이므로 외부 CDN만 연결하는 방식은 맞지 않습니다.
+
+## 홈 화면 개선 때 적용한 내용
+
+공식 v1.3.9 배포본의 Pretendard Variable WOFF2를 `public/fonts/PretendardVariable-1.3.9.woff2`에 포함했습니다. SIL OFL 원문은 `public/fonts/Pretendard-LICENSE.txt`에 함께 저장했습니다. 본문과 메뉴는 Pretendard, 큰 제목과 브랜드는 기존 Paperlogy로 나누고 차트 축도 본문 폰트를 따르게 했습니다. 별도 패키지를 설치하거나 외부 CDN에 접속하지 않습니다. 전체 한글 글리프를 포함한 파일은 약 2 MB이며 첫 로드 후 같은 파일을 재사용합니다.
+
+- [공식 v1.3.9 파일](https://github.com/orioncactus/pretendard/blob/v1.3.9/packages/pretendard/dist/web/variable/woff2/PretendardVariable.woff2)
+- [공식 라이선스](https://github.com/orioncactus/pretendard/blob/v1.3.9/LICENSE)
 
 ## 확인한 원문
 

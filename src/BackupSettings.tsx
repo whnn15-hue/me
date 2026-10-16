@@ -20,6 +20,7 @@ import { backupFileFromImportCode } from "./backup-code";
 import { cloudMode, cloudRefreshToken, freeMode, signInCloud, signOutCloud } from "./cloud";
 import { Modal } from "./CareerEditor";
 import EvidenceImport from "./EvidenceImport";
+import ThemeControl from "./ThemeControl";
 import { type Status } from "./types";
 
 function GoogleMark() {
@@ -213,6 +214,11 @@ export default function BackupSettings({
   return (
     <div className="settings-layout">
       <div className="settings-main">
+        <section className="panel settings-card theme-settings" aria-label="화면 설정">
+          <h2>화면 설정</h2>
+          <ThemeControl label="설정 화면 모드"/>
+          <p className="app-build">화면 버전 {__APP_VERSION__}</p>
+        </section>
         {freeMode && (
           <div className="notice">
             <HardDrive size={17} />

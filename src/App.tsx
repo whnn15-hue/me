@@ -43,6 +43,7 @@ import FileDropzone from "./FileDropzone";
 import GrowthOverview from "./growth/GrowthOverview";
 import WorkspaceTree from "./WorkspaceTree";
 import ThemeControl from "./ThemeControl";
+import HomeDashboard from "./home/HomeDashboard";
 import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
 import { api, download } from "./api";
@@ -121,7 +122,13 @@ const navItems: {
     icon: Settings2,
     description: "안전하게 보관하기",
   },
+  { view: "home", label: "홈", icon: Layers3, description: "" },
 ];
+function initialView(): View {
+  const hash = window.location.hash.slice(1);
+  if (hash === "career-records") return "careers";
+  return navItems.some(item => item.view === hash) ? hash as View : "home";
+}
 export function CategoryIcon({
   category,
   small = false,
@@ -182,7 +189,7 @@ export default function App() {
     [globalSearch, setGlobalSearch] = useState(false);
   const materialUploading = useRef(false);
   const [workspaceTarget, setWorkspaceTarget] = useState<{section?: string; subject?: string}>({});
-  const [view, setView] = useState<View>("careers"),
+  const [view, setView] = useState<View>(initialView),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState<Category | "전체">("전체"),
     [year, setYear] = useState("전체 연도"),
@@ -395,7 +402,7 @@ export default function App() {
     setGroupBy(next === "강의·연수" ? "organization" : "year");
   };
   const focusArchive = (filter: "all" | "missing" | "review") => {
-    clearFilters(); setView("careers");
+    clearFilters(); changeView("careers");
     if (filter === "missing") setEvidenceFilter("증빙 미첨부");
     if (filter === "review") setReviewOnly(true);
     document.getElementById("career-records")?.scrollIntoView({ block: "start" });
@@ -404,6 +411,7 @@ export default function App() {
     if (v === "careers") clearFilters();
     window.scrollTo({ top: 0 });
     setView(v);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${v}`);
     setQuery("");
     setMobileNav(false);
     setDetail(null);
@@ -739,7 +747,7 @@ export default function App() {
       const files=Array.from(event.dataTransfer.files);
       if(view==="materials")void uploadMaterials(files,"lecture");
       else if(view==="projects")void uploadMaterials(files,"classroom");
-      else if(isCareerView || view==="documents")void uploadFiles(files);
+      else if(isCareerView || view==="home" || view==="documents")void uploadFiles(files);
     }}>
       <aside className={`sidebar ${mobileNav ? "is-open" : ""}`}>
         <a
@@ -747,14 +755,14 @@ export default function App() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            changeView("careers");
+            changeView("home");
           }}
         >
           <span className="brand-icon">
             <Layers3 size={23} />
           </span>
           <span>
-            Introduce Me<small>MY PROFESSIONAL WORKSPACE</small>
+            <strong>나의 기록실</strong><small>MY RECORD ROOM</small>
           </span>
         </a>
         <div className="workspace-label">
@@ -892,8 +900,9 @@ export default function App() {
             </div>
           ) : (
             <>
-              {["careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
-              {!["projects", "materials", "graduate"].includes(view) && <div className="page-heading">
+              {["home", "careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {view === "home" && status && <HomeDashboard careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
+              {!["home", "projects", "materials", "graduate"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
                     {view === "careers"
@@ -1143,7 +1152,7 @@ export default function App() {
                     )}
                     <div className="list-footer">
                       <LockKeyhole size={12} />이 기록은 본인만 볼 수 있어요.
-                      <span>Introduce Me, 개인 경력 아카이브</span>
+                      <span>나의 기록실, 개인 경력 아카이브</span>
                     </div>
                   </section>
                 </>

@@ -19,7 +19,7 @@ async function removeDocument(page: Page, filename: string) {
 
 test('personal career workflow persists records, reviews uploads, exports evidence and HWPX, and restores backups', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/#careers');
   const initial = await data(page); const initialCount = initial.careers.length;
   await expect(page.locator('.career-row')).toHaveCount(initialCount);
   await expect(page.locator('.nav-count')).toHaveText(String(initialCount));
@@ -155,7 +155,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
 });
 
 test('mobile navigation works at 375px without page overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 }); await page.goto('/');
+  await page.setViewportSize({ width: 375, height: 812 }); await page.goto('/#careers');
   await expect(page.getByRole('heading', { name: '이력', exact:true, level:1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();

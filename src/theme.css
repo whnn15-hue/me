@@ -79,7 +79,7 @@
 }
 html, body, .app-shell, .main-shell { color: var(--ui-text); background: var(--ui-canvas); }
 .sidebar, .sidebar-bottom, .account-button { background: var(--ui-surface); }
-.topbar { background: var(--ui-canvas); border-bottom-color: var(--ui-border); }
+.topbar { background: var(--ui-canvas); border-bottom-color: var(--ui-border); position: sticky; top: 0; z-index: 20; }
 :where(input, textarea, select, button, a, summary) { accent-color: var(--ui-accent); }
 input::placeholder, textarea::placeholder { color: var(--ui-subtle); opacity: 1; }
 input:focus, textarea:focus, select:focus { border-color: var(--ui-accent) !important; box-shadow: 0 0 0 3px var(--ui-accent-soft); }
@@ -119,8 +119,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-color: va
 .field-chart-main { margin-top: 18px; }
 .field-ring { width: 150px; height: 150px; }
 .field-ring > div { width: 122px; height: 122px; background: var(--ui-surface); }
-.field-legend { gap: 5px; }
-.field-legend button { min-height: 30px; }
+.field-legend { gap: 0; }
+.field-legend li + li { border-top: 1px solid var(--ui-border); }
+.field-legend button { min-height: 46px; font-size: 12px; }
 .field-legend strong, .field-legend small { color: var(--ui-muted); }
 .material-cover, .project-cover { color: var(--ui-muted); background: var(--ui-inset); }
 .material-subject-badge, .material-card h3, .project-card h2, .grad-card h3, .lecture-institution { color: var(--ui-text); }

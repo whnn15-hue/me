@@ -70,7 +70,7 @@ test('desktop palette follows the system live across all workspaces without losi
   await page.addInitScript(()=>{
     if(!localStorage.getItem('introduce-me-theme')) localStorage.setItem('introduce-me-theme','invalid');
   });
-  await page.goto('/');
+  await page.goto('/#careers');
   const original=await (await page.request.get('/api/data')).json();
   const originalWorkspace=await (await page.request.get('/api/workspace')).json();
   const main=page.getByRole('navigation',{name:'기록 종류',exact:true});

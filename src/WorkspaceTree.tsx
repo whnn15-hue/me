@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, ChevronRight, FileText, Folder, FolderOpen, GraduationCap, Layers3, Settings2, Star } from "lucide-react";
+import { BookOpen, ChevronRight, FileText, Folder, FolderOpen, GraduationCap, House, Layers3, Settings2, Star } from "lucide-react";
 import { careerCategoryChoices, matchesCareerCategory } from "../shared/career-organization.mjs";
 import { materialClassification } from "../shared/material-classification.mjs";
 import { displayLabel } from "./workspace/WorkspaceUI";
@@ -22,6 +22,7 @@ export default function WorkspaceTree({ view, careers, documents, workspace, cat
   const lectures = workspace.items.filter((item): item is MaterialItem => item.kind === "material" && item.purpose !== "classroom");
   const subjects = [...new Set(lectures.flatMap(item => materialClassification(item).subjects))].sort((a,b)=>a.localeCompare(b,"ko"));
   return <nav className="workspace-tree" aria-label="주 메뉴">
+    <button className={`nav-item ${view === "home" ? "active" : ""}`} aria-current={view === "home" ? "page" : undefined} onClick={() => onView("home")}><House size={19}/><span>홈</span></button>
     {major.map((item,index) => <div className={`tree-branch ${view === item.view ? "current" : ""}`} key={item.view}>
       <div className="tree-parent"><button aria-label={item.view === "careers" ? "경력 아카이브" : undefined} aria-current={view === item.view ? "page" : undefined} className={`nav-item ${view === item.view ? "active" : ""}`} onClick={()=>onView(item.view)}><span className={`workspace-art art-${index}`} aria-hidden="true"/><span>{item.label}</span>{item.view === "careers" && <span className="nav-count">{careers.length}</span>}</button><button className="tree-toggle" aria-label={`${item.label} 하위 메뉴 ${open[item.view] ? "접기" : "펼치기"}`} aria-expanded={Boolean(open[item.view])} aria-controls={`tree-${item.view}`} onClick={()=>toggle(item.view)}><ChevronRight size={15}/></button></div>
       {open[item.view] && <div className="tree-children" id={`tree-${item.view}`}>

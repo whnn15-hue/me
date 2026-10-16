@@ -126,7 +126,7 @@ body { background: var(--studio-bg); color: var(--studio-ink); }
 .segmented-control button[aria-pressed=true] { color: var(--ui-text, #486742); background: var(--ui-surface, #fff); box-shadow: 0 2px 5px rgb(var(--ui-shadow-rgb, 0 0 0) / 0.102); }
 .chart-drawing { position: relative; margin-top: 18px; }
 .chart-drawing > svg { width: 100%; display: block; overflow: visible; }
-.chart-axis { fill: var(--ui-mark, #6c786f); font-family: sans-serif; font-size: 14px; }
+.chart-axis { fill: var(--ui-mark, #6c786f); font-family: var(--font-body); font-variant-numeric: tabular-nums; font-size: 14px; }
 .chart-hit-targets { position: absolute; inset: 0; }
 .chart-hit-targets button { position: absolute; top: 10%; height: 75%; transform: translateX(-50%); border-radius: 5px; min-width: 9px; }
 .chart-hit-targets button:hover, .chart-hit-targets button:focus-visible { background: color-mix(in srgb, var(--ui-mark, #6696770b) 4.31%, transparent); outline: 1px dashed var(--ui-border, #a9bba2); outline-offset: 0; }

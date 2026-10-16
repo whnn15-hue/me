@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 
 test('growth map, real-data charts and nested workspace routes preserve the archive',async({page})=>{
-  await page.goto('/');
+  await page.goto('/#careers');
   const original=(await (await page.request.get('/api/data')).json());
   const originalWorkspace=(await (await page.request.get('/api/workspace')).json());
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -41,7 +41,7 @@ test('growth map, real-data charts and nested workspace routes preserve the arch
   await expect(page.getByRole('region',{name:'기록 달력',exact:true})).toHaveCount(0);
   const main=page.getByRole('navigation',{name:'기록 종류',exact:true});
   await main.getByRole('button',{name:'이력',exact:true}).click();
-  const fields=page.getByRole('region',{name:'분야별 이력 분포',exact:true});
+  const fields=page.getByRole('region',{name:'분야별 이력 건수',exact:true});
   await fields.getByRole('button',{name:/강의, 연수/}).click();
   await expect(page.locator('.career-row').filter({hasText:'성장검증 오늘 강의'})).toBeVisible();
   const tree=page.getByRole('navigation',{name:'주 메뉴',exact:true});

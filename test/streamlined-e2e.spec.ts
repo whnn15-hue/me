@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 
 test('four workspaces contain exclusive career collections, institution views and compatible records',async({page})=>{
-  await page.goto('/');
+  await page.goto('/#careers');
   const before=(await (await page.request.get('/api/data')).json()).careers;
   const fixtures=[
     {title:'구성검증 현장교사 파견',category:'근무·파견',description:'가상 기관 현장교사 파견'},
@@ -86,7 +86,7 @@ test('four workspaces contain exclusive career collections, institution views an
 });
 
 test('HTML uploads remain attachments and library favorites persist with links and JSON backup',async({page})=>{
-  await page.goto('/');
+  await page.goto('/#careers');
   const original=(await (await page.request.get('/api/data')).json());
   const previous=(await (await page.request.get('/api/workspace')).json());
   const html=Buffer.from('<!doctype html><html><head><title>통합검증 HTML 수학 자료</title></head><body><h1>분수 연습</h1><script>window.HTML_EXECUTED=true</script></body></html>');
