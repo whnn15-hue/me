@@ -129,7 +129,7 @@ npx netlify-cli login
 npx netlify-cli deploy --dir=dist --site="$NETLIFY_SITE_ID" --prod
 ```
 
-이 저장소에서는 GitHub 커밋·푸시나 실제 서비스 배포를 자동으로 실행하지 않습니다. GitHub 자동 배포 연결을 선택하면 변경 사항을 검토한 뒤 본인의 절차로 반영합니다. Netlify의 임시 배포 미리보기 주소는 설정한 `APP_URL`과 다르므로 인증·CORS 확인에는 고정된 실제 사이트 주소를 사용합니다.
+이 앱의 사용자는 변경 후 자동 배포를 요청했습니다. 기존 무료 배포 경로에 대한 [자동 배포 복구와 확인 절차](AUTO_DEPLOY.md)를 따릅니다. 이 문서의 유료 Firebase 배포 경로로 임의 전환하지 않습니다. Netlify의 임시 배포 미리보기 주소는 설정한 `APP_URL`과 다르므로 인증·CORS 확인에는 고정된 실제 사이트 주소를 사용합니다.
 
 배포한 실제 HTTPS 사이트에서 다음을 확인합니다.
 

@@ -89,7 +89,7 @@ npx netlify-cli deploy --site="$NETLIFY_SITE_ID" --prod --build
 
 `--build`는 화면과 **Netlify Functions를 함께** 준비합니다. `dist`만 업로드하면 API와 백업 함수가 빠질 수 있습니다. Netlify CLI를 쓰는 머신에는 Node.js 24 이상을 사용합니다. CLI 로그인은 본인 컴퓨터에서 진행하며, 클라우드 환경 밖에서는 저장소·npm 캐시 경로를 본인 머신에 맞춥니다. PDF의 네이티브 의존성이 배포 환경과 맞도록 직접 번들 빌드는 검증한 Linux x64 환경을 사용합니다. 다른 운영체제의 컴퓨터에서는 GitHub 연결을 통한 Netlify 클라우드 빌드를 사용합니다.
 
-GitHub 자동 배포를 선택하면 변경 내용을 검토한 뒤 본인의 절차로 반영합니다. `.env.production.local`은 GitHub에 전달되지 않으므로 Netlify 빌드 환경 변수 설정이 필요합니다. 이 안내와 로컬 도구는 GitHub 커밋·푸시·실제 서비스 배포를 자동으로 실행하지 않습니다.
+이 앱의 사용자는 변경 후 자동 배포를 요청했습니다. 기존 GitHub 저장소의 main과 Netlify 자동 빌드 및 자동 게시를 연결하고, 작업 완료 시 실제 Published 커밋까지 확인합니다. [자동 배포 복구와 확인 절차](AUTO_DEPLOY.md)를 따릅니다. `.env.production.local`은 GitHub에 전달되지 않으므로 기존 Netlify 빌드 환경 변수는 유지해야 합니다. 설정 생성 도구만 실행하는 것은 배포가 아닙니다.
 
 ## 6. Google Drive 연결
 
