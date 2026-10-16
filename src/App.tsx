@@ -42,6 +42,7 @@ import {
 import FileDropzone from "./FileDropzone";
 import GrowthOverview from "./growth/GrowthOverview";
 import WorkspaceTree from "./WorkspaceTree";
+import ThemeControl from "./ThemeControl";
 import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
 import { api, download } from "./api";
@@ -808,6 +809,7 @@ export default function App() {
             <strong>{navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
+            <ThemeControl />
             {authorized && <button className="global-search-trigger" aria-label="모든 기록 검색 열기" onClick={() => setGlobalSearch(true)}><Search size={15} /><span>통합 검색</span><kbd>Ctrl K</kbd></button>}
             {authorized && <button className={`sync-status ${status.driveConnected ? "connected" : ""}`} onClick={() => changeView("settings")}>
               <Cloud size={15} />{status.driveConnected ? "드라이브 연결됨" : "백업 설정"}
