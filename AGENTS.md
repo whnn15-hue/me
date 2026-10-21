@@ -2,7 +2,9 @@
 
 This is the existing personal archive app. Follow the user's current instructions when they differ from this file.
 
-The owner has repeatedly requested automatic deployment after completed app changes. Within an implementation task, finish the checks, commit the scoped changes and push to `main` using the authorized repository connection. Do not ask for routine deployment approval again. Use the existing Netlify project and preserve its production environment variables, Firebase data, Drive data and access protection.
+The owner's latest instruction (2026-10-21) is to continue here, add the supplied materials and push the changes, **without deploying**. This supersedes the earlier request to deploy after every change. Finish checks and push the scoped commit to `main` using the authorized repository connection, with both `[skip netlify]` and `[skip ci]` in the commit message so the existing native integration skips the build. Apply those markers to every commit in a source-only batch, including merge commits. Do not trigger Netlify, create a deployment workflow or use a build hook. Local commits and test runs are allowed. Wait for a later explicit request to publish the final batch; do not remove the skip markers or push a release commit merely to test deployment.
+
+Keep the existing Netlify project, production environment variables, Firebase data, Drive data and access protection. Uploaded private originals and import keys stay out of Git; only authenticated encrypted import assets and non-sensitive documentation belong in the repository. Preparing and pushing a data package does not import it into the owner's live account. Report those states separately.
 
 - Repository: `whnn15-hue/me`, production branch `main`.
 - Netlify project: `sensational-cuchufli-e3fbc9`.
