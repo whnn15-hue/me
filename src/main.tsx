@@ -10,6 +10,7 @@ import "./portfolio-library.css";
 import "./studio.css";
 import "./theme.css";
 import "./home/home.css";
+import "./workspace-upgrade.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

@@ -86,7 +86,7 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await career.getByRole('button',{name:'상세 닫기',exact:true}).click();
   await page.getByRole('button',{name:'모든 기록 검색 열기',exact:true}).click();
   const search=page.getByRole('dialog',{name:'모든 기록 검색',exact:true});
-  await search.getByRole('textbox',{name:'모든 기록 검색어',exact:true}).fill('통합검증');
+  await search.getByRole('combobox',{name:'모든 기록 검색어',exact:true}).fill('통합검증');
   await search.getByRole('combobox',{name:'통합 검색 태그',exact:true}).selectOption('통합검증');
   await expect(search).toContainText(project.title);await expect(search).toContainText('통합검증 생태 강의안');
   await search.getByRole('button',{name:'닫기',exact:true}).click();
@@ -244,7 +244,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await expect(page.getByRole('button',{name:`${material.title} 상세보기`,exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'모든 기록 검색 열기',exact:true}).click();
   let search=page.getByRole('dialog',{name:'모든 기록 검색',exact:true});
-  await search.getByRole('textbox',{name:'모든 기록 검색어',exact:true}).fill('학급검증');
+  await search.getByRole('combobox',{name:'모든 기록 검색어',exact:true}).fill('학급검증');
   await search.getByRole('combobox',{name:'검색할 기록 종류',exact:true}).selectOption({label:'수업 전체'});
   await expect(search.locator('.global-search-results')).toContainText(material.title);
   await expect(search.locator('.global-search-results')).toContainText(project.title);

@@ -36,16 +36,18 @@ const csvCell = (s: string) =>
   `"${(s.match(/^[=+@-]/) ? "'" + s : s).replaceAll('"', '""')}"`;
 export default function ResumeBuilder({
   careers,
+  initialSelectedIds = [],
   documents = [],
   onError,
   onToast,
 }: {
   careers: Career[];
+  initialSelectedIds?: string[];
   documents?: DocumentRecord[];
   onError: (e: unknown) => void;
   onToast: (s: string) => void;
 }) {
-  const [selected, setSelected] = useState<string[]>([]),
+  const [selected, setSelected] = useState<string[]>(() => initialSelectedIds.filter(id => careers.some(item => item.id === id))),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState("전체"),
     [name, setName] = useState(""),

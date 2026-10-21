@@ -36,9 +36,7 @@ export function Modal({
     const previous = document.activeElement as HTMLElement;
     const bodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    ref.current
-      ?.querySelector<HTMLElement>("input,textarea,select,button")
-      ?.focus();
+    (ref.current?.querySelector<HTMLElement>("[data-autofocus]") || ref.current?.querySelector<HTMLElement>("input,textarea,select,button"))?.focus();
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();

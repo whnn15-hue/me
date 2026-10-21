@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
+  Eye,
+  Copy,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
@@ -39,6 +41,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { archiveAttention, matchesWords, documentFormat, sortDocuments } from "./archive-tools";
 import FileDropzone from "./FileDropzone";
 import GrowthOverview from "./growth/GrowthOverview";
 import WorkspaceTree from "./WorkspaceTree";
@@ -196,6 +199,9 @@ export default function App() {
     [institution, setInstitution] = useState("전체 기관"),
     [groupBy, setGroupBy] = useState<"year" | "organization">("year"),
     [evidenceFilter, setEvidenceFilter] = useState("전체 증빙"),
+    [undatedOnly, setUndatedOnly] = useState(false),
+    [documentFilter, setDocumentFilter] = useState("전체 파일"),
+    [resumeSelection, setResumeSelection] = useState<string[]>([]),
     [reviewOnly, setReviewOnly] = useState(false),
     [layout, setLayout] = useState<"list" | "grid">("list");
   const [editor, setEditor] = useState<Career | null>(null),
@@ -219,7 +225,26 @@ export default function App() {
     [linkQuery, setLinkQuery] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null),
     searchRef = useRef<HTMLInputElement>(null),
+    drawerRef = useRef<HTMLElement>(null),
     refreshVersion = useRef(0);
+  useEffect(() => {
+    if (!detail) return;
+    const previous = document.activeElement as HTMLElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    drawerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      // The editor and confirmation dialogs take precedence over the drawer.
+      if (document.querySelector(".modal-backdrop")) return;
+      if (event.key === "Escape") { event.preventDefault(); setDetail(null); }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled)") || []).filter(item => item.offsetParent !== null);
+      if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); }
+      if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus(); };
+  }, [detail?.id]);
   async function refresh() {
     const version = ++refreshVersion.current;
     try {
@@ -356,13 +381,11 @@ export default function App() {
     () =>
       careers
         .filter((c) => {
-          const match =
-            `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`
-              .normalize("NFC").toLocaleLowerCase()
-              .includes(query.normalize("NFC").trim().toLocaleLowerCase());
+          const match = matchesWords(`${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`, query);
           return (
             match &&
             (!reviewOnly || !c.verified) &&
+            (!undatedOnly || !c.startDate) &&
             matchesCareerCategory(c, category, documents) &&
             (institution === "전체 기관" || careerOrganization(c, documents) === institution) &&
             (year === "전체 연도" ||
@@ -370,8 +393,8 @@ export default function App() {
                 (c.endDate || c.startDate).slice(0, 4) >= year)) &&
             (evidenceFilter === "전체 증빙" ||
               (evidenceFilter === "증빙 있음"
-                ? c.documentIds.length > 0
-                : c.documentIds.length === 0 &&
+                ? c.documentIds.some(id => documents.some(doc => doc.id === id))
+                : !c.documentIds.some(id => documents.some(doc => doc.id === id)) &&
                   c.evidenceStatus !== "unneeded"))
           );
         })
@@ -380,37 +403,41 @@ export default function App() {
             (b.startDate || "").localeCompare(a.startDate || "") ||
             a.title.localeCompare(b.title, "ko"),
         ),
-    [careers, documents, query, category, year, institution, evidenceFilter, reviewOnly],
+    [careers, documents, query, category, year, institution, evidenceFilter, reviewOnly, undatedOnly],
   );
   const groups = useMemo(() => Object.entries(Object.groupBy(filtered, c => groupBy === "organization"
     ? careerOrganization(c, documents) : c.startDate.slice(0, 4) || "확인 필요"))
     .sort(([a], [b]) => groupBy === "organization" ? a === "기관 미입력" ? 1 : b === "기관 미입력" ? -1 : a.localeCompare(b,"ko")
       : a === "확인 필요" ? 1 : b === "확인 필요" ? -1 : b.localeCompare(a)), [filtered, groupBy, documents]);
   const linkedCareers = careers.filter((c) => c.documentIds.length > 0).length;
-  const missingEvidence = careers.filter((c) => !c.documentIds.length && c.evidenceStatus !== "unneeded").length;
+  const missingEvidence = archiveAttention(careers, documents).missing.length;
   const unreviewed = careers.filter((c) => !c.verified).length;
   const evidenceRequired = careers.filter((c) => c.documentIds.length || c.evidenceStatus !== "unneeded").length;
   const coverage = evidenceRequired ? Math.round(linkedCareers / evidenceRequired * 100) : 0;
-  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || institution !== "전체 기관" || evidenceFilter !== "전체 증빙" || reviewOnly;
+  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || institution !== "전체 기관" || evidenceFilter !== "전체 증빙" || reviewOnly || undatedOnly;
   const clearFilters = () => {
     setQuery(""); setCategory("전체"); setYear("전체 연도"); setInstitution("전체 기관"); setGroupBy("year");
-    setEvidenceFilter("전체 증빙"); setReviewOnly(false);
+    setEvidenceFilter("전체 증빙"); setReviewOnly(false); setUndatedOnly(false);
   };
   const chooseCategory = (next: Category | "전체") => {
     setCategory(next); setInstitution("전체 기관"); setQuery(""); setYear("전체 연도");
-    setEvidenceFilter("전체 증빙"); setReviewOnly(false);
+    setEvidenceFilter("전체 증빙"); setReviewOnly(false); setUndatedOnly(false);
     setGroupBy(next === "강의·연수" ? "organization" : "year");
   };
-  const focusArchive = (filter: "all" | "missing" | "review") => {
+  const focusArchive = (filter: "all" | "missing" | "review" | "undated" | "unlinked") => {
+    if (filter === "unlinked") { changeView("documents"); setDocumentFilter("미연결 파일"); return; }
     clearFilters(); changeView("careers");
     if (filter === "missing") setEvidenceFilter("증빙 미첨부");
     if (filter === "review") setReviewOnly(true);
-    document.getElementById("career-records")?.scrollIntoView({ block: "start" });
+    if (filter === "undated") setUndatedOnly(true);
+    requestAnimationFrame(() => document.getElementById("career-records")?.scrollIntoView({ block: "start" }));
   };
   const changeView = (v: View) => {
     if (v === "careers") clearFilters();
     window.scrollTo({ top: 0 });
     setView(v);
+    setResumeSelection([]);
+    setDocumentFilter("전체 파일");
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${v}`);
     setQuery("");
     setMobileNav(false);
@@ -818,7 +845,7 @@ export default function App() {
           </div>
           <div className="topbar-end">
             <ThemeControl />
-            {authorized && <button className="global-search-trigger" aria-label="모든 기록 검색 열기" onClick={() => setGlobalSearch(true)}><Search size={15} /><span>통합 검색</span><kbd>Ctrl K</kbd></button>}
+            {authorized && <button className="global-search-trigger" aria-label="모든 기록 검색 열기" onClick={() => setGlobalSearch(true)}><Search size={15} /><span>통합 검색</span><kbd>{/Mac/.test(navigator.platform) ? "⌘ K" : "Ctrl K"}</kbd></button>}
             {authorized && <button className={`sync-status ${status.driveConnected ? "connected" : ""}`} onClick={() => changeView("settings")}>
               <Cloud size={15} />{status.driveConnected ? "드라이브 연결됨" : "백업 설정"}
             </button>}
@@ -901,7 +928,7 @@ export default function App() {
           ) : (
             <>
               {["home", "careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
-              {view === "home" && status && <HomeDashboard careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
+              {view === "home" && status && <HomeDashboard careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onSearch={() => setGlobalSearch(true)} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
               {!["home", "projects", "materials", "graduate"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
@@ -985,7 +1012,8 @@ export default function App() {
                       </h2>
                       <button
                         className="text-button"
-                        onClick={() => changeView("resume")}
+                        onClick={() => { changeView("resume"); setResumeSelection(filtered.map(item => item.id)); }}
+                        disabled={!filtered.length}
                       >
                         이력서로 만들기
                         <ArrowUpRight size={15} />
@@ -1060,6 +1088,15 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                    {hasFilters && <div className="active-filter-chips" aria-label="적용 중인 이력 필터">
+                      {query && <button onClick={() => setQuery("")}>검색: {query}<X size={12}/></button>}
+                      {category !== "전체" && <button onClick={() => setCategory("전체")}>{displayLabel(category)}<X size={12}/></button>}
+                      {year !== "전체 연도" && <button onClick={() => setYear("전체 연도")}>{year}년<X size={12}/></button>}
+                      {institution !== "전체 기관" && <button onClick={() => setInstitution("전체 기관")}>{institution}<X size={12}/></button>}
+                      {evidenceFilter !== "전체 증빙" && <button onClick={() => setEvidenceFilter("전체 증빙")}>{evidenceFilter}<X size={12}/></button>}
+                      {reviewOnly && <button onClick={() => setReviewOnly(false)}>확인 전<X size={12}/></button>}
+                      {undatedOnly && <button onClick={() => setUndatedOnly(false)}>날짜 미입력<X size={12}/></button>}
+                    </div>}
                     <div className="archive-result-bar">
                       <span aria-live="polite">{filtered.length}건{groupBy === "organization" ? `, ${groups.length}개 기관` : ", 최근 활동순"}</span>
                       <div>
@@ -1162,6 +1199,7 @@ export default function App() {
               {view === "graduate" && <GraduateView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "documents" && (
                 <DocumentsView
+                  filter={documentFilter} setFilter={setDocumentFilter}
                   documents={documents}
                   careers={careers}
                   query={query}
@@ -1196,6 +1234,7 @@ export default function App() {
               )}
               {view === "resume" && (
                 <ResumeBuilder
+                  initialSelectedIds={resumeSelection}
                   careers={careers}
                   documents={documents}
                   onError={fail}
@@ -1241,7 +1280,7 @@ export default function App() {
           </button>
         </div>
       )}
-      {authorized && globalSearch && <WorkspaceSearch workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} onClose={() => setGlobalSearch(false)} />}
+      {authorized && globalSearch && <WorkspaceSearch busy={!!busy} workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} onView={changeView} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}} onUpload={() => uploadRef.current?.click()} onClose={() => setGlobalSearch(false)} />}
       {editor && (
         <CareerEditor
           career={editor}
@@ -1319,6 +1358,7 @@ export default function App() {
       {detail && (
         <div className="drawer-backdrop" onClick={() => setDetail(null)}>
           <aside
+            ref={drawerRef}
             className="detail-drawer"
             role="dialog"
             aria-modal="true"
@@ -1436,6 +1476,15 @@ export default function App() {
             {detail.source && (
               <p className="source-note">출처: {displayLabel(detail.source)}</p>
             )}
+            <div className="detail-quick-actions">
+              <button className="button secondary" onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText([formatPeriod(detail), displayLabel(detail.title), careerOrganization(detail, documents), displayLabel(detail.role)].filter(Boolean).join(" | "));
+                  setToast("이력서에 붙여 넣을 한 줄을 복사했습니다.");
+                } catch { setError("복사 권한을 확인해 주세요. 이력서 만들기에서도 내용을 확인할 수 있습니다."); }
+              }}><Copy size={15}/>이력 한 줄 복사</button>
+              <button className="button secondary" onClick={() => { const id = detail.id; changeView("resume"); setResumeSelection([id]); }}><FileText size={15}/>이력서에 담기</button>
+            </div>
             <div className="drawer-actions">
               <button
                 className="button text-danger"
@@ -1593,6 +1642,7 @@ export function EmptyState({
 }
 
 function DocumentsView({
+  filter, setFilter,
   documents,
   careers,
   query,
@@ -1606,6 +1656,7 @@ function DocumentsView({
   onDelete,
   onOpenCareer,
 }: {
+  filter: string; setFilter: (value: string) => void;
   documents: DocumentRecord[];
   careers: Career[];
   query: string;
@@ -1619,16 +1670,18 @@ function DocumentsView({
   onDelete: (d: DocumentRecord) => void;
   onOpenCareer: (c: Career) => void;
 }) {
-  const [drag, setDrag] = useState(false),
-    [filter, setFilter] = useState("전체 파일");
+  const [drag, setDrag] = useState(false);
+  const [format, setFormat] = useState("전체 형식"), [order, setOrder] = useState("recent"), [previewId, setPreviewId] = useState<string | null>(null);
+  const preview = documents.find(item => item.id === previewId);
+  const formats = [...new Set(documents.map(item => documentFormat(item.name)))].sort((a,b) => a.localeCompare(b,"ko"));
   const linkedByDocument = new Map(documents.map((d) => [d.id, careers.filter((c) => c.documentIds.includes(d.id))]));
   const linkedCount = documents.filter((d) => linkedByDocument.get(d.id)?.length).length;
-  const items = documents.filter((d) => {
+  const items = sortDocuments(documents.filter((d) => {
     const linked = linkedByDocument.get(d.id) || [];
-    return `${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${c.tags.join(" ")}`).join(" ")}`
-      .normalize("NFC").toLocaleLowerCase().includes(query.normalize("NFC").trim().toLocaleLowerCase()) &&
+    return matchesWords(`${displayLabel(d.name)} ${d.text || ""} ${linked.map((c) => `${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${c.tags.join(" ")}`).join(" ")}`, query) &&
+      (format === "전체 형식" || documentFormat(d.name) === format) &&
       (filter === "전체 파일" || (filter === "연결된 파일" ? linked.length > 0 : linked.length === 0));
-  });
+  }), order);
   return (
     <>
       <div className="document-summary">
@@ -1660,7 +1713,7 @@ function DocumentsView({
           파일 선택하기
         </button>
         <small>
-          PDF, PPTX, HWP, HWPX, DOCX, XLSX, CELL, TXT, 이미지, 파일당 최대 25 MB, 한 번에
+          PDF, PPTX, HWP, HWPX, DOCX, XLSX, CELL, TXT, HTML, 이미지, 파일당 최대 25 MB, 한 번에
           10개
 
         </small>
@@ -1693,8 +1746,10 @@ function DocumentsView({
           </select>
           <ChevronDown size={13} />
         </label>
+        <label className="select-wrap"><select aria-label="공문 파일 형식" value={format} onChange={event => setFormat(event.target.value)}><option>전체 형식</option>{formats.map(value => <option key={value}>{value}</option>)}</select><ChevronDown size={13}/></label>
+        <label className="select-wrap"><select aria-label="공문 정렬" value={order} onChange={event => setOrder(event.target.value)}><option value="recent">최근 보관순</option><option value="name">이름순</option><option value="size">큰 파일순</option></select><ChevronDown size={13}/></label>
       </div>
-      {(query || filter !== "전체 파일") && <div className="document-result-bar"><span aria-live="polite">검색 결과 {items.length}개</span><button className="reset-filters" onClick={() => { setQuery(""); setFilter("전체 파일"); }}><X size={13} />필터 초기화</button></div>}
+      {(query || filter !== "전체 파일" || format !== "전체 형식") && <div className="document-result-bar"><span aria-live="polite">검색 결과 {items.length}개</span><button className="reset-filters" onClick={() => { setQuery(""); setFilter("전체 파일"); setFormat("전체 형식"); }}><X size={13} />필터 초기화</button></div>}
       {!items.length ? (
         <EmptyState
           icon={<FolderOpen size={30} />}
@@ -1749,6 +1804,7 @@ function DocumentsView({
                   </div>
                 </div>
                 <div className="document-actions">
+                  <button className="icon-button" title="문서 내용 살펴보기" aria-label={`${displayLabel(d.name)} 내용 살펴보기`} onClick={() => setPreviewId(d.id)}><Eye size={18}/></button>
                   <button
                     className="icon-button"
                     title="경력 초안 만들기"
@@ -1803,6 +1859,14 @@ function DocumentsView({
           })}
         </div>
       )}
+      {preview && <Modal title="공문 살펴보기" onClose={() => setPreviewId(null)} wide>
+        <div className="modal-body document-preview">
+          <div className="document-preview-heading"><span className="document-file-icon"><FileText size={24}/><small>{preview.name.split(".").at(-1)?.toUpperCase()}</small></span><div><h3>{displayLabel(preview.name)}</h3><p>{documentFormat(preview.name)} / {fileSize(preview.size)} / {new Date(preview.createdAt).toLocaleDateString("ko-KR", {timeZone:"Asia/Seoul"})}</p></div></div>
+          <section aria-label="공문에 연결된 경력"><h4>연결된 경력</h4><div className="document-links">{(linkedByDocument.get(preview.id) || []).map(career => <button key={career.id} onClick={() => { setPreviewId(null); onOpenCareer(career); }}><Layers3 size={14}/>{displayLabel(career.title)}<ArrowUpRight size={14}/></button>)}{!linkedByDocument.get(preview.id)?.length && <p className="muted">아직 연결된 경력이 없습니다.</p>}</div></section>
+          <section aria-label="추출된 문서 내용"><h4>추출된 내용</h4>{preview.text?.trim() ? <pre className="document-text-preview">{displayLabel(preview.text)}</pre> : <p className="document-preview-empty">추출된 텍스트가 없습니다. 원본 파일을 내려받아 확인할 수 있습니다.</p>}</section>
+        </div>
+        <div className="modal-footer"><button className="button secondary" disabled={busy} onClick={() => {setPreviewId(null); onLink(preview);}}><Plus size={16}/>경력에 연결</button><button className="button secondary" disabled={busy} onClick={() => {setPreviewId(null); onAnalyze(preview);}}><Sparkles size={16}/>경력 초안 만들기</button><button className="button primary" disabled={busy} onClick={() => onDownload(preview)}><Download size={16}/>원본 다운로드</button></div>
+      </Modal>}
     </>
   );
 }
