@@ -281,6 +281,9 @@ async function browserFixtureBundle() {
       createRoot(document.getElementById('root')).render(<Fixture/>);
     ` },
     bundle: true, platform: 'browser', format: 'iife', write: false, jsx: 'automatic',
+    // Vite supplies the version and environment in the real app. This isolated
+    // browser build must supply them too, without loading deployment settings.
+    define: { __APP_VERSION__: JSON.stringify('test'), 'import.meta.env': '{}' },
     plugins: [{ name: 'isolated-backup-code-fixture', setup(builder) {
       builder.onResolve({ filter: /^\.\/api$/ }, ({ importer }) => importer.endsWith('/BackupSettings.tsx') ? { path: 'api', namespace: 'fixture' } : undefined);
       builder.onResolve({ filter: /^\.\/cloud$/ }, ({ importer }) => importer.endsWith('/BackupSettings.tsx') ? { path: 'cloud', namespace: 'fixture' } : undefined);
