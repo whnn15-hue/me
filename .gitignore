@@ -15,3 +15,6 @@ functions/lib/
 functions/node_modules/
 .cloud-local/
 server/seed.json
+
+.preview-dist/
+.preview-test-results/

@@ -1,4 +1,4 @@
-export const WORKSPACE_KINDS = ['project', 'material', 'course', 'assignment', 'paper', 'idea'];
+export const WORKSPACE_KINDS = ['project', 'material', 'course', 'assignment', 'paper', 'idea', 'photo', 'submission'];
 export const WORKSPACE_ROW_PREFIX = '__workspace_';
 export const WORKSPACE_ROW_TAG = 'introduce-me-workspace';
 export const MAX_WORKSPACE_ITEMS = 5000;
@@ -44,9 +44,26 @@ export function normalizeWorkspaceUrl(value, { httpsOnly = false, driveOnly = fa
   return url.href;
 }
 export function workspaceItemRef(item) { return `${item.kind}:${item.id}`; }
+// JSON imports can reuse an existing original under a different ID. Translate
+// photo/report references too, after the caller has verified the actual bytes.
+export function translateWorkspaceOriginals(workspace, resolve) {
+  return { ...workspace, items: workspace.items.map(item => {
+    if (item.kind === 'photo') {
+      const documentId = resolve(item.documentId, item.sha256);
+      if (!documentId) fail('사진 원본을 확인하지 못했습니다. 원본이 포함된 ZIP을 먼저 복원해 주세요.');
+      return { ...item, documentId };
+    }
+    if (item.kind === 'submission') return { ...item, documentIds: item.documentIds.map(id => {
+      const translated = resolve(id);
+      if (!translated) fail('제출본 원본을 확인하지 못했습니다. 원본이 포함된 ZIP을 먼저 복원해 주세요.');
+      return translated;
+    }) };
+    return item;
+  }) };
+}
 export function parseWorkspaceRef(value) {
   if (typeof value !== 'string') fail('연결할 기록의 주소가 올바르지 않습니다.');
-  const match = /^(career|project|material|course|assignment|paper|idea):([A-Za-z0-9_-]{1,100})$/.exec(value);
+  const match = /^(career|project|material|course|assignment|paper|idea|photo|submission):([A-Za-z0-9_-]{1,100})$/.exec(value);
   if (!match || match[1] !== 'career' && !validWorkspaceId(match[2])) fail('연결할 기록의 주소가 올바르지 않습니다.');
   return { kind: match[1], id: match[2] };
 }
@@ -67,6 +84,27 @@ export function normalizeWorkspaceItem(value, previous) {
     const input = object(entry); return { label: text(input.label, 300), url: normalizeWorkspaceUrl(input.url, { httpsOnly }) };
   });
   switch (result.kind) {
+    case 'photo': {
+      const documentId = text(merged.documentId, 100), sha256 = text(merged.sha256, 64);
+      if (!/^[A-Za-z0-9_-]{1,100}$/.test(documentId) || !/^[a-f0-9]{64}$/.test(sha256)
+        || typeof merged.reviewed !== 'boolean' || !Number.isInteger(merged.star) || merged.star < 0 || merged.star > 3) fail('사진 원본과 검토 상태를 확인해 주세요.');
+      Object.assign(result, { documentId, sha256, caption: text(merged.caption, 2000), reviewed: merged.reviewed, star: merged.star }); break;
+    }
+    case 'submission': {
+      const status = merged.status ?? 'preparing', year = text(merged.year, 4);
+      if (!['preparing', 'submitted', 'result'].includes(status) || year && !/^\d{4}$/.test(year)) fail('제출 상태와 연도를 확인해 주세요.');
+      const documentIds = strings(merged.documentIds, 100, 100);
+      if (documentIds.some(id => !/^[A-Za-z0-9_-]{1,100}$/.test(id))) fail('제출 파일 연결을 확인해 주세요.');
+      const slots = list(merged.slots, 30, entry => {
+        const input = object(entry), id = text(input.id, 80), photoId = text(input.photoId, 80);
+        if (!validWorkspaceId(id) || photoId && !validWorkspaceId(photoId)) fail('사진 배치 정보를 확인해 주세요.');
+        return { id, title: text(input.title, 300), tags: strings(input.tags), quote: text(input.quote, 2000), photoId, caption: text(input.caption, 2000) };
+      });
+      const selected = slots.filter(slot => slot.photoId).map(slot => slot.photoId);
+      if (new Set(slots.map(slot => slot.id)).size !== slots.length || new Set(selected).size !== selected.length) fail('한 제출본 안에서는 같은 사진을 한 번만 배치해 주세요.');
+      Object.assign(result, { competition: text(merged.competition, 300), year, status, submittedOn: date(merged.submittedOn),
+        result: text(merged.result, 2000), documentIds, brief: text(merged.brief, 30000), slots }); break;
+    }
     case 'project': Object.assign(result, {
       schoolYear: text(merged.schoolYear, 100), grade: text(merged.grade, 100), startDate: date(merged.startDate), endDate: date(merged.endDate),
       subjects: list(merged.subjects, 100, entry => ({ subject: text(object(entry).subject, 300), unit: text(entry.unit, 300) })),
@@ -115,7 +153,9 @@ export function normalizeWorkspace(value, { careerIds = [], revision, pruneMissi
   if (ids.size !== items.length) fail('중복된 학습 기록 ID가 있습니다.');
   for (const id of careerIds) { parseWorkspaceRef(`career:${id}`); refs.add(`career:${id}`); }
   const courses = new Set(items.filter(item => item.kind === 'course').map(item => item.id));
+  const photos = new Set(items.filter(item => item.kind === 'photo').map(item => item.id));
   for (const item of items) {
+    if (item.kind === 'submission' && item.slots.some(slot => slot.photoId && !photos.has(slot.photoId))) fail('제출본에 연결한 사진을 찾을 수 없습니다.');
     if (item.kind === 'assignment' && item.courseId && !courses.has(item.courseId) || item.kind === 'paper' && item.courseIds.some(id => !courses.has(id))) fail('연결된 대학원 과목을 찾을 수 없습니다.');
   }
   const keys = new Set(), links = [];
@@ -142,6 +182,7 @@ export function mutateWorkspace(workspace, mutation, careers) {
   let items = current.items, links = current.links;
   if (mutation.operation === 'delete') {
     const previous = items.find(item => item.id === mutation.id); if (!previous) fail('삭제할 기록을 찾을 수 없습니다.', 404);
+    if (previous.kind === 'photo' && items.some(item => item.kind === 'submission' && item.slots.some(slot => slot.photoId === previous.id))) fail('제출본에서 사용 중인 사진입니다. 제출본에서 연결을 해제한 뒤 삭제해 주세요.', 409);
     const ref = workspaceItemRef(previous);
     items = items.filter(item => item.id !== previous.id).map(item => {
       if (previous.kind !== 'course') return item;

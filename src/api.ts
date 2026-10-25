@@ -1,6 +1,7 @@
 import {
   cloudApiUrl,
   cloudMode,
+  previewMode,
   freeMode,
   cloudToken,
   cloudConfigurationError,
@@ -8,7 +9,7 @@ import {
   readyCloudUser,
   signedOutCloudStatus,
 } from "./cloud";
-import { type Status } from "./types";
+import { type Status, type DocumentRecord } from "./types";
 
 let approvedUid: string | null = null;
 
@@ -61,6 +62,7 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  if (previewMode) return (await import("./preview/api")).previewApi<T>(path, options);
   if (cloudMode && path === "/status") {
     approvedUid = null;
     if (cloudConfigurationError) return signedOutCloudStatus() as T;
@@ -96,6 +98,11 @@ export async function download(
   filename: string,
   options: RequestInit = {},
 ) {
+  if (previewMode) {
+    const match = /^\/documents\/([^/]+)\/file$/.exec(path);
+    if (!match) throw new Error("미리보기에서는 선택 사진 ZIP과 JSON 백업을 이용해 주세요.");
+    saveBlob(await (await import("./preview/api")).previewOriginal(match[1]), filename); return;
+  }
   if (freeMode) {
     const result = await dispatchFree(path, options);
     if (result.handled) {
@@ -152,4 +159,25 @@ export function saveBlob(blob: Blob, filename: string) {
   anchor.download = filename;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Use the same authenticated original-file path as archive downloads. */
+export async function loadDocumentBlob(document: DocumentRecord): Promise<Blob> {
+  if (previewMode) return (await import("./preview/api")).previewOriginal(document.id);
+  const path = `/documents/${document.id}/file`;
+  if (freeMode) {
+    const result = await dispatchFree(path, {});
+    const file = result.value as { driveFileId: string; size: number; sha256: string; kind: "document" };
+    const { downloadDriveFile } = await import("./free/drive");
+    return (await downloadDriveFile(file.driveFileId, file)).blob;
+  }
+  const response = await request(path, {});
+  if (response.headers.get("Content-Type")?.includes("application/json")) {
+    const data = await responseJson<{ downloadUrl?: string }>(response);
+    if (!data.downloadUrl || new URL(data.downloadUrl).protocol !== "https:") throw new Error("원본 주소를 확인하지 못했습니다.");
+    const original = await fetch(data.downloadUrl, { credentials: "omit" });
+    if (!original.ok) throw new Error("원본을 불러오지 못했습니다.");
+    return original.blob();
+  }
+  return response.blob();
 }

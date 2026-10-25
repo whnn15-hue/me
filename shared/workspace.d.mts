@@ -8,6 +8,7 @@ export const MAX_WORKSPACE_LINKS: number;
 export function validWorkspaceId(value: unknown): value is string;
 export function normalizeWorkspaceUrl(value: unknown, options?: {httpsOnly?: boolean; driveOnly?: boolean}): string;
 export function workspaceItemRef(item: WorkspaceItem): string;
+export function translateWorkspaceOriginals(workspace: WorkspaceData, resolve: (id: string, sha256?: string) => string | undefined | null): WorkspaceData;
 export function parseWorkspaceRef(value: unknown): {kind: string; id: string};
 export function emptyWorkspace(revision?: number): WorkspaceData;
 export function normalizeWorkspaceItem(value: unknown, previous?: WorkspaceItem): WorkspaceItem;

@@ -7,7 +7,9 @@ async function workspace(page:Page) {
 }
 async function careerData(page:Page) { return (await page.request.get('/api/data')).json(); }
 async function tab(page:Page,name:string) {
-  await page.getByRole('navigation',{name:'기록 종류',exact:true}).getByRole('button',{name,exact:true}).click();
+  const tabs = page.getByRole('navigation',{name:'기록 종류',exact:true});
+  if (await tabs.isVisible()) await tabs.getByRole('button',{name,exact:true}).click();
+  else await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name,exact:true}).click();
 }
 async function tag(dialog:ReturnType<Page['getByRole']>,value:string) {
   await dialog.getByRole('textbox',{name:'태그 추가',exact:true}).fill(value);
@@ -176,7 +178,7 @@ test('graduate records persist, sort deadlines, keep course dependents, and work
   expect(after.items.find((i:any)=>i.title==='통합검증 협력학습 논문').courseIds).toEqual([]);
   expect(after.items.some((i:any)=>i.title==='통합검증 연구 질문')).toBeTruthy();
   expect(await careerData(page)).toEqual(before);
-  await page.setViewportSize({width:375,height:812});
+  if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});
   for(const name of ['수업','강의 자료','대학원']){
     await tab(page,name);await expect(page.locator('.workspace-main-tabs')).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
@@ -281,7 +283,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
 
   await page.getByRole('navigation',{name:'주 메뉴'}).getByRole('button',{name:'수업',exact:true}).click();
   await page.getByRole('tab',{name:/^학급 자료/}).click();
-  await page.setViewportSize({width:375,height:812});
+  if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   expect(await page.locator('main').innerText()).not.toContain('·');
   await page.getByRole('button',{name:`${material.title} 상세보기`,exact:true}).click();

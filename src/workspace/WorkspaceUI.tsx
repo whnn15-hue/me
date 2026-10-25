@@ -7,11 +7,11 @@ import type { WorkspaceData, WorkspaceKind, WorkspaceItem } from "./types";
 export const displayLabel = displayText;
 export const workspaceKindLabels: Record<WorkspaceKind | "career" | "document", string> = {
   career: "이력", project: "수업", material: "강의 자료", course: "대학원 강좌",
-  assignment: "과제", paper: "논문", idea: "메모", document: "공문",
+  assignment: "과제", paper: "논문", idea: "메모", document: "공문", photo: "사진", submission: "공모전 제출본",
 };
 export const workspaceKindIcons = {
   career: Layers3, project: FolderOpen, material: FileText, course: GraduationCap,
-  assignment: ListChecks, paper: BookOpen, idea: Lightbulb, document: FileText,
+  assignment: ListChecks, paper: BookOpen, idea: Lightbulb, document: FileText, photo: FolderOpen, submission: FileText,
 };
 export function workspaceItemLabel(item: WorkspaceItem): string {
   return item.kind === "material" && item.purpose === "classroom" ? "학급 자료" : workspaceKindLabels[item.kind];

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { normalizeCareer, publicDocument } from './store.mjs';
-import { emptyWorkspace, normalizeWorkspace, mutateWorkspace, mergeWorkspaceData } from '../shared/workspace.mjs';
+import { emptyWorkspace, normalizeWorkspace, mutateWorkspace, mergeWorkspaceData, translateWorkspaceOriginals } from '../shared/workspace.mjs';
 
 const MAX_ARCHIVE_BYTES = 5 * 1024 * 1024;
 const MAX_CAREERS = 100000;
@@ -168,7 +168,12 @@ export function importWorkspaceArchive(store, archive, expectedRevision) {
       for (const ref of missing) conflicts.push({ ref, reason: '추가되지 않은 경력을 가리키는 연결은 가져오지 않았습니다.' });
       return !missing.length;
     });
-    const merged = mergeWorkspaceData(current, { ...incomingWorkspace, links: incomingLinks }, mergedCareers);
+    const translated = translateWorkspaceOriginals({ ...incomingWorkspace, links: incomingLinks }, (id, hash) => {
+      const mapped = documentIds.has(id) ? documentIds.get(id) : id;
+      const document = documentsById.get(mapped);
+      return document && (!hash || document.sha256 === hash) ? document.id : undefined;
+    });
+    const merged = mergeWorkspaceData(current, translated, mergedCareers);
     const workspace = { ...merged.workspace, revision: current.revision + 1 };
     bounded(exportWorkspaceArchive(store, { careers: mergedCareers, workspace }));
     for (const career of newCareers) store.putCareer(career);

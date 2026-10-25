@@ -16,6 +16,17 @@
 [functions."career-backup"]
   schedule = "0 18 * * *"
 
+# Preview origins never ship the production API or scheduled backup code.
+[context.deploy-preview]
+  command = "npm run build:preview"
+  publish = ".preview-dist"
+  functions = "netlify/preview-functions"
+
+[context.branch-deploy]
+  command = "npm run build:preview"
+  publish = ".preview-dist"
+  functions = "netlify/preview-functions"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/career-api/:splat"

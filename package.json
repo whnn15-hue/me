@@ -10,7 +10,9 @@
     "test": "node --test test/*.test.mjs",
     "test:e2e": "playwright test",
     "build:functions": "node scripts/build-functions.mjs",
-    "prepare:cloud": "node scripts/prepare-cloud-config.mjs"
+    "prepare:cloud": "node scripts/prepare-cloud-config.mjs",
+    "build:preview": "tsc -b && node scripts/build-preview.mjs",
+    "preview:local": "npm run build:preview && vite preview --host 127.0.0.1 --port 4173 --outDir .preview-dist"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.4",

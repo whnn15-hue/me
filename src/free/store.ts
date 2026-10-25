@@ -5,7 +5,7 @@ import {
 import { getFirebaseApp, readyCloudUser } from "../cloud";
 import { type Career, type DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId } from "./normalize";
-import { emptyWorkspace, isWorkspaceMetadataRow, mergeWorkspaceData, mutateWorkspace, normalizeWorkspace, workspaceFromRows, workspaceToRows, type WorkspaceMetadataRow } from "../../shared/workspace.mjs";
+import { emptyWorkspace, isWorkspaceMetadataRow, mergeWorkspaceData, mutateWorkspace, normalizeWorkspace, translateWorkspaceOriginals, workspaceFromRows, workspaceToRows, type WorkspaceMetadataRow } from "../../shared/workspace.mjs";
 import type { WorkspaceArchive, WorkspaceData, WorkspaceImportResult, WorkspaceItem } from "../workspace/types";
 
 export interface FreeSnapshot {
@@ -187,6 +187,7 @@ export async function deleteFreeDocument(id: string): Promise<DocumentRecord> {
   return mutate((view, tx, ctx, version) => {
     const document = view.documents.find(existing => existing.id === id);
     if (!document) throw new Error("공문을 찾을 수 없습니다.");
+    if (view.workspace.items.some(item => item.kind === "photo" && item.documentId === id || item.kind === "submission" && item.documentIds.includes(id))) throw new Error("사진 보관함 또는 제출본에서 사용 중인 원본입니다. 해당 연결을 먼저 해제해 주세요.");
     const linked = view.careers.filter(career => career.documentIds.includes(id));
     if (linked.length > 398) throw new Error("이 공문에 연결된 경력이 너무 많습니다. 일부 경력의 연결을 먼저 해제해 주세요.");
     for (const career of linked) tx.set(row(ctx, version, "careers", career.id), normalizeCareer({ documentIds: career.documentIds.filter(existing => existing !== id) }, career));
@@ -505,7 +506,12 @@ export async function importFreeWorkspace(body: Record<string, unknown>, options
     for (const ref of missing) conflicts.push({ ref, reason: "추가되지 않은 경력을 가리키는 연결은 가져오지 않았습니다." });
     return !missing.length;
   });
-  const merged = mergeWorkspaceData(view.workspace, { ...importedWorkspace, links: incomingLinks }, careers);
+  const translated = translateWorkspaceOriginals({ ...importedWorkspace, links: incomingLinks }, (id, hash) => {
+    const mapped = translation.get(id) ?? (importedDocuments.some(item => item.id === id) ? "" : id);
+    const document = documentMap.get(mapped);
+    return document && (!hash || document.sha256 === hash) ? document.id : undefined;
+  });
+  const merged = mergeWorkspaceData(view.workspace, translated, careers);
   const result: WorkspaceImportResult = { workspace: merged.workspace, conflicts: [...conflicts, ...merged.conflicts], added: { careers: addedCareers, documents: newDocuments.length, ...merged.added } };
   if (addedCareers || newDocuments.length || merged.added.items || merged.added.links) {
     const existingIds = new Set(view.careers.map(item => item.id));

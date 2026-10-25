@@ -60,7 +60,7 @@ export interface Status {
   configurationError?: string;
   authenticationError?: string;
 }
-export type View = "home" | "careers" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings";
+export type View = "home" | "careers" | "projects" | "materials" | "graduate" | "documents" | "resume" | "settings" | "photos" | "submissions";
 export interface HwpxField {
   id: string;
   label: string;
