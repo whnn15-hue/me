@@ -47,11 +47,13 @@ import GrowthOverview from "./growth/GrowthOverview";
 import WorkspaceTree from "./WorkspaceTree";
 import ThemeControl from "./ThemeControl";
 import HomeDashboard from "./home/HomeDashboard";
+import ReuseLibrary from "./reuse/ReuseLibrary";
 import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
 import { api, download } from "./api";
 import {
   cloudMode,
+  previewMode,
   freeMode,
   hasCloudSession,
   signedOutCloudStatus,
@@ -130,6 +132,7 @@ const navItems: {
 function initialView(): View {
   const hash = window.location.hash.slice(1);
   if (hash === "career-records") return "careers";
+  if (hash === "photos" || hash === "submissions") return hash;
   return navItems.some(item => item.view === hash) ? hash as View : "home";
 }
 export function CategoryIcon({
@@ -462,7 +465,7 @@ export default function App() {
     } else {
       const item = workspace.items.find(item => item.id === id && item.kind === kind);
       if (!item) return;
-      changeView(item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? "materials" : "graduate");
+      changeView(item.kind === "photo" ? "photos" : item.kind === "submission" ? "submissions" : item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? "materials" : "graduate");
       setWorkspaceFocus(id);
       setWorkspaceFocusVersion(version => version + 1);
     }
@@ -841,7 +844,7 @@ export default function App() {
           <div className="breadcrumb">
             <span>내 워크스페이스</span>
             <ChevronRight size={13} />
-            <strong>{navItems.find((n) => n.view === view)?.label}</strong>
+            <strong>{view === "photos" ? "수업 / 사진 보관함" : view === "submissions" ? "이력 / 공모전 제출본" : navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
             <ThemeControl />
@@ -927,9 +930,12 @@ export default function App() {
             </div>
           ) : (
             <>
-              {["home", "careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {["home", "careers", "projects", "materials", "graduate", "photos", "submissions"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view || view === "photos" && item.view === "projects" || view === "submissions" && item.view === "careers" ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 Firebase와 구글 드라이브에는 연결하지 않습니다.</div>}
+              {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh}/>}
+              {view === "home" && <div className="reuse-home-actions"><button className="button secondary" onClick={() => changeView("photos")}><FolderOpen size={17}/>사진 보관함</button><button className="button secondary" onClick={() => changeView("submissions")}><FileText size={17}/>공모전 제출본, 사진 찾기</button></div>}
               {view === "home" && status && <HomeDashboard careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onSearch={() => setGlobalSearch(true)} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
-              {!["home", "projects", "materials", "graduate"].includes(view) && <div className="page-heading">
+              {!["home", "projects", "materials", "graduate", "photos", "submissions"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
                     {view === "careers"

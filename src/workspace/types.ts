@@ -1,6 +1,6 @@
 import type { Career, DocumentRecord } from "../types";
 
-export type WorkspaceKind = "project" | "material" | "course" | "assignment" | "paper" | "idea";
+export type WorkspaceKind = "project" | "material" | "course" | "assignment" | "paper" | "idea" | "photo" | "submission";
 export interface WorkspaceItemBase {
   favorite?: boolean;
   id: string; kind: WorkspaceKind; title: string; tags: string[]; createdAt: string; updatedAt: string;
@@ -29,7 +29,17 @@ export interface PaperItem extends WorkspaceItemBase {
   quotations: { text: string; page: string }[]; courseIds: string[];
 }
 export interface IdeaItem extends WorkspaceItemBase { kind: "idea"; body: string; }
-export type WorkspaceItem = ProjectItem | MaterialItem | CourseItem | AssignmentItem | PaperItem | IdeaItem;
+export interface PhotoItem extends WorkspaceItemBase {
+  kind: "photo"; documentId: string; sha256: string; caption: string; reviewed: boolean; star: number;
+}
+export interface PhotoSlot {
+  id: string; title: string; tags: string[]; quote: string; photoId: string; caption: string;
+}
+export interface SubmissionItem extends WorkspaceItemBase {
+  kind: "submission"; competition: string; year: string; status: "preparing" | "submitted" | "result";
+  submittedOn: string; result: string; documentIds: string[]; brief: string; slots: PhotoSlot[];
+}
+export type WorkspaceItem = ProjectItem | MaterialItem | CourseItem | AssignmentItem | PaperItem | IdeaItem | PhotoItem | SubmissionItem;
 export interface WorkspaceLink { from: string; to: string; }
 export interface WorkspaceData { schemaVersion: 1; items: WorkspaceItem[]; links: WorkspaceLink[]; revision: number; }
 export interface WorkspaceArchive {

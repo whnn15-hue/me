@@ -7,6 +7,7 @@
   NODE_VERSION = "24"
   VITE_CLOUD_MODE = "true"
   VITE_DEPLOYMENT_MODE = "free"
+  VITE_PREVIEW_MODE = "false"
 
 [functions]
   node_bundler = "esbuild"
@@ -15,6 +16,17 @@
 
 [functions."career-backup"]
   schedule = "0 18 * * *"
+
+# Preview origins never ship the production API or scheduled backup code.
+[context.deploy-preview]
+  command = "npm run build:preview"
+  publish = ".preview-dist"
+  functions = "netlify/preview-functions"
+
+[context.branch-deploy]
+  command = "npm run build:preview"
+  publish = ".preview-dist"
+  functions = "netlify/preview-functions"
 
 [[redirects]]
   from = "/api/*"

@@ -18,6 +18,7 @@ test('API keeps same-origin protection cookies and Firebase bearer auth, with sa
       builder.onResolve({ filter: /^\.\/free\/(?:api|drive)$/ }, () => ({ path: 'free', namespace: 'fixture' }));
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({ contents: path === 'cloud' ? `
         export const cloudMode = true;
+        export const previewMode = false;
         export const freeMode = globalThis.fixture.mode === 'free';
         export const cloudConfigurationError = '';
         export const cloudApiUrl = path => globalThis.fixture.base + '/api' + path + '?scenario=' + globalThis.fixture.scenario;

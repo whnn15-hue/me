@@ -12,6 +12,7 @@ import {
 import { type Status } from "./types";
 
 const env = import.meta.env;
+export const previewMode = env.VITE_PREVIEW_MODE === "true";
 const firebaseOptions = {
   apiKey: env.VITE_FIREBASE_API_KEY?.trim(),
   projectId: env.VITE_FIREBASE_PROJECT_ID?.trim(),
@@ -20,7 +21,7 @@ const firebaseOptions = {
   appId: env.VITE_FIREBASE_APP_ID?.trim(),
 };
 const configuredApiOrigin = env.VITE_API_ORIGIN?.trim();
-export const cloudMode = Boolean(
+export const cloudMode = !previewMode && Boolean(
   env.VITE_CLOUD_MODE === "true" ||
     configuredApiOrigin ||
     Object.values(firebaseOptions).some(Boolean),
