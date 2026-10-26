@@ -92,7 +92,12 @@ export async function api<T>(
     const result = await dispatchFree(path, options);
     if (result.handled) return result.value as T;
   }
-  return responseJson<T>(await request(path, options));
+  const response=await request(path,options);
+  if (path==="/ai/connect/run") {
+    if (response.status!==202) throw new Error("연결 검사 작업을 시작하지 못했습니다. 최신 배포에 AI 연결 기능이 포함되었는지 확인해 주세요.");
+    return {accepted:true} as T;
+  }
+  return responseJson<T>(response);
 }
 export async function download(
   path: string,

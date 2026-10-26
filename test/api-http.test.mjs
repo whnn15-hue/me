@@ -55,7 +55,7 @@ test('API keeps same-origin protection cookies and Firebase bearer auth, with sa
       const scenario = url.searchParams.get('scenario') || 'ok';
       response.end(`<script>globalThis.fixture=${JSON.stringify({ mode, base, scenario })}</script><script src="/bundle.js"></script>`); return;
     }
-    if (url.pathname !== '/api/status') { response.writeHead(404).end(); return; }
+    if (!['/api/status','/api/ai/connect/run'].includes(url.pathname)) { response.writeHead(404).end(); return; }
     requests.push({ external, cookie: request.headers.cookie || '', authorization: request.headers.authorization });
     if (!external && !request.headers.cookie?.includes('netlify_gate=passed')) {
       response.writeHead(401, { 'Content-Type': 'text/html' }).end('<html>Protection gate</html>'); return;
@@ -71,6 +71,7 @@ test('API keeps same-origin protection cookies and Firebase bearer auth, with sa
     if (scenario === 'json401') {
       response.writeHead(401, { 'Content-Type': 'application/json' }).end('{"error":"본인 계정으로 다시 로그인해 주세요."}'); return;
     }
+    if (url.pathname === '/api/ai/connect/run') { response.writeHead(202).end(); return; }
     response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
       mode: 'firebase', ownerConfigured: true, user: { name: 'Fixture Owner', email: 'owner@example.test' },
     }));
@@ -108,6 +109,17 @@ test('API keeps same-origin protection cookies and Firebase bearer auth, with sa
       assert.doesNotMatch(result.error, /PRIVATE_HTML|TOKEN_MUST|<html>/);
     }
     assert.equal((await call('free', 'json401')).error, '본인 계정으로 다시 로그인해 주세요.');
+    await call('free');
+    const launch=()=>page.evaluate(async()=>{
+      try{return await globalThis.apiFixture.api('/ai/connect/run',{method:'POST',body:'{"jobId":"synthetic-job"}'});}
+      catch(error){return {error:error.message};}
+    });
+    assert.deepEqual(await launch(),{accepted:true});
+    assert.match(requests.at(-1).cookie,/netlify_gate=passed/);
+    assert.equal(requests.at(-1).authorization,'Bearer fixture-firebase-token');
+    await page.evaluate(()=>{globalThis.fixture.scenario='html200';});
+    const notLaunched=await launch();assert.match(notLaunched.error,/시작하지 못했습니다/);
+    assert.doesNotMatch(notLaunched.error,/PRIVATE_HTML|TOKEN_MUST|<html>/);
   } finally {
     await browser?.close();
     await Promise.all([close(main), close(external)]);

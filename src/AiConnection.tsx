@@ -4,7 +4,8 @@ import { api } from "./api";
 import { normalizeGeminiKey } from "../shared/gemini-key.mjs";
 import {readAiDiagnostic, type AiDiagnostic} from "../shared/ai-diagnostic.mjs";
 
-interface Connection { aiConfigured:boolean; model:string; source:string }
+interface Connection { aiConfigured:boolean; model:string; source:string; job?:ConnectionJob }
+interface ConnectionJob { id:string; status:"queued"|"running"|"succeeded"|"failed"; connection?:Connection; error?:string; diagnostic?:AiDiagnostic }
 export default function AiConnection({ onRefresh, compact=false }: { onRefresh:()=>Promise<void>; compact?:boolean }) {
   const [connection,setConnection] = useState<Connection | null>(null);
   const [key,setKey] = useState("");
@@ -13,13 +14,43 @@ export default function AiConnection({ onRefresh, compact=false }: { onRefresh:(
   const [error,setError] = useState(""), [notice,setNotice] = useState("");
   const [phase,setPhase] = useState(""), [diagnostic,setDiagnostic] = useState<AiDiagnostic|null>(null);
   const lock = useRef(false);
+  const epoch = useRef(0);
+  async function waitForJob(id:string,version:number):Promise<Connection|null> {
+    const started=Date.now();
+    while(epoch.current===version && Date.now()-started<130000) {
+      const job=await api<ConnectionJob>(`/ai/connect/status?jobId=${encodeURIComponent(id)}`);
+      if(epoch.current!==version) return null;
+      if(job?.status==="succeeded" && job.connection) return job.connection;
+      if(job?.status==="failed") throw Object.assign(new Error(job.error || "연결 검사를 완료하지 못했습니다."),{diagnostic:readAiDiagnostic(job.diagnostic)});
+      if(!job || !["queued","running"].includes(job.status)) throw new Error("연결 검사 상태를 확인하지 못했습니다.");
+      if(job.status==="queued" && Date.now()-started>20000) throw new Error("연결 검사 작업이 시작되지 않았습니다. 배포 상태를 확인한 뒤 다시 연결해 주세요.");
+      setPhase(job.status==="queued" ? "연결 검사 시작 대기 중" : "Google 응답 확인 중, 최대 90초 정도 걸릴 수 있습니다.");
+      await new Promise(resolve=>setTimeout(resolve,1500));
+    }
+    if(epoch.current!==version) return null;
+    throw new Error("연결 검사가 아직 완료되지 않았습니다. 잠시 후 설정 화면에서 결과를 확인해 주세요.");
+  }
   useEffect(() => {
-    let active = true;
-    api<Connection>("/ai/settings").then(result => { if(active) setConnection(result); }).catch(() => { if(active) setError("AI 연결 상태를 읽지 못했습니다. 잠시 후 설정 화면을 다시 열어 주세요."); }).finally(() => {if(active) setLoading(false);});
-    return () => {active=false;};
+    const version=++epoch.current;
+    api<Connection>("/ai/settings").then(async result => {
+      if(epoch.current!==version) return;
+      setConnection(result);setLoading(false);
+      if(result.job?.status==="failed") {
+        setError(result.job.error || "이전 연결 검사를 완료하지 못했습니다.");
+        setDiagnostic(readAiDiagnostic(result.job.diagnostic));
+      }
+      if(result.job && ["queued","running"].includes(result.job.status)) {
+        lock.current=true;setPending(true);setPhase("이전 연결 검사 결과 확인 중");
+        try {const connected=await waitForJob(result.job.id,version);if(connected){setConnection(connected);setNotice("Gemini 연결을 확인했습니다.");await onRefresh();}}
+        catch(cause){if(epoch.current===version){setError(cause instanceof Error ? cause.message : "연결 검사를 확인하지 못했습니다.");setDiagnostic(readAiDiagnostic(cause && typeof cause==="object" && "diagnostic" in cause ? cause.diagnostic : null));}}
+        finally {if(epoch.current===version){lock.current=false;setPending(false);setPhase("");}}
+      }
+    }).catch(() => {if(epoch.current===version) setError("AI 연결 상태를 읽지 못했습니다. 잠시 후 설정 화면을 다시 열어 주세요.");}).finally(()=>{if(epoch.current===version)setLoading(false);});
+    return () => {epoch.current++;};
   }, []);
   async function update(disconnect=false) {
     if(lock.current) return;
+    const version=epoch.current;
     lock.current=true; setPending(true); setError(""); setNotice(""); setDiagnostic(null);
     try {
       let result:Connection|undefined;
@@ -31,24 +62,19 @@ export default function AiConnection({ onRefresh, compact=false }: { onRefresh:(
         setPhase(manualModel ? "분석 응답 확인 중" : "1/2 사용 가능한 모델 확인 중");
         const models = manualModel ? [model.trim()] : (await api<{models:string[]}>("/ai/models",{method:"POST",body:JSON.stringify({apiKey})})).models;
         if (!Array.isArray(models) || !models.length || models.length > 3 || models.some(value=>typeof value !== "string")) throw new Error("사용 가능한 모델 목록을 확인하지 못했습니다.");
-        setPhase(manualModel ? "분석 응답 확인 중" : "2/2 분석 응답 확인 중");
-        for (let index=0;index<models.length;index++) {
-          try {
-            result = await api<Connection>("/ai/settings",{method:"PUT",body:JSON.stringify({apiKey,model:models[index],modelSelection:manualModel ? "manual" : "auto"})});
-            break;
-          } catch(cause) {
-            const detail = readAiDiagnostic(cause && typeof cause === "object" && "diagnostic" in cause ? cause.diagnostic : null);
-            if (!manualModel && index+1<models.length && detail?.stage === "probe" && ["model","response"].includes(detail.kind)) continue;
-            throw cause;
-          }
-        }
+        setPhase("2/2 연결 검사 시작 중");
+        const job=await api<ConnectionJob>("/ai/connect/start",{method:"POST",body:JSON.stringify({models,modelSelection:manualModel ? "manual" : "auto"})});
+        await api("/ai/connect/run",{method:"POST",body:JSON.stringify({jobId:job.id,apiKey})});
+        const connected=await waitForJob(job.id,version);
+        if(!connected) return;
+        result=connected;
       }
       if (!result) throw new Error("Gemini 연결 결과를 확인하지 못했습니다.");
       setConnection(result); setKey("");
       setNotice(disconnect ? "AI 연결을 해제했습니다. 원본과 경력은 유지됩니다." : `Gemini 연결을 확인했습니다 (${result.model}). 이제 공문 보관함의 분석 버튼으로 다시 분석할 수 있습니다.`);
       await onRefresh();
-    } catch(cause) {setError(cause instanceof Error ? cause.message : "연결하지 못했습니다.");setDiagnostic(readAiDiagnostic(cause && typeof cause === "object" && "diagnostic" in cause ? cause.diagnostic : null));}
-    finally {lock.current=false; setPending(false);setPhase("");}
+    } catch(cause) {if(epoch.current===version){setError(cause instanceof Error ? cause.message : "연결하지 못했습니다.");setDiagnostic(readAiDiagnostic(cause && typeof cause === "object" && "diagnostic" in cause ? cause.diagnostic : null));}}
+    finally {if(epoch.current===version){lock.current=false; setPending(false);setPhase("");}}
   }
   return <section className={`ai-connection ${compact ? "compact" : "panel settings-card"}`} aria-label="Gemini AI 연결" onKeyDown={event => {if(event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();}}>
     <header><span className="ai-connection-icon"><Sparkles size={21}/></span><div><h2>공문 AI 분석</h2><p>기관, 역할, 날짜와 태그를 초안으로 정리</p></div><span className={`connection-badge ${connection?.aiConfigured ? "connected" : ""}`}>{loading ? "확인 중" : connection?.aiConfigured ? "Gemini 연결됨" : "연결 필요"}</span></header>

@@ -62,6 +62,8 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
           if (path === '/api/status' && request.method === 'GET') response = json({ ...statusBase, user: { uid: user.uid, email: user.email, name: user.name }, ...(await drive.status(user)) });
           else if (path === '/api/ai/settings' && request.method === 'GET') response = json(await ai.status(user));
           else if (path === '/api/ai/models' && request.method === 'POST') response = json(await ai.models(user, body));
+          else if (path === '/api/ai/connect/start' && request.method === 'POST') response = json(await ai.jobs.start(user,body));
+          else if (path === '/api/ai/connect/status' && request.method === 'GET') response = json(await ai.jobs.current(user,query.jobId));
           else if (path === '/api/ai/settings' && request.method === 'PUT') response = json(await ai.connect(user, body));
           else if (path === '/api/ai/settings' && request.method === 'DELETE') response = json(await ai.disconnect(user));
           else if (path === '/api/auth/drive/start' && request.method === 'POST') response = await bridge(drive.start, req);
@@ -108,5 +110,17 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
     for (const [name, value] of Object.entries(responseHeaders)) response.headers.set(name, value);
     return response;
   }
-  return { handle: request => runWithDeadline(() => handle(request), /\/ai\/(?:settings|models)$/.test(new URL(request.url).pathname) && ['POST','PUT'].includes(request.method) ? 26000 : 22000), drive, configured };
+  async function runAiConnection(request) {
+    if (!configured) throw fault('서버 연결 설정을 확인해 주세요.',503);
+    if (request.method!=='POST') throw fault('허용되지 않은 요청입니다.',405);
+    const requestOrigin=request.headers.get('origin');
+    if (requestOrigin && requestOrigin!==origin) throw fault('허용되지 않은 요청 출처입니다.',403);
+    const user=await auth.identify(request),raw=await request.text();
+    if (Buffer.byteLength(raw)>8192) throw fault('연결 요청이 너무 큽니다.',413);
+    let body;try {body=JSON.parse(raw);}catch {throw fault('연결 요청이 올바르지 않습니다.');}
+    if (!body || typeof body!=='object' || Array.isArray(body)) throw fault('연결 요청이 올바르지 않습니다.');
+    return ai.jobs.run(user,body);
+  }
+  return { handle: request => runWithDeadline(() => handle(request), /\/ai\/(?:settings|models)$/.test(new URL(request.url).pathname) && ['POST','PUT'].includes(request.method) ? 26000 : 22000),
+    runAiConnection:request=>runWithDeadline(()=>runAiConnection(request),100000),drive,configured };
 }

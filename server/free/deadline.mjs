@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 const deadlines = new AsyncLocalStorage();
 
-// Stop external work before Netlify's 30s limit, leaving time to record an error
-// and release the private-vault lease. The vault itself stays outside this budget.
+// Ordinary requests stop before Netlify's synchronous limit. Background workers
+// supply a longer explicit budget, leaving time for status writes and lease
+// release. The vault itself stays outside this external-network budget.
 export function runWithDeadline(action, milliseconds = 22000) {
   return deadlines.run({ expiresAt: Date.now() + milliseconds }, action);
 }

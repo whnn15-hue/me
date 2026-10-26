@@ -11,7 +11,9 @@ export function aiFailureMessage(status) {
 }
 
 export function geminiGenerationConfig(model, options) {
-  return { ...options, ...(model.startsWith('gemini-2.5-flash') ? {thinkingConfig:{thinkingBudget:0}} : {}) };
+  const thinking = model.startsWith('gemini-2.5-flash') ? {thinkingBudget:0}
+    : /^gemini-3(?:[.-]|$)/.test(model) && model.includes('flash') ? {thinkingLevel:'minimal'} : null;
+  return {...options,...(thinking ? {thinkingConfig:thinking} : {})};
 }
 
 function transportKind(error, signal) {
@@ -40,7 +42,7 @@ function connectionFailure(stage, kind, startedAt, httpStatus) {
     response:`${action} 올바른 분석 응답을 받지 못했습니다. 아래 오류 정보를 확인해 주세요.`,
   };
   return Object.assign(fault(messages[kind],kind === 'timeout' ? 504 : kind === 'quota' ? 429 : kind === 'auth' || kind === 'model' ? 400 : 502),{
-    diagnostic:readAiDiagnostic({stage,kind,elapsedMs:Math.min(60000,Math.max(0,Date.now()-startedAt)),httpStatus}),
+    diagnostic:readAiDiagnostic({stage,kind,elapsedMs:Math.min(120000,Math.max(0,Date.now()-startedAt)),httpStatus}),
   });
 }
 
@@ -96,12 +98,12 @@ export async function discoverGeminiModels({apiKey,fetcher,signal=AbortSignal.ti
 
 // Only an actual successful JSON response permits persistence. The older
 // combined auto request remains supported with its original bounded deadline.
-export async function verifyGeminiConnection({apiKey, requestedModel, fetcher}) {
+export async function verifyGeminiConnection({apiKey, requestedModel, fetcher, signal:providedSignal}) {
   if (requestedModel != null && typeof requestedModel !== 'string') throw fault('Gemini 모델 이름을 확인해 주세요.');
   const requested = (requestedModel || '').trim().replace(/^models\//,'');
   const automatic = !requested || requested === 'auto';
   if (!automatic && !validGeminiModel(requested)) throw fault('Gemini 모델 이름을 확인해 주세요.');
-  const signal = AbortSignal.timeout(automatic ? 18000 : 24000);
+  const signal = providedSignal || AbortSignal.timeout(automatic ? 18000 : 24000);
   let candidates = [requested];
   if (automatic) candidates = await discoverGeminiModels({apiKey,fetcher,signal});
   const startedAt = Date.now();
@@ -111,7 +113,7 @@ export async function verifyGeminiConnection({apiKey, requestedModel, fetcher}) 
     try { data = await requestJson(`${baseUrl}/models/${model}:generateContent`, {apiKey,fetcher,signal,stage:'probe',startedAt,options:{
       method:'POST',
       body:JSON.stringify({contents:[{role:'user',parts:[{text:'Return exactly {"ok":true} as JSON.'}]}],
-        generationConfig:geminiGenerationConfig(model,{responseMimeType:'application/json',maxOutputTokens:2048,temperature:0})}),
+        generationConfig:geminiGenerationConfig(model,{responseMimeType:'application/json',maxOutputTokens:/^gemini-(?:2\.5|3)(?:[.-]|$)/.test(model) && model.includes('flash') ? 256 : 2048,temperature:0})}),
     }}); } catch(error) {
       if (automatic && error.diagnostic?.kind === 'model') { lastFailure=error;continue; }
       throw error;

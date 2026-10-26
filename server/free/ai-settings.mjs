@@ -1,5 +1,6 @@
 import { discoverGeminiModels, validGeminiModel, verifyGeminiConnection } from './gemini.mjs';
 import { normalizeGeminiKey } from '../../shared/gemini-key.mjs';
+import {createAiConnectionJobs} from './ai-jobs.mjs';
 
 const fault = (message, status = 400) => Object.assign(new Error(message), { status });
 const defaultModel = 'auto';
@@ -19,7 +20,11 @@ export function createAiSettings({ vault, config, fetcher }) {
     return { aiEnabled:Boolean(config.aiEnabled && config.geminiKey), geminiKey:config.aiEnabled ? config.geminiKey || '' : '', geminiModel:validGeminiModel(config.geminiModel) ? config.geminiModel : defaultModel, source:config.aiEnabled && config.geminiKey ? 'server' : 'none' };
   }
   const publicStatus = settings => ({ aiConfigured:Boolean(settings.aiEnabled && settings.geminiKey), model:settings.geminiModel, source:settings.source, modelSelection:settings.modelSelection || 'auto' });
-  async function status(user) { return publicStatus(await resolve(user)); }
+  const jobs=createAiConnectionJobs({vault,settingsKeyFor:keyFor,fetcher});
+  async function status(user) {
+    const connection=publicStatus(await resolve(user)),job=await jobs.current(user);
+    return {...connection,...(job ? {job} : {})};
+  }
   async function models(user, body) {
     keyFor(user);
     let apiKey;
@@ -34,6 +39,7 @@ export function createAiSettings({ vault, config, fetcher }) {
     catch (error) { throw fault(error.message); }
     const release = await vault.acquireLease(`aiSettings/${user.uid}`, 30000);
     try {
+      await jobs.invalidate(user);
       const verified = await verifyGeminiConnection({apiKey,requestedModel:body.model,fetcher});
       if (body.modelSelection === 'auto') verified.modelSelection = 'auto';
       await vault.setJSON(name, { apiKey, ...verified, connectedAt:new Date().toISOString() });
@@ -42,8 +48,8 @@ export function createAiSettings({ vault, config, fetcher }) {
   }
   async function disconnect(user) {
     const name = keyFor(user), release = await vault.acquireLease(`aiSettings/${user.uid}`, 30000);
-    try { await vault.setJSON(name, { disabled:true }); return { aiConfigured:false, model:defaultModel, source:'none' }; }
+    try { await jobs.invalidate(user); await vault.setJSON(name, { disabled:true }); return { aiConfigured:false, model:defaultModel, source:'none' }; }
     finally { await release(); }
   }
-  return { status, models, resolve, connect, disconnect };
+  return { status, models, resolve, connect, disconnect, jobs };
 }
