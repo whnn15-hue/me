@@ -15,6 +15,8 @@ class MemoryBlobs {
 const config={appUrl:'https://record.example',ownerEmail:'owner@example.com',projectId:'record-test',firebaseWebApiKey:'web-key',driveEnabled:false,aiEnabled:false};
 const owner={uid:'owner-one',email:config.ownerEmail,name:'테스트',token:'owner-token'};
 const secret='synthetic-key-only-never-a-real-key-12345';
+const probeResponse=()=>Response.json({candidates:[{content:{parts:[{text:'{"ok":true}'}]}}]});
+const withModelListing=fetcher=>(url,options)=>new URL(url).pathname==='/v1beta/models' ? Promise.resolve(Response.json({models:[{name:'models/gemini-2.5-flash',supportedGenerationMethods:['generateContent']}]})) : fetcher(url,options);
 const answer=careers=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify({careers,warnings:['역할 확인']})}]}}]});
 
 test('key input preserves opaque tokens, normalizes clipboard wrappers and rejects unsafe input without revealing it',()=>{
@@ -30,10 +32,10 @@ test('key input preserves opaque tokens, normalizes clipboard wrappers and rejec
 
 test('long keys and punctuation reach provider verification intact and rejected replacements never overwrite the working key',async()=>{
   const vault=await createPrivateVault(new MemoryBlobs()), opaque='synthetic.'+'A'.repeat(300)+'/+=_end';let reject=false;const sent=[];
-  const ai=createAiSettings({vault,config,fetcher:async(url,options)=>{
+  const ai=createAiSettings({vault,config,fetcher:withModelListing(async(url,options)=>{
     sent.push(new Headers(options.headers).get('x-goog-api-key'));
-    return reject ? Response.json({error:{message:'Do not echo rejected credential: '+opaque}},{status:400}) : Response.json({candidates:[{content:{parts:[{text:'OK'}]}}]});
-  }});
+    return reject ? Response.json({error:{message:'Do not echo rejected credential: '+opaque}},{status:400}) : probeResponse();
+  })});
   assert.equal((await ai.connect(owner,{apiKey:' "'+opaque+'" '})).aiConfigured,true);assert.deepEqual(sent,[opaque]);
   assert.equal((await ai.resolve(owner)).geminiKey,opaque);
   reject=true;await assert.rejects(ai.connect(owner,{apiKey:'different.opaque-key'}),error=>error.status===400 && !error.message.includes(opaque));
@@ -44,7 +46,7 @@ test('long keys and punctuation reach provider verification intact and rejected 
 
 test('owner AI settings validate before encrypted storage, keep working keys on failure and disconnect without exposing secrets',async()=>{
   const blobs=new MemoryBlobs(), vault=await createPrivateVault(blobs);let status=200,calls=0;
-  const ai=createAiSettings({vault,config,fetcher:async(url,options)=>{calls++;assert.match(url,/^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-2.5-flash:generateContent$/);assert.equal(options.headers['x-goog-api-key'],secret);assert.ok(!options.body.includes('owner-token'));return status===200 ? Response.json({candidates:[{content:{parts:[{text:'OK'}]}}]}) : new Response(null,{status});}});
+  const ai=createAiSettings({vault,config,fetcher:withModelListing(async(url,options)=>{calls++;assert.match(url,/^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-2.5-flash:generateContent$/);assert.equal(options.headers['x-goog-api-key'],secret);assert.ok(!options.body.includes('owner-token'));return status===200 ? probeResponse() : new Response(null,{status});})});
   assert.equal((await ai.status(owner)).aiConfigured,false);
   await assert.rejects(ai.connect({...owner,email:'other@example.com'},{apiKey:secret}),e=>e.status===403);
   await assert.rejects(ai.connect(owner,{apiKey:secret,model:'https://attacker.invalid/model'}));assert.equal(calls,0);
@@ -59,7 +61,7 @@ test('owner AI settings validate before encrypted storage, keep working keys on 
 
 test('free API owner-only connection, status, analysis and disconnect work without touching archive storage',async()=>{
   const vault=await createPrivateVault(new MemoryBlobs());let probe=true,calls=0;
-  const api=createFreeApi({vault,config,auth:{identify:async req=>{if(req.headers.get('authorization')!=='Bearer synthetic-owner') throw Object.assign(new Error('로그인 필요'),{status:401});return owner;}},repositoryFactory:()=>{throw new Error('archive must not be read for text analysis/settings');},fetcher:async()=>{calls++;return probe ? Response.json({candidates:[{content:{parts:[{text:'OK'}]}}]}) : answer([{title:'가상 연수 강의',organization:'가상 연수원',role:'강사',category:'강의·연수',startDate:'2026-05',datePrecision:'month',tags:['교육']}]);}});
+  const api=createFreeApi({vault,config,auth:{identify:async req=>{if(req.headers.get('authorization')!=='Bearer synthetic-owner') throw Object.assign(new Error('로그인 필요'),{status:401});return owner;}},repositoryFactory:()=>{throw new Error('archive must not be read for text analysis/settings');},fetcher:withModelListing(async()=>{calls++;return probe ? probeResponse() : answer([{title:'가상 연수 강의',organization:'가상 연수원',role:'강사',category:'강의·연수',startDate:'2026-05',datePrecision:'month',tags:['교육']}]);})});
   const request=(path,method='GET',body,headers={})=>new Request(config.appUrl+path,{method,headers:{Origin:config.appUrl,Authorization:'Bearer synthetic-owner','Content-Type':'application/json',...headers},...(body?{body:JSON.stringify(body)}:{})});
   assert.equal((await api.handle(request('/api/ai/settings','GET',null,{Authorization:''}))).status,401);
   assert.equal((await api.handle(request('/api/ai/settings','PUT',{apiKey:secret},{Origin:'https://other.example'}))).status,403);

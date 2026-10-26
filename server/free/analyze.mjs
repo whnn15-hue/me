@@ -1,13 +1,8 @@
 import { ruleAnalysis } from '../extract.mjs';
 import { CATEGORIES, normalizeCareer, cleanText } from '../store.mjs';
 import { careerCategoryChoices } from '../../shared/career-organization.mjs';
-
-export function aiFailureMessage(status) {
-  if ([400,401,403].includes(status)) return 'Gemini API 키 또는 사용 권한을 확인해 주세요. 백업 및 설정에서 다시 연결할 수 있습니다.';
-  if (status === 429) return 'Gemini 사용 한도에 도달했습니다. 잠시 후 다시 분석하거나 Google AI Studio에서 한도를 확인해 주세요.';
-  if (status === 404) return '선택한 Gemini 모델을 사용할 수 없습니다. 연결 설정에서 모델 이름을 확인해 주세요.';
-  return 'Gemini가 응답하지 않았습니다. 잠시 후 다시 분석해 주세요.';
-}
+import { aiFailureMessage, validGeminiModel, geminiGenerationConfig } from './gemini.mjs';
+export { aiFailureMessage } from './gemini.mjs';
 const visionTypes = new Set(['application/pdf','image/jpeg','image/png','image/webp']);
 export async function freeAnalyze({ text, document, buffer, config, fetcher }) {
   const input = cleanText(text || document?.text || '', 60000), warnings = [];
@@ -21,8 +16,8 @@ export async function freeAnalyze({ text, document, buffer, config, fetcher }) {
         issue = 'unreadable';
         warnings.push(buffer?.length > 10 * 1024 * 1024 ? '이미지 분석은 10MB 이하의 PDF, JPG, PNG, WEBP를 지원합니다. 파일을 나누어 올려 주세요.' : '이 원본의 내용을 읽지 못했습니다. HWPX, 텍스트 PDF 또는 이미지로 다시 올려 주세요.');
       } else {
-        const model = /^gemini-[A-Za-z0-9.-]{1,80}$/.test(config.geminiModel || '') ? config.geminiModel : 'gemini-2.5-flash';
-        const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':config.geminiKey}, body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:5000,...(model.startsWith('gemini-2.5-flash') ? {thinkingConfig:{thinkingBudget:0}} : {})}}), signal:AbortSignal.timeout(20000) });
+        const model = validGeminiModel(config.geminiModel) ? config.geminiModel : 'gemini-2.5-flash';
+        const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':config.geminiKey}, body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:geminiGenerationConfig(model,{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:5000})}), signal:AbortSignal.timeout(20000) });
         if (!response.ok) { warnings.push(aiFailureMessage(response.status)); issue = response.status === 429 ? 'quota' : 'service'; }
         else {
           const result = await response.json();

@@ -7,22 +7,22 @@ interface Connection { aiConfigured:boolean; model:string; source:string }
 export default function AiConnection({ onRefresh, compact=false }: { onRefresh:()=>Promise<void>; compact?:boolean }) {
   const [connection,setConnection] = useState<Connection | null>(null);
   const [key,setKey] = useState("");
-  const [model,setModel] = useState("gemini-2.5-flash");
+  const [manualModel,setManualModel] = useState(false), [model,setModel] = useState("");
   const [pending,setPending] = useState(false), [loading,setLoading] = useState(true);
   const [error,setError] = useState(""), [notice,setNotice] = useState("");
   const lock = useRef(false);
   useEffect(() => {
     let active = true;
-    api<Connection>("/ai/settings").then(result => { if(active) { setConnection(result); setModel(result.model); } }).catch(() => { if(active) setError("AI 연결 상태를 읽지 못했습니다. 잠시 후 설정 화면을 다시 열어 주세요."); }).finally(() => {if(active) setLoading(false);});
+    api<Connection>("/ai/settings").then(result => { if(active) setConnection(result); }).catch(() => { if(active) setError("AI 연결 상태를 읽지 못했습니다. 잠시 후 설정 화면을 다시 열어 주세요."); }).finally(() => {if(active) setLoading(false);});
     return () => {active=false;};
   }, []);
   async function update(disconnect=false) {
     if(lock.current) return;
     lock.current=true; setPending(true); setError(""); setNotice("");
     try {
-      const result = await api<Connection>("/ai/settings", {method:disconnect ? "DELETE" : "PUT", ...(disconnect ? {} : {body:JSON.stringify({apiKey:normalizeGeminiKey(key),model:model.trim()})})});
+      const result = await api<Connection>("/ai/settings", {method:disconnect ? "DELETE" : "PUT", ...(disconnect ? {} : {body:JSON.stringify({apiKey:normalizeGeminiKey(key),model:manualModel ? model.trim() : "auto"})})});
       setConnection(result); setKey("");
-      setNotice(disconnect ? "AI 연결을 해제했습니다. 원본과 경력은 유지됩니다." : "Gemini 연결을 확인했습니다. 이제 공문 보관함의 분석 버튼으로 다시 분석할 수 있습니다.");
+      setNotice(disconnect ? "AI 연결을 해제했습니다. 원본과 경력은 유지됩니다." : `Gemini 연결을 확인했습니다 (${result.model}). 이제 공문 보관함의 분석 버튼으로 다시 분석할 수 있습니다.`);
       await onRefresh();
     } catch(cause) {setError(cause instanceof Error ? cause.message : "연결하지 못했습니다.");}
     finally {lock.current=false; setPending(false);}
@@ -35,8 +35,8 @@ export default function AiConnection({ onRefresh, compact=false }: { onRefresh:(
       <a className="ai-key-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"><KeyRound size={15}/>Google AI Studio에서 키 발급<ExternalLink size={14}/></a>
       <fieldset disabled={pending}>
         <label className="field"><span>{connection?.aiConfigured ? "새 Gemini API 키" : "Gemini API 키"}</span><input type="password" value={key} autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="여기에 API 키 붙여넣기" onChange={event=>setKey(event.target.value)}/></label>
-        <details className="ai-model-options"><summary>모델 설정</summary><label className="field"><span>Gemini 모델</span><input value={model} maxLength={87} placeholder="gemini-2.5-flash" onChange={event=>setModel(event.target.value)}/></label></details>
-        <div className="ai-connection-actions"><button type="button" className="button primary" disabled={!key.trim() || !model.trim()} onClick={()=>void update()}>{pending ? <LoaderCircle size={15} className="spin"/> : <Sparkles size={15}/>}연결 확인 후 저장</button>{connection?.aiConfigured && <button type="button" className="button secondary" onClick={()=>void update(true)}>연결 해제</button>}</div>
+        <details className="ai-model-options"><summary>모델 설정, {manualModel ? "직접 지정" : "자동 선택"}</summary><label className="ai-model-switch"><input type="checkbox" checked={manualModel} onChange={event=>setManualModel(event.target.checked)}/>모델 직접 지정</label>{manualModel ? <label className="field"><span>Gemini 모델</span><input value={model} maxLength={140} placeholder="Google AI Studio의 모델 이름" onChange={event=>setModel(event.target.value)}/></label> : <p>사용 가능한 Flash 모델을 조회하고, 문서 분석 응답이 확인된 모델로 연결합니다.</p>}</details>
+        <div className="ai-connection-actions"><button type="button" className="button primary" disabled={!key.trim() || (manualModel && !model.trim())} onClick={()=>void update()}>{pending ? <LoaderCircle size={15} className="spin"/> : <Sparkles size={15}/>}연결 확인 후 저장</button>{connection?.aiConfigured && <button type="button" className="button secondary" onClick={()=>void update(true)}>연결 해제</button>}</div>
       </fieldset>
       <small>키는 서버에 암호화해서 보관하며 기록 백업에 포함하지 않습니다.</small>
     </>}

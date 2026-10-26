@@ -13,7 +13,7 @@ test('AI connection UI masks the key, prevents accidental parent submit, tests b
    const chunks=[];for await (const chunk of req)chunks.push(chunk);const body=Buffer.concat(chunks).toString();requests.push({method:req.method,body});
    if(req.method==='PUT' && fail)return res.writeHead(429,{'Content-Type':'application/json'}).end(JSON.stringify({error:'Gemini 사용 한도에 도달했습니다.'}));
    if(req.method==='PUT')connected=true;if(req.method==='DELETE')connected=false;
-   return res.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify({aiConfigured:connected,model:'gemini-2.5-flash',source:connected?'app':'none'}));
+   return res.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify({aiConfigured:connected,model:connected?'gemini-fixture-flash':'auto',source:connected?'app':'none'}));
   }
   const css=['styles.css','theme.css','ai-overview.css'].map(file=>readFileSync('src/'+file,'utf8')).join('\n');
   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}).end(`<style>${css}body{padding:30px}#root{max-width:700px}</style><div id="root"></div><script src="/bundle.js"></script>`);
@@ -23,11 +23,13 @@ test('AI connection UI masks the key, prevents accidental parent submit, tests b
   const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(5000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const field=page.getByLabel('Gemini API 키',{exact:true});await field.waitFor();assert.equal(await field.getAttribute('type'),'password');
+  await page.getByText('모델 설정, 자동 선택',{exact:true}).click();await page.getByLabel('모델 직접 지정').check();await page.getByLabel('Gemini 모델',{exact:true}).fill('gemini-unavailable-flash');await page.getByLabel('모델 직접 지정').uncheck();
   assert.equal(await field.getAttribute('maxlength'),null);
   await field.fill('synthetic...masked');await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/가려진/);assert.equal(requests.filter(r=>r.method==='PUT').length,0);
   const secret='synthetic.'+'A'.repeat(300)+'/+=_end', pasted=' "'+secret+'" ';await field.fill(pasted);await field.press('Enter');assert.equal(await page.evaluate(()=>outerSaves),0);assert.equal(requests.filter(r=>r.method==='PUT').length,0);
   fail=true;await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.waitForFunction(()=>document.querySelector('[role="alert"]')?.textContent.includes('한도'));assert.equal(connected,false);assert.equal(await field.inputValue(),pasted);assert.equal(JSON.parse(requests.find(r=>r.method==='PUT').body).apiKey,secret);
-  fail=false;await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.getByText('Gemini 연결됨',{exact:true}).waitFor();assert.equal(await page.getByLabel('새 Gemini API 키').inputValue(),'');assert.equal(await page.evaluate(()=>refreshes),1);
+  assert.equal(JSON.parse(requests.find(r=>r.method==='PUT').body).model,'auto');
+  fail=false;await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.getByText('Gemini 연결됨',{exact:true}).waitFor();assert.equal(await page.getByLabel('새 Gemini API 키').inputValue(),'');assert.equal(await page.evaluate(()=>refreshes),1);await page.getByText('gemini-fixture-flash',{exact:true}).waitFor();
   assert.ok(!await page.evaluate(key=>JSON.stringify(localStorage).includes(key) || JSON.stringify(sessionStorage).includes(key),secret));
   assert.equal(await page.getByRole('link',{name:'Google AI Studio에서 키 발급'}).getAttribute('href'),'https://aistudio.google.com/apikey');
   await page.getByRole('button',{name:'연결 해제',exact:true}).click();await page.getByText('연결 필요',{exact:true}).waitFor();assert.equal(connected,false);assert.equal(await page.evaluate(()=>outerSaves),0);assert.deepEqual(errors,[]);
