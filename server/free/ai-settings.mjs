@@ -1,4 +1,4 @@
-import { validGeminiModel, verifyGeminiConnection } from './gemini.mjs';
+import { discoverGeminiModels, validGeminiModel, verifyGeminiConnection } from './gemini.mjs';
 import { normalizeGeminiKey } from '../../shared/gemini-key.mjs';
 
 const fault = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -20,6 +20,13 @@ export function createAiSettings({ vault, config, fetcher }) {
   }
   const publicStatus = settings => ({ aiConfigured:Boolean(settings.aiEnabled && settings.geminiKey), model:settings.geminiModel, source:settings.source, modelSelection:settings.modelSelection || 'auto' });
   async function status(user) { return publicStatus(await resolve(user)); }
+  async function models(user, body) {
+    keyFor(user);
+    let apiKey;
+    try { apiKey = normalizeGeminiKey(body.apiKey); }
+    catch(error) { throw fault(error.message); }
+    return {models:await discoverGeminiModels({apiKey,fetcher})};
+  }
   async function connect(user, body) {
     const name = keyFor(user);
     let apiKey;
@@ -28,6 +35,7 @@ export function createAiSettings({ vault, config, fetcher }) {
     const release = await vault.acquireLease(`aiSettings/${user.uid}`, 30000);
     try {
       const verified = await verifyGeminiConnection({apiKey,requestedModel:body.model,fetcher});
+      if (body.modelSelection === 'auto') verified.modelSelection = 'auto';
       await vault.setJSON(name, { apiKey, ...verified, connectedAt:new Date().toISOString() });
       return { aiConfigured:true, ...verified, source:'app' };
     } finally { await release(); }
@@ -37,5 +45,5 @@ export function createAiSettings({ vault, config, fetcher }) {
     try { await vault.setJSON(name, { disabled:true }); return { aiConfigured:false, model:defaultModel, source:'none' }; }
     finally { await release(); }
   }
-  return { status, resolve, connect, disconnect };
+  return { status, models, resolve, connect, disconnect };
 }

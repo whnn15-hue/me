@@ -1,3 +1,4 @@
+import {readAiDiagnostic} from '../../shared/ai-diagnostic.mjs';
 const fault = (message, status = 400) => Object.assign(new Error(message), { status });
 const baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 export const validGeminiModel = value => typeof value === 'string' && /^gemini-[A-Za-z0-9._-]{1,120}$/.test(value);
@@ -11,6 +12,49 @@ export function aiFailureMessage(status) {
 
 export function geminiGenerationConfig(model, options) {
   return { ...options, ...(model.startsWith('gemini-2.5-flash') ? {thinkingConfig:{thinkingBudget:0}} : {}) };
+}
+
+function transportKind(error, signal) {
+  const causes = [], pending = [error];
+  while (pending.length && causes.length < 8) {
+    const next = pending.shift();
+    if (!next || typeof next !== 'object' || causes.includes(next)) continue;
+    causes.push(next);pending.push(next.cause,...(Array.isArray(next.errors) ? next.errors.slice(0,4) : []));
+  }
+  if (signal.aborted || causes.some(e => ['TimeoutError','AbortError'].includes(e.name) || e.status === 504
+    || ['ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT'].includes(e.code))) return 'timeout';
+  if (causes.some(e => ['ENOTFOUND','EAI_AGAIN'].includes(e.code))) return 'dns';
+  if (causes.some(e => ['CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','DEPTH_ZERO_SELF_SIGNED_CERT','ERR_TLS_CERT_ALTNAME_INVALID'].includes(e.code))) return 'tls';
+  return 'network';
+}
+
+function connectionFailure(stage, kind, startedAt, httpStatus) {
+  const action = stage === 'models' ? '모델 목록을 조회하는 중' : 'AI 분석 응답을 확인하는 중';
+  const messages = {
+    timeout:`${action} 응답 대기 시간이 초과되었습니다. 키를 다시 발급받지 말고 아래 오류 정보를 확인해 주세요.`,
+    dns:'앱 서버에서 Google 서버 주소를 찾지 못했습니다. 아래 오류 정보를 전달해 주세요.',
+    tls:'앱 서버와 Google 사이의 보안 연결을 확인하지 못했습니다. 아래 오류 정보를 전달해 주세요.',
+    network:'앱 서버와 Google 사이의 네트워크 연결이 끊겼습니다. 아래 오류 정보를 전달해 주세요.',
+    auth:aiFailureMessage(httpStatus || 403), quota:aiFailureMessage(429), model:aiFailureMessage(404),
+    service:`${action} Google 서버 오류가 발생했습니다. 잠시 후 다시 연결해 주세요.`,
+    response:`${action} 올바른 분석 응답을 받지 못했습니다. 아래 오류 정보를 확인해 주세요.`,
+  };
+  return Object.assign(fault(messages[kind],kind === 'timeout' ? 504 : kind === 'quota' ? 429 : kind === 'auth' || kind === 'model' ? 400 : 502),{
+    diagnostic:readAiDiagnostic({stage,kind,elapsedMs:Math.min(60000,Math.max(0,Date.now()-startedAt)),httpStatus}),
+  });
+}
+
+async function requestJson(url, {apiKey,fetcher,signal,stage,startedAt,options={}}) {
+  let response;
+  try { response = await fetcher(url,{...options,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},signal}); }
+  catch(error) { throw connectionFailure(stage,transportKind(error,signal),startedAt); }
+  if (!response.ok) {
+    const status = response.status;
+    const kind = [400,401,403].includes(status) ? 'auth' : status === 429 ? 'quota' : [404,410].includes(status) ? 'model' : [408,504].includes(status) ? 'timeout' : 'service';
+    throw connectionFailure(stage,kind,startedAt,status);
+  }
+  try { return await response.json(); }
+  catch(error) { throw connectionFailure(stage,error instanceof SyntaxError ? 'response' : transportKind(error,signal),startedAt,response.status); }
 }
 
 function automaticCandidates(models) {
@@ -31,55 +75,53 @@ function automaticCandidates(models) {
     || a.localeCompare(b));
 }
 
-// Discovery and synthetic JSON probes share one deadline. Only an actual
-// successful response permits persistence. Never guess a replacement model ID,
-// retry quota/auth errors, send private documents, or return provider error text.
+// The UI calls discovery and verification in separate authenticated requests,
+// so a slow catalog request cannot consume the generation request's budget.
+export async function discoverGeminiModels({apiKey,fetcher,signal=AbortSignal.timeout(15000)}) {
+  const startedAt = Date.now(), models = [], seenTokens = new Set();
+  let pageToken = '';
+  for (let page = 0; page < 5; page++) {
+    const params = new URLSearchParams({pageSize:'1000', ...(pageToken ? {pageToken} : {})});
+    const data = await requestJson(`${baseUrl}/models?${params}`,{apiKey,fetcher,signal,stage:'models',startedAt});
+    if (!Array.isArray(data?.models)) throw connectionFailure('models','response',startedAt);
+    models.push(...data.models.filter(model => model && typeof model === 'object'));
+    if (!data.nextPageToken) break;
+    if (typeof data.nextPageToken !== 'string' || data.nextPageToken.length > 4096 || seenTokens.has(data.nextPageToken)) throw connectionFailure('models','response',startedAt);
+    seenTokens.add(data.nextPageToken); pageToken = data.nextPageToken;
+  }
+  const candidates = automaticCandidates(models).slice(0,3);
+  if (!candidates.length) throw Object.assign(fault('이 키에서 문서 분석용 Gemini Flash 모델을 찾지 못했습니다. Google AI Studio에서 프로젝트의 사용 가능한 모델과 권한을 확인해 주세요.'),{diagnostic:readAiDiagnostic({stage:'models',kind:'model',elapsedMs:Date.now()-startedAt})});
+  return candidates;
+}
+
+// Only an actual successful JSON response permits persistence. The older
+// combined auto request remains supported with its original bounded deadline.
 export async function verifyGeminiConnection({apiKey, requestedModel, fetcher}) {
   if (requestedModel != null && typeof requestedModel !== 'string') throw fault('Gemini 모델 이름을 확인해 주세요.');
   const requested = (requestedModel || '').trim().replace(/^models\//,'');
   const automatic = !requested || requested === 'auto';
   if (!automatic && !validGeminiModel(requested)) throw fault('Gemini 모델 이름을 확인해 주세요.');
-  const signal = AbortSignal.timeout(18000);
-  const headers = {'Content-Type':'application/json','x-goog-api-key':apiKey};
-  async function request(url, options = {}) {
-    try { return await fetcher(url, {...options,headers,signal}); }
-    catch { throw fault('Gemini에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',502); }
-  }
+  const signal = AbortSignal.timeout(automatic ? 18000 : 24000);
   let candidates = [requested];
-  if (automatic) {
-    const models = [], seenTokens = new Set();
-    let pageToken = '';
-    for (let page = 0; page < 5; page++) {
-      const params = new URLSearchParams({pageSize:'1000', ...(pageToken ? {pageToken} : {})});
-      const response = await request(`${baseUrl}/models?${params}`);
-      if (!response.ok) throw fault([400,401,403,429].includes(response.status) ? aiFailureMessage(response.status) : 'Google의 모델 목록을 불러오지 못했습니다. 잠시 후 다시 연결해 주세요.', response.status === 429 ? 429 : 502);
-      const data = await response.json().catch(() => null);
-      if (!Array.isArray(data?.models)) throw fault('Google의 모델 목록을 확인하지 못했습니다. 잠시 후 다시 연결해 주세요.',502);
-      models.push(...data.models.filter(model => model && typeof model === 'object'));
-      if (!data.nextPageToken) break;
-      if (typeof data.nextPageToken !== 'string' || data.nextPageToken.length > 4096 || seenTokens.has(data.nextPageToken)) throw fault('Google의 모델 목록을 끝까지 확인하지 못했습니다. 잠시 후 다시 연결해 주세요.',502);
-      seenTokens.add(data.nextPageToken); pageToken = data.nextPageToken;
-    }
-    candidates = automaticCandidates(models).slice(0,3);
-    if (!candidates.length) throw fault('이 키에서 문서 분석용 Gemini Flash 모델을 찾지 못했습니다. Google AI Studio에서 프로젝트의 사용 가능한 모델과 권한을 확인해 주세요.');
-  }
-  let lastFailure = '사용 가능한 Gemini 모델의 응답을 확인하지 못했습니다. 잠시 후 다시 연결해 주세요.';
+  if (automatic) candidates = await discoverGeminiModels({apiKey,fetcher,signal});
+  const startedAt = Date.now();
+  let lastFailure = connectionFailure('probe','response',startedAt);
   for (const model of candidates) {
-    const response = await request(`${baseUrl}/models/${model}:generateContent`, {
+    let data;
+    try { data = await requestJson(`${baseUrl}/models/${model}:generateContent`, {apiKey,fetcher,signal,stage:'probe',startedAt,options:{
       method:'POST',
       body:JSON.stringify({contents:[{role:'user',parts:[{text:'Return exactly {"ok":true} as JSON.'}]}],
         generationConfig:geminiGenerationConfig(model,{responseMimeType:'application/json',maxOutputTokens:2048,temperature:0})}),
-    });
-    if (!response.ok) {
-      if (automatic && [404,410].includes(response.status)) { lastFailure = 'Google이 안내한 모델에 연결하지 못했습니다. 잠시 후 다시 연결해 주세요.'; continue; }
-      throw fault(aiFailureMessage(response.status), response.status === 429 ? 429 : 400);
+    }}); } catch(error) {
+      if (automatic && error.diagnostic?.kind === 'model') { lastFailure=error;continue; }
+      throw error;
     }
-    const data = await response.json().catch(() => null);
-    const text = data?.candidates?.[0]?.content?.parts?.filter(part => !part.thought && typeof part.text === 'string').map(part => part.text).join('');
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const text = Array.isArray(parts) ? parts.filter(part => part && !part.thought && typeof part.text === 'string').map(part => part.text).join('') : '';
     let verified = false;
     try { verified = JSON.parse(text || '')?.ok === true; } catch { /* No key is saved for non-JSON output. */ }
     if (verified) return {model, modelSelection:automatic ? 'auto' : 'manual'};
-    lastFailure = 'Gemini의 문서 분석용 JSON 응답을 확인하지 못했습니다. 잠시 후 다시 연결해 주세요.';
+    lastFailure = connectionFailure('probe','response',startedAt);
   }
-  throw fault(lastFailure,502);
+  throw lastFailure;
 }

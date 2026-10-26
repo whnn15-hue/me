@@ -13,6 +13,8 @@
 .ai-model-options { font-size:13px; margin:12px 0; color:var(--ui-muted); }
 .ai-model-options summary, .ai-inline-setup > summary { cursor:pointer; }
 .ai-model-switch { display:flex; align-items:center; gap:8px; margin-top:14px; }
+.ai-diagnostic { display:flex; align-items:center; flex-wrap:wrap; gap:12px; font-size:12px; margin-top:10px; }
+.ai-diagnostic code { color:var(--ui-muted); }
 .ai-connection .ai-model-switch input { width:auto; }
 .ai-connection-actions { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 12px; }
 .ai-connection > small { display:block; font-size:12px; color:var(--ui-muted); }

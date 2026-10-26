@@ -11,6 +11,7 @@ import { validateFile } from '../cloud/files.mjs';
 import { createAutomaticSnapshot } from './snapshot.mjs';
 import { budgetedFetch, runWithDeadline } from './deadline.mjs';
 import { backendFailure, isBlobsFailure } from './errors.mjs';
+import {readAiDiagnostic} from '../../shared/ai-diagnostic.mjs';
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
 function safeOrigin(raw) { try { const url = new URL(raw); return url.protocol === 'https:' && url.origin === raw && !url.username && !url.password ? url.origin : null; } catch { return null; } }
@@ -60,6 +61,7 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
           const req = { user, body, query };
           if (path === '/api/status' && request.method === 'GET') response = json({ ...statusBase, user: { uid: user.uid, email: user.email, name: user.name }, ...(await drive.status(user)) });
           else if (path === '/api/ai/settings' && request.method === 'GET') response = json(await ai.status(user));
+          else if (path === '/api/ai/models' && request.method === 'POST') response = json(await ai.models(user, body));
           else if (path === '/api/ai/settings' && request.method === 'PUT') response = json(await ai.connect(user, body));
           else if (path === '/api/ai/settings' && request.method === 'DELETE') response = json(await ai.disconnect(user));
           else if (path === '/api/auth/drive/start' && request.method === 'POST') response = await bridge(drive.start, req);
@@ -98,11 +100,13 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
       if (isBlobsFailure(error) || !error.status && error.code !== 'INVALID_HWPX') {
         const failure = backendFailure(error, stage, logger); response = json({ error: failure.message, code: failure.code }, failure.status);
       } else {
-        const status = error.status || 400; response = json({ error: error.message }, status);
+        const status = error.status || 400, diagnostic = readAiDiagnostic(error.diagnostic);
+        if (diagnostic) logger('Gemini connection failure',diagnostic);
+        response = json({ error: error.message, ...(diagnostic ? {diagnostic} : {}) }, status);
       }
     }
     for (const [name, value] of Object.entries(responseHeaders)) response.headers.set(name, value);
     return response;
   }
-  return { handle: request => runWithDeadline(() => handle(request)), drive, configured };
+  return { handle: request => runWithDeadline(() => handle(request), /\/ai\/(?:settings|models)$/.test(new URL(request.url).pathname) && ['POST','PUT'].includes(request.method) ? 26000 : 22000), drive, configured };
 }

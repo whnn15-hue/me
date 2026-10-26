@@ -10,6 +10,7 @@ import {
   signedOutCloudStatus,
 } from "./cloud";
 import { type Status, type DocumentRecord } from "./types";
+import {readAiDiagnostic} from "../shared/ai-diagnostic.mjs";
 
 let approvedUid: string | null = null;
 
@@ -50,11 +51,11 @@ async function request(path: string, options: RequestInit) {
       ? await response.json().catch(() => null)
       : null;
     const message = data?.error || data?.message;
-    throw new Error(
+    throw Object.assign(new Error(
       typeof message === "string" && message
         ? message
         : `서버 요청을 처리하지 못했습니다 (HTTP ${response.status}). 배포 상태와 연결 설정을 확인해 주세요.`,
-    );
+    ), {diagnostic:readAiDiagnostic(data?.diagnostic)});
   }
   return response;
 }
