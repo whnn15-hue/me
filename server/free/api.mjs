@@ -2,6 +2,7 @@ import { createFreeAuth } from './auth.mjs';
 import { createFreeDrive } from './drive.mjs';
 import { FreeRestRepository } from './repository.mjs';
 import { createDriveBackup, readDriveFile, extractFile, fault, safeName, MAX_FILE_SIZE } from './files.mjs';
+import { createAiSettings } from './ai-settings.mjs';
 import { freeAnalyze } from './analyze.mjs';
 import { inspectHwpx, fillHwpx } from '../hwpx.mjs';
 import { extname } from 'node:path';
@@ -27,6 +28,7 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
   const captureBackup = createDriveBackup({ config, fetcher, getDrive: () => drive, repositoryFactory });
   const captureSnapshot = createAutomaticSnapshot({ config, fetcher, repositoryFactory });
   drive = createFreeDrive({ vault, config, fetcher, captureBackup, captureSnapshot, refreshFirebaseOwner: auth.refreshFirebaseOwner });
+  const ai = createAiSettings({ vault, config, fetcher });
   const repoFor = user => repositoryFactory({ projectId: config.projectId, uid: user.uid, idToken: user.token, fetcher });
   const bridge = async (handler, req) => { const { adapter, getResponse } = responseAdapter(); const result = await handler(req, adapter); return getResponse() || (result instanceof Response ? result : json(result || { ok: true })); };
   async function handle(request) {
@@ -57,6 +59,9 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
           }
           const req = { user, body, query };
           if (path === '/api/status' && request.method === 'GET') response = json({ ...statusBase, user: { uid: user.uid, email: user.email, name: user.name }, ...(await drive.status(user)) });
+          else if (path === '/api/ai/settings' && request.method === 'GET') response = json(await ai.status(user));
+          else if (path === '/api/ai/settings' && request.method === 'PUT') response = json(await ai.connect(user, body));
+          else if (path === '/api/ai/settings' && request.method === 'DELETE') response = json(await ai.disconnect(user));
           else if (path === '/api/auth/drive/start' && request.method === 'POST') response = await bridge(drive.start, req);
           else if (path === '/api/auth/drive/access' && request.method === 'POST') response = await bridge(drive.access, req);
           else if (path === '/api/auth/drive/disconnect' && request.method === 'POST') response = await bridge(drive.disconnect, req);
@@ -70,9 +75,10 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
             const snapshot = body.documentId ? await repoFor(user).snapshot() : null; const document = snapshot?.documents.find(value => value.id === body.documentId);
             if (body.documentId && !document) throw fault('공문을 찾을 수 없습니다.', 404);
             if (!document && !String(body.text || '').trim()) throw fault('분석할 활동 내용이나 공문을 선택해 주세요.');
+            const aiConfig = await ai.resolve(user).catch(() => ({...config,aiEnabled:false,geminiKey:''}));
             let buffer;
-            if (document && !String(body.text || document.text || '').trim() && config.aiEnabled && config.geminiKey) buffer = (await readDriveFile(drive, fetcher, user.uid, document.driveFileId, { kind: 'document', size: document.size, sha256: document.sha256 })).buffer;
-            response = json(await freeAnalyze({ text: body.text, document, buffer, config, fetcher }));
+            if (document && !String(body.text || document.text || '').trim() && aiConfig.aiEnabled && aiConfig.geminiKey) buffer = (await readDriveFile(drive, fetcher, user.uid, document.driveFileId, { kind: 'document', size: document.size, sha256: document.sha256 })).buffer;
+            response = json(await freeAnalyze({ text: body.text, document, buffer, config:aiConfig, fetcher }));
           } else if (['/api/resume/template', '/api/resume/hwpx/inspect'].includes(path) && request.method === 'POST') {
             const file = await readDriveFile(drive, fetcher, user.uid, body.driveFileId || body.templateFileId, { kind: 'template', ...(body.size !== undefined ? { size: body.size } : {}) });
             if (extname(file.name).toLowerCase() !== '.hwpx') throw fault('HWPX 양식을 올려 주세요. HWP는 한글에서 HWPX로 저장해 주세요.');

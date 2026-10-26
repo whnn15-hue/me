@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./test",
-  testMatch: ["e2e.spec.ts", "workspace-e2e.spec.ts", "workspace-concurrency-e2e.spec.ts", "streamlined-e2e.spec.ts", "growth-e2e.spec.ts", "theme-e2e.spec.ts", "home-e2e.spec.ts", "archive-upgrade-e2e.spec.ts"],
+  testMatch: ["career-overview-e2e.spec.ts", "e2e.spec.ts", "workspace-e2e.spec.ts", "workspace-concurrency-e2e.spec.ts", "streamlined-e2e.spec.ts", "growth-e2e.spec.ts", "theme-e2e.spec.ts", "home-e2e.spec.ts", "archive-upgrade-e2e.spec.ts"],
   fullyParallel: false,
   workers: 1,
   timeout: 60000,

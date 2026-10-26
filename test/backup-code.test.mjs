@@ -285,7 +285,7 @@ async function browserFixtureBundle() {
     // browser build must supply them too, without loading deployment settings.
     define: { __APP_VERSION__: JSON.stringify('test'), 'import.meta.env': '{}' },
     plugins: [{ name: 'isolated-backup-code-fixture', setup(builder) {
-      builder.onResolve({ filter: /^\.\/api$/ }, ({ importer }) => importer.endsWith('/BackupSettings.tsx') ? { path: 'api', namespace: 'fixture' } : undefined);
+      builder.onResolve({ filter: /^\.\/api$/ }, ({ importer }) => ['/BackupSettings.tsx','/AiConnection.tsx'].some(file=>importer.endsWith(file)) ? { path: 'api', namespace: 'fixture' } : undefined);
       builder.onResolve({ filter: /^\.\/cloud$/ }, ({ importer }) => importer.endsWith('/BackupSettings.tsx') ? { path: 'cloud', namespace: 'fixture' } : undefined);
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({ loader: 'js', resolveDir: root, contents: path === 'cloud' ? `
         export const cloudMode=true, freeMode=true;
@@ -294,6 +294,9 @@ async function browserFixtureBundle() {
       ` : `
         import {readBackupFile} from '${root}src/free/backup.ts';
         export async function api(path,options={}) {
+          // Settings now also renders its independent, read-only AI status.
+          if(path==='/ai/settings' && !options.method)
+            return {aiConfigured:false,model:'gemini-2.5-flash',source:'none'};
           globalThis.fixture.calls.push({path,method:options.method});
           if(path!=='/backup/restore'||options.method!=='POST'||!(options.body instanceof FormData))
             throw new Error('Unexpected fixture API request');

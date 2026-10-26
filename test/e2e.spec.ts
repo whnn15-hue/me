@@ -62,7 +62,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   await page.getByLabel('공문 파일 선택', { exact: true }).setInputFiles([firstFile, secondFile]);
   editor = page.getByRole('dialog', { name: '새 경력 기록하기' });
   await expect(editor.getByPlaceholder('어떤 경험을 하셨나요?')).toHaveValue(firstTitle);
-  await expect(editor).toContainText('AI 미연결');
+  await expect(editor).toContainText('기본 규칙');
   await expect(editor.getByRole('checkbox', { name: firstFile.name, exact: true })).toBeChecked();
   await editor.getByRole('button', { name: '저장하고 다음', exact: true }).click();
   await expect(editor.getByPlaceholder('어떤 경험을 하셨나요?')).toHaveValue(secondTitle);

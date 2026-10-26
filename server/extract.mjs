@@ -117,7 +117,7 @@ export async function analyze({ text, document, path, apiKey, fetcher }) {
       });
       return { careers, method: 'ai', warnings: (Array.isArray(parsed.warnings) ? parsed.warnings : []).filter(w => typeof w === 'string').map(w => cleanText(w, 300)) };
     } catch { warnings.push('AI 분석에 실패해 기본 규칙으로 정리했습니다. 내용을 직접 확인해 주세요.'); }
-  } else warnings.push(apiKey ? '추출 가능한 텍스트가 없습니다. 원본을 확인하고 정보를 직접 입력해 주세요.' : 'AI 연결 전이므로 기본 규칙으로 정리했습니다. 날짜·역할·기관을 직접 확인해 주세요.');
+  } else warnings.push(apiKey ? '추출 가능한 텍스트가 없습니다. 원본을 확인하고 정보를 직접 입력해 주세요.' : 'AI 연결 전이므로 기본 규칙으로 정리했습니다. 날짜, 역할, 기관을 직접 확인해 주세요.');
   if (document?.analysisStatus === 'hwp-conversion-needed') warnings.push('HWP 원본은 보관했습니다. 한글에서 HWPX 또는 PDF로 저장하면 내용을 추출할 수 있습니다.');
   if (document?.analysisStatus === 'ocr-needed') warnings.push('스캔 PDF의 텍스트를 읽지 못했습니다. 텍스트가 있는 PDF 또는 이미지로 올려 주세요.');
   return { careers: ruleAnalysis(input, filename).map(c => ({ ...c, documentIds: document ? [document.id] : [], evidenceStatus: document ? 'attached' : 'later' })), method: 'rules', warnings };

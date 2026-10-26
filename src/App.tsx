@@ -45,6 +45,8 @@ import FileDropzone from "./FileDropzone";
 import GrowthOverview from "./growth/GrowthOverview";
 import WorkspaceTree from "./WorkspaceTree";
 import ThemeControl from "./ThemeControl";
+import CareerOverview from "./CareerOverview";
+import AiConnection from "./AiConnection";
 import HomeDashboard from "./home/HomeDashboard";
 import ReuseLibrary from "./reuse/ReuseLibrary";
 import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
@@ -204,6 +206,7 @@ export default function App() {
     [resumeSelection, setResumeSelection] = useState<string[]>([]),
     [reviewOnly, setReviewOnly] = useState(false),
     [layout, setLayout] = useState<"list" | "grid">("list");
+  const [careerMode,setCareerMode] = useState<"manage"|"overview">("manage");
   const [editor, setEditor] = useState<Career | null>(null),
     [queue, setQueue] = useState<Career[]>([]),
     [analysisNote, setAnalysisNote] = useState(""),
@@ -252,11 +255,13 @@ export default function App() {
       if (version !== refreshVersion.current) return;
       setStatus(s);
       if (s.mode === "local" || s.user) {
-        const [d, nextWorkspace] = await Promise.all([
+        const [d, nextWorkspace, ai] = await Promise.all([
           api<{ careers: Career[]; documents: DocumentRecord[] }>("/data"),
           api<WorkspaceData>("/workspace"),
+          freeMode ? api<{aiConfigured:boolean}>("/ai/settings").catch(() => null) : Promise.resolve(null),
         ]);
         if (version !== refreshVersion.current) return;
+        if (ai) setStatus({...s, aiConfigured:ai.aiConfigured});
         setCareers(d.careers);
         setDocuments(d.documents);
         setWorkspace(nextWorkspace);
@@ -420,11 +425,13 @@ export default function App() {
     setEvidenceFilter("전체 증빙"); setReviewOnly(false); setUndatedOnly(false);
   };
   const chooseCategory = (next: Category | "전체") => {
+    setCareerMode("manage");
     setCategory(next); setInstitution("전체 기관"); setQuery(""); setYear("전체 연도");
     setEvidenceFilter("전체 증빙"); setReviewOnly(false); setUndatedOnly(false);
     setGroupBy(next === "강의·연수" ? "organization" : "year");
   };
   const focusArchive = (filter: "all" | "missing" | "review" | "undated" | "unlinked") => {
+    setCareerMode("manage");
     if (filter === "unlinked") { changeView("documents"); setDocumentFilter("미연결 파일"); return; }
     clearFilters(); changeView("careers");
     if (filter === "missing") setEvidenceFilter("증빙 미첨부");
@@ -584,7 +591,7 @@ export default function App() {
       setEditor(drafts[0]);
       setQueue(drafts.slice(1));
       setAnalysisNote(
-        `${result.method === "ai" ? "AI가 정리한 초안" : "키워드 규칙으로 정리한 초안, AI 미연결"}. ${result.warnings.join(" ")}`,
+        [result.method === "ai" ? "AI가 정리한 초안입니다. 저장 전에 내용을 확인해 주세요." : "기본 초안입니다. 날짜, 역할, 기관을 확인해 주세요.", ...result.warnings].join(" "),
       );
       setManual(false);
       setManualText("");
@@ -619,8 +626,7 @@ export default function App() {
           })),
         );
         notes.push(...result.warnings);
-        if (result.method !== "ai")
-          notes.push("AI 미연결: 문서 텍스트와 키워드 규칙으로 정리했습니다.");
+        if (result.method === "ai") notes.push("AI가 정리한 초안입니다. 저장 전에 내용을 확인해 주세요.");
       } catch (e) {
         notes.push(
           `${docs[i].name}: ${e instanceof Error ? e.message : "분석 실패"}`,
@@ -908,7 +914,7 @@ export default function App() {
             <>
               {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 Firebase와 구글 드라이브에는 연결하지 않습니다.</div>}
               {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh}/>}
-              {view === "home" && status && <HomeDashboard overview={<>
+              {view === "home" && status && <HomeDashboard onOverview={() => {changeView("careers");setCareerMode("overview");}} overview={<>
                   <section className="stats-grid" aria-label="경력 요약">
                     <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
                     <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
@@ -973,7 +979,9 @@ export default function App() {
                   )}
                 </div>
               </div>}
-              {isCareerView && (
+              {isCareerView && <nav className="career-mode-tabs" aria-label="이력 화면"><button aria-pressed={careerMode === "manage"} onClick={()=>setCareerMode("manage")}><List size={16}/>목록 관리</button><button aria-pressed={careerMode === "overview"} onClick={()=>setCareerMode("overview")}><Layers3 size={16}/>한눈에 보기</button></nav>}
+              {isCareerView && careerMode === "overview" && <CareerOverview careers={careers} documents={documents} onOpen={openWorkspaceRef}/>}
+              {isCareerView && careerMode === "manage" && (
                 <>
                   <nav className="category-tabs career-collections" aria-label="이력 분류">
                     {(["전체", ...careerCategoryChoices] as const).map(c => {
@@ -1267,6 +1275,7 @@ export default function App() {
           documents={documents}
           busy={!!busy}
           note={analysisNote}
+          aiSetup={freeMode && analysisNote ? <AiConnection compact onRefresh={refresh}/> : undefined}
           remaining={queue.length}
           onClose={() => {
             setEditor(null);

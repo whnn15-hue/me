@@ -18,3 +18,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 
 import "./record-room.css";
+
+import "./ai-overview.css";

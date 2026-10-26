@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, CalendarDays, Cloud, CloudUpload, FileText, Plus, Star, Search, FileCheck2, CircleHelp, Link2, ArrowDownToLine } from "lucide-react";
+import { Layers3, ArrowRight, ArrowUpRight, CalendarDays, Cloud, CloudUpload, FileText, Plus, Star, Search, FileCheck2, CircleHelp, Link2, ArrowDownToLine } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { Career, DocumentRecord, Status, View } from "../types";
 import type { WorkspaceData } from "../workspace/types";
@@ -9,9 +9,9 @@ interface Props {
   careers: Career[]; documents: DocumentRecord[]; workspace: WorkspaceData; status: Status;
   onOpen: (ref: string) => void; onView: (view: View) => void;
   onSearch: () => void; onAttention: (filter: "missing" | "review" | "undated" | "unlinked") => void;
-  overview: ReactNode; onUpload: () => void; onCreate: () => void; busy: boolean;
+  onOverview: () => void; overview: ReactNode; onUpload: () => void; onCreate: () => void; busy: boolean;
 }
-export default function HomeDashboard({ careers, documents, workspace, status, onOpen, onView, onUpload, onCreate, onSearch, onAttention, busy, overview }: Props) {
+export default function HomeDashboard({ careers, documents, workspace, status, onOpen, onView, onUpload, onCreate, onSearch, onAttention, busy, overview, onOverview }: Props) {
   const attention = useMemo(() => archiveAttention(careers, documents), [careers, documents]);
   const favorites = useMemo(() => workspace.items.filter(item => item.favorite && !["course", "assignment", "paper", "idea"].includes(item.kind)).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [workspace]);
   const tasks = [
@@ -26,7 +26,7 @@ export default function HomeDashboard({ careers, documents, workspace, status, o
     ? `마지막 백업 ${new Intl.DateTimeFormat("ko-KR", { timeZone:"Asia/Seoul", dateStyle:"medium", timeStyle:"short" }).format(backupDate)}`
     : status.driveConnected ? "드라이브 연결됨, 백업 상태 확인" : "드라이브 백업 설정";
   return <div className="home-dashboard">
-    <header className="home-heading"><div><span className="home-date">{dayLabel}</span><h1>나의 기록실</h1></div><div className="home-actions"><button className="button secondary" onClick={onUpload} disabled={busy}><CloudUpload size={17}/>공문 업로드</button><button className="button primary" onClick={onCreate} disabled={busy}><Plus size={17}/>경력 추가</button></div></header>
+    <header className="home-heading"><div><span className="home-date">{dayLabel}</span><h1>나의 기록실</h1></div><div className="home-actions"><button className="button secondary" onClick={onOverview}><Layers3 size={17}/>이력 한눈에 보기</button><button className="button secondary" onClick={onUpload} disabled={busy}><CloudUpload size={17}/>공문 업로드</button><button className="button primary" onClick={onCreate} disabled={busy}><Plus size={17}/>경력 추가</button></div></header>
     <button className="home-search-launch" onClick={onSearch}><Search size={21}/><span>어떤 기록을 찾으세요?<small>활동명, 기관, 자료 내용, 태그로 검색</small></span><kbd>{/Mac/.test(navigator.platform) ? "⌘ K" : "Ctrl K"}</kbd><ArrowRight size={19}/></button>
     {overview}
     <section className="home-attention home-card" aria-label="정리할 기록">

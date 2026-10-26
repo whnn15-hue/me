@@ -20,6 +20,7 @@ import { backupFileFromImportCode } from "./backup-code";
 import { cloudMode, cloudRefreshToken, freeMode, signInCloud, signOutCloud } from "./cloud";
 import { Modal } from "./CareerEditor";
 import EvidenceImport from "./EvidenceImport";
+import AiConnection from "./AiConnection";
 import ThemeControl from "./ThemeControl";
 import { type Status } from "./types";
 
@@ -492,6 +493,7 @@ export default function BackupSettings({
             </div>
           </div>
         </section>
+        {freeMode ? <AiConnection onRefresh={onRefresh}/> : <>
         <section className="panel settings-card">
           <div className="settings-card-heading">
             <span className="integration-icon ai-icon">
@@ -529,6 +531,7 @@ export default function BackupSettings({
             </li>
           </ul>
         </section>
+        </>}
       </div>
       <aside className="settings-aside">
         <div className="settings-help">

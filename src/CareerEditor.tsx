@@ -101,6 +101,7 @@ export function CareerEditor({
   busy,
   note,
   remaining,
+  aiSetup,
   onClose,
   onSave,
   onFreeText,
@@ -111,6 +112,7 @@ export function CareerEditor({
   busy: boolean;
   note: string;
   remaining: number;
+  aiSetup?: ReactNode;
   onClose: () => void;
   onSave: (c: Career) => void;
   onFreeText: () => void;
@@ -206,10 +208,11 @@ export function CareerEditor({
               <Sparkles size={17} />
               <span>
                 {note}
-                {remaining > 0 && <strong>, 다음 초안 {remaining}개</strong>}
+                {remaining > 0 && <strong className="draft-queue-count">남은 초안 {remaining}개</strong>}
               </span>
             </div>
           )}
+          {aiSetup && <details className="ai-inline-setup"><summary>Gemini AI 연결 설정</summary>{aiSetup}</details>}
           {validation && (
             <div role="alert" className="alert error">
               {validation}
