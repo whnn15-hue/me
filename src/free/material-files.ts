@@ -8,7 +8,8 @@ import type { PreparedMaterialImport } from "./material-import";
 /** Local drafts are ready immediately; server extraction can enrich them after upload. */
 export async function prepareMaterialFiles(files: File[], purpose: "lecture" | "classroom"): Promise<PreparedMaterialImport> {
   if (!files.length || files.length > 10) throw new Error("파일은 한 번에 1~10개까지 넣을 수 있습니다.");
-  if (files.some(file => !file.size || file.size > 25 * 1024 * 1024)) throw new Error("비어 있지 않은 25 MB 이하의 파일을 선택해 주세요.");
+  if (files.some(file => !file.size || file.size > 25 * 1024 * 1024)) throw new Error("비어 있지 않은 25 MB 이하의 파일을 선택해 주세요. 큰 파일은 드라이브에 올린 뒤 링크로 추가할 수 있습니다.");
+  if (files.reduce((total,file)=>total+file.size,0)>200*1024*1024) throw new Error("한 번에 넣는 자료는 합계 200 MB 이하여야 합니다. 파일을 나누어 넣어 주세요.");
   const materials: PreparedMaterialImport["materials"] = [], documents: PreparedMaterialImport["documents"] = [];
   const hashes = new Set<string>(), now = new Date().toISOString();
   for (const file of files) {
@@ -19,7 +20,7 @@ export async function prepareMaterialFiles(files: File[], purpose: "lecture" | "
     let text = "";
     const html = /\.html?$/i.test(file.name) ? htmlMetadata(decodeHtml(bytes.subarray(0, 1024 * 1024))) : undefined;
     if (/\.txt$/i.test(file.name)) text = (await file.text()).slice(0, 60000);
-    else if (/\.(pptx|docx|hwpx)$/i.test(file.name)) {
+    else if (/\.(pptx|potx|docx|dotx|hwpx)$/i.test(file.name)) {
       try {
         const zip = await JSZip.loadAsync(bytes);
         const entries = Object.values(zip.files).filter(entry => !entry.dir && /^(ppt\/slides\/slide\d+\.xml|word\/document\.xml|Contents\/section\d+\.xml)$/.test(entry.name)).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true})).slice(0, 30);

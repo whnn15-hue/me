@@ -1,4 +1,5 @@
 import { isHtmlBytes } from "../../shared/html.mjs";
+import {extraFileTypes, validExtraFile, driveQuota} from "../../shared/resources.mjs";
 import { api } from "../api";
 import { cloudUserError, readyCloudUser } from "../cloud";
 
@@ -14,6 +15,7 @@ export interface DriveFile {
 type DriveAccess = { accessToken: string; folderId: string };
 
 const fileTypes: Record<string, string> = {
+  ...extraFileTypes,
   pdf: "application/pdf",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ppt: "application/vnd.ms-powerpoint",
@@ -33,16 +35,16 @@ const fileTypes: Record<string, string> = {
 
 export async function validateDriveUploadFile(file: File, kind: "document" | "template" = "document") {
   if (file.size > 25 * 1024 * 1024)
-    throw new Error("공문과 양식은 파일당 최대 25 MB까지 올릴 수 있습니다.");
+    throw new Error("파일당 최대 25 MB까지 올릴 수 있습니다. 큰 파일은 드라이브에 올린 뒤 자료실에 링크로 추가해 주세요.");
   const extension = file.name.split(".").at(-1)?.toLowerCase() || "";
   if (!fileTypes[extension] || (kind === "template" && extension !== "hwpx"))
     throw new Error(kind === "template"
       ? "HWPX 양식을 올려 주세요. HWP는 한글에서 HWPX로 저장해 주세요."
-      : "PDF, PPT, HTML, HWP/HWPX, Word, Excel, 한셀, 텍스트 또는 이미지 파일을 올려 주세요.");
+      : "문서, 이미지, MP3, WAV, OGG, M4A, FLAC 또는 Office 템플릿을 올려 주세요. 영상과 큰 파일은 드라이브 링크로 추가할 수 있습니다.");
   const header = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
   const starts = (values: number[], offset = 0) => values.every((value, index) => header[offset + index] === value);
   const text = new TextDecoder().decode(header);
-  const valid = extension === "txt" ||
+  const valid = validExtraFile(extension,header) || extension === "txt" ||
     ["html", "htm"].includes(extension) && isHtmlBytes(header) ||
     extension === "pdf" && text.includes("%PDF-") ||
     ["hwpx", "docx", "xlsx", "cell", "pptx"].includes(extension) && starts([0x50, 0x4b]) ||
@@ -59,6 +61,14 @@ async function access(): Promise<DriveAccess> {
   if (!result.accessToken || !result.folderId)
     throw new Error("백업 및 공문 보관에 사용할 구글 드라이브를 먼저 연결해 주세요.");
   return result;
+}
+
+export async function readDriveStorage() {
+  const credentials=await access();
+  const response=await driveResponse(await fetch('https://www.googleapis.com/drive/v3/about?fields=storageQuota',{
+    headers:{Authorization:`Bearer ${credentials.accessToken}`},credentials:'omit',signal:AbortSignal.timeout(15000),
+  }));
+  return driveQuota((await response.json()).storageQuota);
 }
 
 function checkedId(id: string) {

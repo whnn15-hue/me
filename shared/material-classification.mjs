@@ -1,3 +1,4 @@
+import {resourceType, resourceLabel} from './resources.mjs';
 export const materialSubjects = ['국어', '수학', '사회', '과학', '영어', '도덕', '체육', '음악', '미술', '정보', '통합교과'];
 export const materialTrainings = ['읽기', '쓰기', '말하기', '어휘', '수 연산', '문해력', '주의 집중', '사회성', '학급 운영', '디지털 활용'];
 const subjectRules = [
@@ -29,11 +30,12 @@ export function recordTags(item) {
   const text = [item.title, item.summary, item.sourceFile?.name, item.drivingQuestion, item.activities, ...subjects, ...(item.trainings || [])].filter(Boolean).join(' ').normalize('NFC');
   const inferred = inferMaterialClassification(text);
   const extra = ['인공지능', '디지털', '영상', '독서', '속담', '스피치', '토론', '코딩'].filter(tag => text.includes(tag));
+  if (item.kind==='material' && resourceType(item)!=='lecture') extra.push(resourceLabel(item));
   return [...existing, ...[...new Set([...inferred.subjects, ...inferred.trainings, ...extra])].filter(tag => !existing.includes(tag)).slice(0, Math.max(0, 30 - existing.length))];
 }
 export function materialFileFormat(name) {
   const extension = name.split('.').at(-1)?.toLowerCase();
-  return { html: 'HTML', htm: 'HTML', ppt: 'PPT', pptx: 'PPT', pdf: 'PDF', hwp: 'HWP', hwpx: 'HWP', txt: 'TXT', mp4: '영상', mov: '영상' }[extension] || '기타';
+  return { html: 'HTML', htm: 'HTML', ppt: 'PPT', pptx: 'PPT', potx:'PPT', pdf: 'PDF', hwp: 'HWP', hwpx: 'HWP', txt: 'TXT', mp4: '영상', mov: '영상', mp3:'오디오',wav:'오디오',ogg:'오디오',m4a:'오디오',flac:'오디오',png:'이미지',jpg:'이미지',jpeg:'이미지',webp:'이미지' }[extension] || '기타';
 }
 export function materialDraft(name, text = '', purpose = 'lecture') {
   const title = name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/^\d{8}[_ -]+/, '').trim().slice(0, 300) || '새 자료';
@@ -53,6 +55,7 @@ export function materialDraft(name, text = '', purpose = 'lecture') {
   const date = parsed && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0,10) === candidate ? candidate : '';
   const target = explicit('대상|교육 대상');
   const audience = purpose === 'classroom' ? ['학생'] : /교사|교원/.test(target || title) ? ['교원'] : /학부모/.test(target || title) ? ['학부모'] : /학생/.test(target) ? ['학생'] : [];
-  return { kind: 'material', purpose, title, ownership: 'collected', author: explicit('작성자|제작자|출처'), eventName: explicit('강의명|행사명|연수명|수업명'), date, audience,
-    format: materialFileFormat(name), fileUrl: '', summary, tags, ...classification };
+  const result = { kind: 'material', purpose, title, ownership: 'collected', author: explicit('작성자|제작자|출처'), eventName: explicit('강의명|행사명|연수명|수업명'), date, audience,
+    format: materialFileFormat(name), resourceType:resourceType({title:name,format:materialFileFormat(name)}), fileUrl: '', summary, tags, ...classification };
+  return {...result,tags:recordTags(result)};
 }

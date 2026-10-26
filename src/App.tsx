@@ -107,7 +107,7 @@ const navItems: {
     description: "나의 모든 경험",
   },
   { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
-  { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
+  { view: "materials", label: "자료실", icon: BookOpen, description: "만들고 모아둔 자료" },
   {
     view: "documents",
     label: "공문 보관함",
@@ -652,7 +652,7 @@ export default function App() {
         approvedMaterialIds: prepared.materials.map(entry => entry.item.id),
         onProgress: progress => setBusy(progress.phase === "saving" ? "자료 저장 중" : `자료 자동 정리 (${progress.completed}/${progress.total})`),
         enrich: async (item, file, driveFileId, digest) => {
-          if (/\.html?$/i.test(file.name)) return item;
+          if (/\.(html?|mp3|wav|ogg|m4a|flac|potx|dotx|xltx)$/i.test(file.name)) return item;
           if (/\.(txt|pptx|docx|hwpx)$/i.test(file.name) && item.summary.trim()) return item;
           try {
             const extraction = await api<{text?:string}>("/documents/extract", {method:"POST",body:JSON.stringify({driveFileId,name:file.name,size:file.size,sha256:digest})});
@@ -941,7 +941,7 @@ export default function App() {
                     {isCareerView
                       ? "이력"
                       : view === "projects" ? "수업"
-                      : view === "materials" ? "강의 자료"
+                      : view === "materials" ? "자료실"
                       : view === "graduate" ? "대학원"
                       : view === "documents"
                         ? "공문 보관함"
@@ -1183,8 +1183,8 @@ export default function App() {
                   </section>
                 </>
               )}
-              {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
-              {view === "materials" && <MaterialsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
+              {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialAudio(item) : undefined} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
+              {view === "materials" && <MaterialsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialAudio(item) : undefined} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
               {view === "documents" && (
                 <DocumentsView
                   filter={documentFilter} setFilter={setDocumentFilter}

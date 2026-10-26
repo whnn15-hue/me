@@ -1,3 +1,4 @@
+import {extraFileTypes, validExtraFile} from '../../shared/resources.mjs';
 import { isHtmlBytes } from '../../shared/html.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join, extname, dirname } from 'node:path';
@@ -12,13 +13,13 @@ export const MAX_FILE_SIZE = 25 * 1024 * 1024;
 export const MAX_ARCHIVE_SIZE = 200 * 1024 * 1024;
 export const fault = (message, status = 400) => Object.assign(new Error(message), { status });
 export const sha256 = buffer => createHash('sha256').update(buffer).digest('hex');
-const MIME = { '.pdf': 'application/pdf', '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.hwp': 'application/x-hwp', '.hwpx': 'application/vnd.hancom.hwpx', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.cell': 'application/vnd.hancom.cell', '.html': 'text/html', '.htm': 'text/html', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+const MIME = { ...Object.fromEntries(Object.entries(extraFileTypes).map(([extension,mime])=>['.'+extension,mime])), '.pdf': 'application/pdf', '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.hwp': 'application/x-hwp', '.hwpx': 'application/vnd.hancom.hwpx', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.cell': 'application/vnd.hancom.cell', '.html': 'text/html', '.htm': 'text/html', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 export function fileName(raw) { return String(raw || '').replace(/[\/\\\u0000-\u001f]/g, '_').slice(0, 300); }
 export function validateFile(file) {
   const name = fileName(file.originalname), extension = extname(name).toLowerCase(), magic = file.buffer.subarray(0, 12);
   if (!ALLOWED_EXTENSIONS.has(extension)) throw fault('PDF, PPT, HTML, HWP/HWPX, Word, Excel, 한셀, 텍스트 또는 이미지 파일을 올려 주세요.');
   if (!file.buffer.length) throw fault('비어 있는 파일은 보관할 수 없습니다.');
-  const valid = extension === '.txt' || ['.html', '.htm'].includes(extension) && isHtmlBytes(file.buffer) || extension === '.pdf' && file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')) || ['.hwpx', '.docx', '.xlsx', '.cell', '.pptx'].includes(extension) && magic.subarray(0, 2).toString() === 'PK' || ['.hwp', '.ppt'].includes(extension) && magic.subarray(0, 8).equals(Buffer.from('d0cf11e0a1b11ae1', 'hex')) || extension === '.png' && magic.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) || ['.jpg', '.jpeg'].includes(extension) && magic[0] === 0xff && magic[1] === 0xd8 || extension === '.webp' && magic.subarray(0, 4).toString() === 'RIFF' && magic.subarray(8, 12).toString() === 'WEBP';
+  const valid = validExtraFile(extension.slice(1),file.buffer.subarray(0,65536)) || extension === '.txt' || ['.html', '.htm'].includes(extension) && isHtmlBytes(file.buffer) || extension === '.pdf' && file.buffer.subarray(0, 1024).includes(Buffer.from('%PDF-')) || ['.hwpx', '.docx', '.xlsx', '.cell', '.pptx'].includes(extension) && magic.subarray(0, 2).toString() === 'PK' || ['.hwp', '.ppt'].includes(extension) && magic.subarray(0, 8).equals(Buffer.from('d0cf11e0a1b11ae1', 'hex')) || extension === '.png' && magic.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) || ['.jpg', '.jpeg'].includes(extension) && magic[0] === 0xff && magic[1] === 0xd8 || extension === '.webp' && magic.subarray(0, 4).toString() === 'RIFF' && magic.subarray(8, 12).toString() === 'WEBP';
   if (!valid) throw fault('파일 내용과 확장자가 일치하지 않습니다.');
   return { name, extension, mime: MIME[extension] };
 }

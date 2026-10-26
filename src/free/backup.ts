@@ -1,3 +1,4 @@
+import {extraFileTypes} from "../../shared/resources.mjs";
 import JSZip from "jszip";
 import type { Career, DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId as validId } from "./normalize";
@@ -10,7 +11,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_CAREERS = 100_000;
 const MAX_DOCUMENTS = 10_000;
 const MAX_ENTRIES = MAX_DOCUMENTS + 10;
-const ALLOWED_EXTENSIONS = new Set(["pdf", "ppt", "pptx", "hwp", "hwpx", "docx", "html", "htm", "txt", "xlsx", "cell", "png", "jpg", "jpeg", "webp"]);
+const ALLOWED_EXTENSIONS = new Set([...Object.keys(extraFileTypes), "pdf", "ppt", "pptx", "hwp", "hwpx", "docx", "html", "htm", "txt", "xlsx", "cell", "png", "jpg", "jpeg", "webp"]);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const invalid = (message: string): Error => new Error(message);

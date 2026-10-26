@@ -1,3 +1,4 @@
+import {resourceTypes} from './resources.mjs';
 export const WORKSPACE_KINDS = ['project', 'material', 'course', 'assignment', 'paper', 'idea', 'photo', 'submission'];
 export const WORKSPACE_ROW_PREFIX = '__workspace_';
 export const WORKSPACE_ROW_TAG = 'introduce-me-workspace';
@@ -113,7 +114,11 @@ export function normalizeWorkspaceItem(value, previous) {
     }); if (result.startDate && result.endDate && result.endDate < result.startDate) fail('종료일이 시작일보다 빠릅니다.'); break;
     case 'material': {
       const ownership = merged.ownership ?? 'created', format = merged.format ?? '기타';
-      if (!['created', 'collected'].includes(ownership) || !['PPT', 'PDF', 'HWP', 'TXT', 'HTML', '영상', '기타'].includes(format)) fail('자료 종류를 확인해 주세요.');
+      if (!['created', 'collected'].includes(ownership) || !['PPT', 'PDF', 'HWP', 'TXT', 'HTML', '영상', '오디오', '이미지', '기타'].includes(format)) fail('자료 종류를 확인해 주세요.');
+      if (merged.resourceType !== undefined) {
+        if (!resourceTypes.some(type=>type.id===merged.resourceType)) fail('자료 분류를 확인해 주세요.');
+        result.resourceType=merged.resourceType;
+      }
       // Legacy material rows stay byte-for-byte shaped as before. An absent
       // purpose is interpreted as lecture by the view, not persisted here.
       if (merged.purpose !== undefined) {
@@ -121,7 +126,8 @@ export function normalizeWorkspaceItem(value, previous) {
         result.purpose = merged.purpose;
       }
       for (const field of ['subjects', 'trainings']) if (merged[field] !== undefined) result[field] = strings(merged[field], 30, 100);
-      if (merged.sourceFile !== undefined) {
+      // A manually replaced link has no verified connection to the old original.
+      if (merged.sourceFile !== undefined && !(previous && input.fileUrl !== undefined && input.fileUrl !== old.fileUrl)) {
         const file = object(merged.sourceFile);
         if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > 25 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(file.sha256 || '')) fail('자료 원본 정보를 확인해 주세요.');
         result.sourceFile = {name:text(file.name,300),size:file.size,sha256:file.sha256};
