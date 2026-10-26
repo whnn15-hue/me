@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ExternalLink, KeyRound, LoaderCircle, Sparkles } from "lucide-react";
 import { api } from "./api";
+import { normalizeGeminiKey } from "../shared/gemini-key.mjs";
 
 interface Connection { aiConfigured:boolean; model:string; source:string }
 export default function AiConnection({ onRefresh, compact=false }: { onRefresh:()=>Promise<void>; compact?:boolean }) {
@@ -19,7 +20,7 @@ export default function AiConnection({ onRefresh, compact=false }: { onRefresh:(
     if(lock.current) return;
     lock.current=true; setPending(true); setError(""); setNotice("");
     try {
-      const result = await api<Connection>("/ai/settings", {method:disconnect ? "DELETE" : "PUT", ...(disconnect ? {} : {body:JSON.stringify({apiKey:key.trim(),model:model.trim()})})});
+      const result = await api<Connection>("/ai/settings", {method:disconnect ? "DELETE" : "PUT", ...(disconnect ? {} : {body:JSON.stringify({apiKey:normalizeGeminiKey(key),model:model.trim()})})});
       setConnection(result); setKey("");
       setNotice(disconnect ? "AI 연결을 해제했습니다. 원본과 경력은 유지됩니다." : "Gemini 연결을 확인했습니다. 이제 공문 보관함의 분석 버튼으로 다시 분석할 수 있습니다.");
       await onRefresh();
@@ -33,7 +34,7 @@ export default function AiConnection({ onRefresh, compact=false }: { onRefresh:(
       <p className="ai-connection-description">Google AI Studio에서 키를 발급받아 아래에 한 번 등록하세요. 분석할 문서 내용은 Google Gemini로 전송됩니다. 무료 한도와 과금 여부는 해당 Google 프로젝트 설정을 따릅니다.</p>
       <a className="ai-key-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"><KeyRound size={15}/>Google AI Studio에서 키 발급<ExternalLink size={14}/></a>
       <fieldset disabled={pending}>
-        <label className="field"><span>{connection?.aiConfigured ? "새 Gemini API 키" : "Gemini API 키"}</span><input type="password" value={key} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={200} placeholder="여기에 API 키 붙여넣기" onChange={event=>setKey(event.target.value)}/></label>
+        <label className="field"><span>{connection?.aiConfigured ? "새 Gemini API 키" : "Gemini API 키"}</span><input type="password" value={key} autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="여기에 API 키 붙여넣기" onChange={event=>setKey(event.target.value)}/></label>
         <details className="ai-model-options"><summary>모델 설정</summary><label className="field"><span>Gemini 모델</span><input value={model} maxLength={87} placeholder="gemini-2.5-flash" onChange={event=>setModel(event.target.value)}/></label></details>
         <div className="ai-connection-actions"><button type="button" className="button primary" disabled={!key.trim() || !model.trim()} onClick={()=>void update()}>{pending ? <LoaderCircle size={15} className="spin"/> : <Sparkles size={15}/>}연결 확인 후 저장</button>{connection?.aiConfigured && <button type="button" className="button secondary" onClick={()=>void update(true)}>연결 해제</button>}</div>
       </fieldset>

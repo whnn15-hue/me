@@ -23,8 +23,10 @@ test('AI connection UI masks the key, prevents accidental parent submit, tests b
   const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(5000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const field=page.getByLabel('Gemini API 키',{exact:true});await field.waitFor();assert.equal(await field.getAttribute('type'),'password');
-  const secret='synthetic-browser-key-not-real-12345';await field.fill(secret);await field.press('Enter');assert.equal(await page.evaluate(()=>outerSaves),0);assert.equal(requests.filter(r=>r.method==='PUT').length,0);
-  fail=true;await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.getByRole('alert').waitFor();assert.equal(connected,false);assert.equal(await field.inputValue(),secret);
+  assert.equal(await field.getAttribute('maxlength'),null);
+  await field.fill('synthetic...masked');await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/가려진/);assert.equal(requests.filter(r=>r.method==='PUT').length,0);
+  const secret='synthetic.'+'A'.repeat(300)+'/+=_end', pasted=' "'+secret+'" ';await field.fill(pasted);await field.press('Enter');assert.equal(await page.evaluate(()=>outerSaves),0);assert.equal(requests.filter(r=>r.method==='PUT').length,0);
+  fail=true;await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.waitForFunction(()=>document.querySelector('[role="alert"]')?.textContent.includes('한도'));assert.equal(connected,false);assert.equal(await field.inputValue(),pasted);assert.equal(JSON.parse(requests.find(r=>r.method==='PUT').body).apiKey,secret);
   fail=false;await page.getByRole('button',{name:'연결 확인 후 저장'}).click();await page.getByText('Gemini 연결됨',{exact:true}).waitFor();assert.equal(await page.getByLabel('새 Gemini API 키').inputValue(),'');assert.equal(await page.evaluate(()=>refreshes),1);
   assert.ok(!await page.evaluate(key=>JSON.stringify(localStorage).includes(key) || JSON.stringify(sessionStorage).includes(key),secret));
   assert.equal(await page.getByRole('link',{name:'Google AI Studio에서 키 발급'}).getAttribute('href'),'https://aistudio.google.com/apikey');

@@ -4,6 +4,7 @@ import {createAiSettings} from '../server/free/ai-settings.mjs';
 import {createPrivateVault} from '../server/free/vault.mjs';
 import {createFreeApi} from '../server/free/api.mjs';
 import {freeAnalyze} from '../server/free/analyze.mjs';
+import {normalizeGeminiKey} from '../shared/gemini-key.mjs';
 class MemoryBlobs {
   constructor(){this.rows=new Map();this.version=0;}
   async get(key){return this.rows.get(key)?.data ?? null;}
@@ -15,6 +16,31 @@ const config={appUrl:'https://record.example',ownerEmail:'owner@example.com',pro
 const owner={uid:'owner-one',email:config.ownerEmail,name:'테스트',token:'owner-token'};
 const secret='synthetic-key-only-never-a-real-key-12345';
 const answer=careers=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify({careers,warnings:['역할 확인']})}]}}]});
+
+test('key input preserves opaque tokens, normalizes clipboard wrappers and rejects unsafe input without revealing it',()=>{
+  for(const key of ['AIza'+'a'.repeat(35),'synthetic.'+'a'.repeat(300)+'/+=_-','short', 'a'.repeat(4096)]) {
+    assert.equal(normalizeGeminiKey(key),key);
+    assert.equal(normalizeGeminiKey(' \n"'+key+'"\n '),key);
+    assert.equal(normalizeGeminiKey('‘'+key+'’'),key);
+  }
+  for(const value of [null,{},'', ' '.repeat(20),'a'.repeat(4097),'redacted****value','redacted...value','redacted…value','••••','key with space','key\r\nX-Injected:1','key\u0000value','key\u200bvalue','프로젝트 이름']) {
+    assert.throws(()=>normalizeGeminiKey(value),error=>/[가-힣]/.test(error.message) && (typeof value!=='string' || !value || !error.message.includes(value)));
+  }
+});
+
+test('long keys and punctuation reach provider verification intact and rejected replacements never overwrite the working key',async()=>{
+  const vault=await createPrivateVault(new MemoryBlobs()), opaque='synthetic.'+'A'.repeat(300)+'/+=_end';let reject=false;const sent=[];
+  const ai=createAiSettings({vault,config,fetcher:async(url,options)=>{
+    sent.push(new Headers(options.headers).get('x-goog-api-key'));
+    return reject ? Response.json({error:{message:'Do not echo rejected credential: '+opaque}},{status:400}) : Response.json({candidates:[{content:{parts:[{text:'OK'}]}}]});
+  }});
+  assert.equal((await ai.connect(owner,{apiKey:' "'+opaque+'" '})).aiConfigured,true);assert.deepEqual(sent,[opaque]);
+  assert.equal((await ai.resolve(owner)).geminiKey,opaque);
+  reject=true;await assert.rejects(ai.connect(owner,{apiKey:'different.opaque-key'}),error=>error.status===400 && !error.message.includes(opaque));
+  assert.equal((await ai.resolve(owner)).geminiKey,opaque);
+  for(const apiKey of ['masked...value','bad\r\nheader','A'.repeat(4097)]) await assert.rejects(ai.connect(owner,{apiKey}),error=>error.status===400);
+  assert.equal(sent.length,2);assert.ok(!JSON.stringify(await ai.status(owner)).includes(opaque));
+});
 
 test('owner AI settings validate before encrypted storage, keep working keys on failure and disconnect without exposing secrets',async()=>{
   const blobs=new MemoryBlobs(), vault=await createPrivateVault(blobs);let status=200,calls=0;

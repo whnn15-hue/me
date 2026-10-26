@@ -1,4 +1,5 @@
 import { aiFailureMessage } from './analyze.mjs';
+import { normalizeGeminiKey } from '../../shared/gemini-key.mjs';
 
 const fault = (message, status = 400) => Object.assign(new Error(message), { status });
 const defaultModel = 'gemini-2.5-flash';
@@ -22,9 +23,10 @@ export function createAiSettings({ vault, config, fetcher }) {
   async function status(user) { return publicStatus(await resolve(user)); }
   async function connect(user, body) {
     const name = keyFor(user);
-    const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+    let apiKey;
+    try { apiKey = normalizeGeminiKey(body.apiKey); }
+    catch (error) { throw fault(error.message); }
     const model = body.model || defaultModel;
-    if (!/^[A-Za-z0-9_-]{20,200}$/.test(apiKey)) throw fault('Google AI Studio에서 복사한 API 키 전체를 입력해 주세요.');
     if (!validModel(model)) throw fault('Gemini 모델 이름을 확인해 주세요.');
     const release = await vault.acquireLease(`aiSettings/${user.uid}`, 30000);
     try {
