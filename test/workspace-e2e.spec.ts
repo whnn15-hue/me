@@ -7,7 +7,7 @@ async function workspace(page:Page) {
 }
 async function careerData(page:Page) { return (await page.request.get('/api/data')).json(); }
 async function tab(page:Page,name:string) {
-  const tabs = page.getByRole('navigation',{name:'기록 종류',exact:true});
+  const tabs = page.getByRole('navigation',{name:'주 메뉴',exact:true});
   if (await tabs.isVisible()) await tabs.getByRole('button',{name,exact:true}).click();
   else await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name,exact:true}).click();
 }
@@ -63,11 +63,7 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   dialog=page.getByRole('dialog',{name:'강의 자료 추가',exact:true});
   await dialog.getByPlaceholder('다시 찾기 쉬운 자료 제목').fill('통합검증 생태 강의안');
   if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
-  await dialog.getByLabel('제작자 또는 출처',{exact:true}).fill('직접 제작');
-  await dialog.getByLabel('사용한 행사 또는 강의',{exact:true}).fill('생태 교원 연수');
-  await dialog.getByLabel('자료 날짜',{exact:true}).fill('2026-04-01');
   await dialog.getByLabel('자료 형식',{exact:true}).selectOption('PDF');
-  await dialog.getByLabel('대상',{exact:true}).fill('교사, 학생');
   await dialog.getByPlaceholder('https://drive.google.com/...').fill('https://drive.google.com/file/d/synthetic-material/view');
   await dialog.getByRole('textbox',{name:'핵심 내용과 활용 메모',exact:true}).fill('생태 활동의 수업 적용');
   await tag(dialog,'통합검증');
@@ -75,7 +71,6 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await dialog.locator('.workspace-link-option').filter({hasText:project.title}).getByRole('checkbox').check();
   await dialog.getByRole('button',{name:'자료 저장',exact:true}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('combobox',{name:'자료 대상 필터',exact:true}).selectOption('교사');
   await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('PDF');
   await page.getByRole('button',{name:'통합검증 생태 강의안 상세보기',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'통합검증 생태 강의안',exact:true});
@@ -111,81 +106,26 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   expect(errors).toEqual([]);
 });
 
-test('graduate records persist, sort deadlines, keep course dependents, and work on mobile',async({page})=>{
-  test.setTimeout(120000);
-  page.setDefaultTimeout(10000);
-  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('/');const before=await careerData(page);
-  await tab(page,'대학원');
-  await page.getByRole('button',{name:'강좌 추가',exact:true}).first().click();
-  let dialog=page.getByRole('dialog',{name:'강좌 추가',exact:true});
-  await dialog.getByLabel('강좌명 *',{exact:true}).fill('통합검증 교육연구방법');
-  await dialog.getByLabel('학기',{exact:true}).fill('2026년 2학기');
-  await dialog.getByLabel('교수명',{exact:true}).fill('검증 교수');
-  await tag(dialog,'통합검증');await dialog.getByRole('button',{name:'저장',exact:true}).click();
-  await expect(dialog).toHaveCount(0);
-  const course=(await workspace(page)).items.find((i:any)=>i.title==='통합검증 교육연구방법');
-  await page.getByRole('tab',{name:/^과제/}).click();
-  for(const [title,due] of [['통합검증 늦은 과제','2026-12-20'],['통합검증 가까운 과제','2026-10-20']]){
-    await page.getByRole('button',{name:'과제 추가',exact:true}).first().click();
-    dialog=page.getByRole('dialog',{name:'과제 추가',exact:true});
-    await dialog.getByLabel('과제명 *',{exact:true}).fill(title);
-    await dialog.getByLabel('연결 강좌',{exact:true}).selectOption(course.id);
-    await dialog.getByLabel('마감일',{exact:true}).fill(due);
-    await dialog.getByLabel('상태',{exact:true}).selectOption('in-progress');
-    await dialog.getByLabel('제출물 링크',{exact:true}).fill('https://docs.google.com/document/d/synthetic-assignment');
-    await dialog.getByRole('button',{name:'저장',exact:true}).click();await expect(dialog).toHaveCount(0);
-  }
-  await expect(page.locator('.grad-records .grad-card').first()).toContainText('통합검증 가까운 과제');
-  await page.getByRole('button',{name:'통합검증 가까운 과제 수정',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'과제 수정',exact:true});
-  await dialog.getByLabel('상태',{exact:true}).selectOption('submitted');
-  await dialog.getByRole('button',{name:'저장',exact:true}).click();await expect(dialog).toHaveCount(0);
-  await page.getByRole('combobox',{name:'과제 상태 필터',exact:true}).selectOption('submitted');
-  await expect(page.locator('.grad-card')).toHaveCount(1);
-  await page.getByRole('tab',{name:/^논문 노트/}).click();
-  await page.getByRole('button',{name:'논문 노트 추가',exact:true}).first().click();
-  dialog=page.getByRole('dialog',{name:'논문 노트 추가',exact:true});
-  await dialog.getByLabel('제목 *',{exact:true}).fill('통합검증 협력학습 논문');
-  await dialog.getByLabel('저자',{exact:true}).fill('검증 저자');
-  await dialog.getByLabel('연도',{exact:true}).fill('2025');
-  await dialog.getByLabel('핵심 내용 요약',{exact:true}).fill('협력 과정에 대한 분석');
-  await dialog.getByLabel('내 생각',{exact:true}).fill('생태 프로젝트에 적용');
-  await dialog.getByRole('button',{name:'인용문 추가',exact:true}).click();
-  await dialog.getByLabel('인용문 1',{exact:true}).fill('서로 설명하는 과정에서 배움이 깊어진다');
-  await dialog.getByLabel('쪽수 1',{exact:true}).fill('12-14');
-  await dialog.locator('.grad-course-checks').getByRole('checkbox',{name:'통합검증 교육연구방법 2026년 2학기',exact:true}).check();
-  await tag(dialog,'통합검증');await dialog.getByRole('button',{name:'저장',exact:true}).click();await expect(dialog).toHaveCount(0);
-  await page.getByRole('searchbox',{name:'논문 노트 검색',exact:true}).fill('배움이 깊어진다');
-  await expect(page.locator('.grad-card')).toHaveCount(1);
-  await page.getByRole('button',{name:'통합검증 협력학습 논문 상세 보기',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'통합검증 협력학습 논문',exact:true});
-  await expect(dialog).toContainText('12-14쪽');
-  await dialog.getByRole('button',{name:'닫기',exact:true}).first().click();
-  await page.getByRole('tab',{name:/^논문 주제 메모/}).click();
-  await page.getByRole('button',{name:'논문 주제 메모 추가',exact:true}).first().click();
-  dialog=page.getByRole('dialog',{name:'논문 주제 메모 추가',exact:true});
-  await dialog.getByLabel('제목 *',{exact:true}).fill('통합검증 연구 질문');
-  await dialog.getByLabel('자유 메모',{exact:true}).fill('협력적 생태 탐구가 학습에 미치는 영향');
-  await dialog.getByRole('button',{name:'저장',exact:true}).click();await expect(dialog).toHaveCount(0);
-  await page.reload();await tab(page,'대학원');
-  await page.getByRole('button',{name:'통합검증 교육연구방법 삭제',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'강좌 삭제',exact:true});
-  await expect(dialog).toContainText('과제와 논문 노트는 그대로');
-  await dialog.getByRole('button',{name:'삭제',exact:true}).click();await expect(dialog).toHaveCount(0);
-  const after=await workspace(page);
-  expect(after.items.find((i:any)=>i.title==='통합검증 가까운 과제').courseId).toBe('');
-  expect(after.items.find((i:any)=>i.title==='통합검증 협력학습 논문').courseIds).toEqual([]);
-  expect(after.items.some((i:any)=>i.title==='통합검증 연구 질문')).toBeTruthy();
-  expect(await careerData(page)).toEqual(before);
-  if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});
-  for(const name of ['수업','강의 자료','대학원']){
-    await tab(page,name);await expect(page.locator('.workspace-main-tabs')).toBeVisible();
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
-    expect(await page.locator('main').innerText()).not.toContain('·');
-  }
-  expect(errors).toEqual([]);
-});
+test('retired graduate records and relationships remain in JSON backups without appearing in navigation or search',async({page})=>{
+    const original = await workspace(page);
+    const result = await page.request.post('/api/workspace/items',{data:{item:{kind:'course',title:'보존 검증 강좌',semester:'2026-2',professor:'가상 교수'},links:[],expectedRevision:original.revision}});
+    expect(result.ok()).toBeTruthy(); const saved = await result.json();
+    await page.goto('/#graduate');
+    await expect(page.getByRole('heading',{name:'나의 기록실',exact:true})).toBeVisible();
+    await expect(page.getByRole('navigation',{name:'주 메뉴'}).getByText('대학원',{exact:true})).toHaveCount(0);
+    await page.getByRole('button',{name:'모든 기록 검색 열기'}).click();
+    await page.getByRole('combobox',{name:'모든 기록 검색어'}).fill('보존 검증 강좌');
+    await expect(page.locator('.global-search-result')).toHaveCount(0);
+    await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();
+    await tab(page,'백업 및 설정');
+    const downloading = page.waitForEvent('download');
+    await page.getByRole('button',{name:'전체 기록 JSON 내보내기'}).click();
+    const downloaded = await downloading;
+    const backup = JSON.parse(await readFile((await downloaded.path())!, 'utf8'));
+    expect(backup.workspace.items).toEqual(saved.items);
+    expect(backup.workspace.links).toEqual(saved.links);
+    expect((await workspace(page)).items).toEqual(saved.items);
+  });
 
 test('classroom materials stay under lessons, link both ways, and survive JSON restoration without changing legacy records',async({page})=>{
   test.setTimeout(120000);
@@ -210,11 +150,8 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   let dialog=page.getByRole('dialog',{name:'학급 자료 추가',exact:true});
   await dialog.getByPlaceholder('다시 찾기 쉬운 자료 제목').fill('학급검증 스피치 활동지');
   if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
-  await dialog.getByLabel('제작자 또는 출처',{exact:true}).fill('합성 자료 출처');
   if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
-  await dialog.getByLabel('사용한 수업 또는 활동',{exact:true}).fill('아침 말하기 활동');
   await dialog.getByLabel('자료 형식',{exact:true}).selectOption('HWP');
-  await dialog.getByLabel('대상',{exact:true}).fill('학생');
   await dialog.getByPlaceholder('https://drive.google.com/...').fill('https://drive.google.com/file/d/synthetic-classroom-material/view');
   await dialog.getByRole('textbox',{name:'핵심 내용과 활용 메모',exact:true}).fill('학급검증 짝과 함께 발표 순서 정하기');
   await tag(dialog,'학급검증');
@@ -224,7 +161,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   let saved=await workspace(page);
   const material=saved.items.find((i:any)=>i.title==='학급검증 스피치 활동지');
   expect(material.purpose).toBe('classroom');expect(material.format).toBe('HWP');
-  expect(material.ownership).toBe('created');expect(material.audience).toEqual(['학생']);
+  expect(material.ownership).toBe('created');expect(material.audience).toEqual([]);
   await expect(page.getByRole('button',{name:`${legacy.title} 상세보기`,exact:true})).toHaveCount(0);
   await page.getByLabel('학급 자료 검색',{exact:true}).fill('발표 순서');
   await expect(page.getByRole('button',{name:`${material.title} 상세보기`,exact:true})).toBeVisible();
@@ -256,7 +193,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await expect(search.locator('.global-search-results')).not.toContainText(legacy.title);
   await expect(search.locator('.global-search-results')).not.toContainText(project.title);
   await search.locator('.global-search-result').filter({hasText:material.title}).click();
-  await expect(page.getByRole('navigation',{name:'기록 종류',exact:true}).getByRole('button',{name:'수업',exact:true})).toHaveAttribute('aria-current','page');
+  await expect(page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'수업',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.getByRole('tab',{name:/^학급 자료/})).toHaveAttribute('aria-selected','true');
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await dialog.getByRole('button',{name:'수정하기',exact:true}).click();

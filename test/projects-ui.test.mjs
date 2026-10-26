@@ -116,7 +116,7 @@ test('project filters and editor preserve structured fields, relationships, and 
     assert.equal(result.item.title,'새로운 합성 수업');
     assert.deepEqual(result.item.subjects,[{subject:'국어',unit:'이야기 나누기'},{subject:'미술',unit:'그림 표현'}]);
     assert.deepEqual(result.item.tools,['도구 A','도구 B']);
-    assert.deepEqual(result.item.tags,['통합수업']);
+    assert.deepEqual(result.item.tags,['통합수업','국어','미술']);
     assert.deepEqual(result.links,['career:career-a']);
     assert.equal(result.item.outputs[0].url,'https://example.test/result');
     assert.equal(result.item.photos[0].url,'https://example.test/photo.jpg');
@@ -135,7 +135,7 @@ test('project filters and editor preserve structured fields, relationships, and 
 
 test('project detail opens cross-links, loads photos only by request, and confirms deletion on mobile',browserOptions,async()=>{
   await fixture(async(page,requests)=>{
-    await page.setViewportSize({width:390,height:844});
+    if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:390,height:844});
     await page.evaluate(()=>{
       const project={...fixture.state.items[0],title:'안전한 <img onerror=alert(1)> 기록',outputs:[{label:'허용되지 않는 링크',url:'javascript:alert(1)'}],photos:[{label:'합성 사진',url:'https://example.test/private-photo.jpg'}]};
       fixture.seed([project],[{from:'career:career-a',to:'project:project-a'}]);

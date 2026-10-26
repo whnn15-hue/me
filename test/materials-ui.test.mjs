@@ -84,7 +84,7 @@ async function fixture(run, purpose = "lecture") {
   }
 }
 
-test('material library filters subjects, trainings, audience, format, tags and search without fetching originals', browserOptions, async () => {
+test('material library filters subjects, trainings, format, tags and search without fetching originals', browserOptions, async () => {
   await fixture(async page => {
     const cards = page.locator('.material-card');
     assert.equal(await cards.count(), 2);
@@ -92,7 +92,6 @@ test('material library filters subjects, trainings, audience, format, tags and s
     assert.equal(await cards.count(), 1);
     assert.match(await cards.innerText(), /수집한 참고 자료/);
     await page.getByRole('button', { name: /필터 초기화/ }).click();
-    await page.getByLabel('자료 대상 필터', { exact: true }).selectOption('교원');
     await page.getByLabel('자료 형식 필터', { exact: true }).selectOption('PPT');
     await page.getByLabel('자료 태그 필터', { exact: true }).selectOption('미디어');
     await page.getByLabel('강의 자료 검색', { exact: true }).fill('가상 교육 실습');
@@ -102,14 +101,14 @@ test('material library filters subjects, trainings, audience, format, tags and s
     await page.getByText('조건에 맞는 자료가 없어요', { exact: true }).waitFor();
     await page.getByRole('button', { name: /필터 초기화/ }).first().click();
     assert.equal(await cards.count(), 2);
-    await page.setViewportSize({ width: 375, height: 812 });
+    if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({ width: 375, height: 812 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.doesNotMatch(await page.locator('body').innerText(), /·/);
     assert.deepEqual(await page.evaluate(() => fixture.saves), []);
   });
 });
 
-test('material editor validates Drive links and saves complete fields with chosen career and project links', browserOptions, async () => {
+test('material editor validates Drive links and saves simplified fields with chosen career and project links', browserOptions, async () => {
   await fixture(async page => {
     await page.getByRole('button', { name: '자료 추가', exact: true }).click();
     const editor = page.getByRole('dialog', { name: '강의 자료 추가', exact: true });
@@ -117,11 +116,7 @@ test('material editor validates Drive links and saves complete fields with chose
     assert.equal(await editor.getByText('내가 만든 자료',{exact:true}).count(),0);
     if(await editor.locator('details.optional-fields:not([open])').count()) await editor.locator('details.optional-fields > summary').click();
     await editor.getByLabel('제목', { exact: false }).fill('새로운 가상 자료');
-    await editor.getByLabel('제작자 또는 출처', { exact: true }).fill('가상 저자');
-    await editor.getByLabel('사용한 행사 또는 강의', { exact: true }).fill('가상 워크숍');
-    await editor.getByLabel('자료 날짜', { exact: true }).fill('2026-06-03');
     await editor.getByLabel('자료 형식', { exact: true }).selectOption('영상');
-    await editor.getByLabel('대상', { exact: true }).fill('학생, 교원');
     await editor.getByLabel('핵심 내용과 활용 메모', { exact: true }).fill('프로젝트에서 다시 활용할 내용');
     await editor.getByLabel('태그 추가', { exact: true }).fill('수업 설계');
     await editor.getByLabel('태그 추가', { exact: true }).press('Enter');
@@ -139,10 +134,10 @@ test('material editor validates Drive links and saves complete fields with chose
     assert.deepEqual(saved.links.sort(), ['career:career_one', 'project:project_one']);
     assert.equal(saved.item.kind, 'material'); assert.equal(saved.item.ownership, 'created');
     assert.equal(Object.hasOwn(saved.item, 'purpose'), false, 'legacy lecture shape stays unchanged');
-    assert.equal(saved.item.title, '새로운 가상 자료'); assert.equal(saved.item.author, '가상 저자');
-    assert.equal(saved.item.eventName, '가상 워크숍'); assert.equal(saved.item.date, '2026-06-03');
+    assert.equal(saved.item.title, '새로운 가상 자료'); assert.equal(saved.item.author, '');
+    assert.equal(saved.item.eventName, ''); assert.equal(saved.item.date, '');
     assert.equal(saved.item.format, '영상'); assert.equal(saved.item.fileUrl, 'https://drive.google.com/file/d/synthetic-new/view');
-    assert.deepEqual(saved.item.audience, ['학생', '교원']); assert.deepEqual(saved.item.tags, ['수업 설계']);
+    assert.deepEqual(saved.item.audience, []); assert.deepEqual(saved.item.tags, ['수업 설계']);
     assert.equal(saved.item.summary, '프로젝트에서 다시 활용할 내용');
     assert.equal(await page.locator('input[type=file]').count(), 0);
     await page.getByRole('button', { name: '새로운 가상 자료 상세보기', exact: true }).click();
@@ -168,6 +163,8 @@ test('materials retain existing links when edited and require confirmation befor
     await editor.getByRole('button', { name: '자료 저장', exact: true }).click();
     await editor.waitFor({ state: 'hidden' });
     assert.deepEqual(await page.evaluate(() => fixture.saves[0].links), ['career:career_one']);
+    const kept = await page.evaluate(() => fixture.saves[0].item);
+    assert.equal(kept.author, '테스트 제작자'); assert.equal(kept.date, '2025-03-02'); assert.deepEqual(kept.audience, ['교원']);
     let detail = page.getByRole('dialog', { name: '수정된 가상 자료', exact: true });
     await detail.waitFor();
     await detail.getByRole('button', { name: '삭제', exact: true }).click();
@@ -224,6 +221,7 @@ test('material editor and delete confirmation retain their original revision thr
 test('classroom library excludes lecture rows and filters HWP and TXT without exposing originals', browserOptions, async () => {
   await fixture(async page => {
     await page.getByRole('heading', { name: '학급 자료', exact: true }).waitFor();
+    await page.getByText('준비된 자료 가져오기', {exact:true}).click();
     await page.getByText('가져오기 패널 위치', { exact: true }).waitFor();
     assert.equal(await page.locator('.material-card').count(), 2);
     assert.equal(await page.getByRole('button', { name: '가상 강의 자료 상세보기', exact: true }).count(), 0);
@@ -235,7 +233,7 @@ test('classroom library excludes lecture rows and filters HWP and TXT without ex
     await page.getByLabel('자료 형식 필터', { exact: true }).selectOption('HWP');
     assert.equal(await page.locator('.material-card').count(), 1);
     assert.match(await page.locator('.material-card').innerText(), /가상 속담 활동지/);
-    await page.setViewportSize({ width: 375, height: 812 });
+    if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({ width: 375, height: 812 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.doesNotMatch(await page.locator('body').innerText(), /·/);
     assert.deepEqual(await page.evaluate(() => fixture.saves), []);
@@ -248,7 +246,6 @@ test('classroom additions retain purpose through editing, link to lesson records
     const editor = page.getByRole('dialog', { name: '학급 자료 추가', exact: true });
     if(await editor.locator('details.optional-fields:not([open])').count()) await editor.locator('details.optional-fields > summary').click();
     await editor.getByLabel('제목', { exact: false }).fill('새 학급 활동');
-    await editor.getByLabel('사용한 수업 또는 활동', { exact: true }).fill('새 학기 국어');
     await editor.getByLabel('자료 형식', { exact: true }).selectOption('HWP');
     await editor.getByRole('checkbox', { name: /가상 수업 프로젝트/ }).check();
     await editor.getByLabel('구글 드라이브 파일 링크', { exact: false }).fill('https://drive.google.com/file/d/classroom-new/view');
@@ -257,7 +254,7 @@ test('classroom additions retain purpose through editing, link to lesson records
     const saved = await page.evaluate(() => fixture.saves[0]);
     assert.equal(saved.item.purpose, 'classroom');
     assert.equal(saved.item.format, 'HWP');
-    assert.equal(saved.item.eventName, '새 학기 국어');
+    assert.equal(saved.item.eventName, '');
     assert.deepEqual(saved.links, ['project:project_one']);
     assert.equal(saved.expectedRevision, 0);
     assert.equal(await page.locator('.material-card').count(), 3);
@@ -277,16 +274,16 @@ test('classroom additions retain purpose through editing, link to lesson records
   }, 'classroom');
 });
 
-test('gallery, list and favorite actions keep career links and work on a phone',browserOptions,async()=>{
+test('gallery, list and favorite actions keep career links on desktop',browserOptions,async()=>{
   await fixture(async page=>{
     await page.getByRole('button',{name:'가상 강의 자료 즐겨찾기',exact:true}).click();
     const saved=await page.evaluate(()=>fixture.saves.at(-1));
     assert.equal(saved.item.favorite,true);assert.deepEqual(saved.links,['career:career_one']);assert.equal(saved.expectedRevision,0);
-    await page.getByRole('button',{name:/^즐겨찾기 1$/}).click();
+    await page.getByRole('button',{name:'즐겨찾는 자료만',exact:true}).click();
     assert.equal(await page.locator('.material-card').count(),1);
     await page.getByRole('button',{name:'목록 보기',exact:true}).click();
     assert.ok(await page.locator('.materials-grid').evaluate(element=>element.classList.contains('library-list')));
-    await page.setViewportSize({width:375,height:812});
+    if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     assert.equal(await page.getByRole('link',{name:'가상 강의 자료 원본 열기'}).getAttribute('target'),'_blank');
     await page.getByRole('button',{name:'가상 강의 자료 즐겨찾기',exact:true}).click();

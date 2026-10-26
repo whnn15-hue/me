@@ -7,13 +7,12 @@ async function state(page: Page) {
 }
 
 async function openTab(page: Page, name: string) {
-  await page.getByRole('navigation', { name: '기록 종류', exact: true }).getByRole('button', { name, exact: true }).click();
+  await page.getByRole('navigation', { name: '주 메뉴', exact: true }).getByRole('button', { name, exact: true }).click();
 }
 
 for (const record of [
   { kind: 'project', tab: '수업', title: '동시 편집 프로젝트', detail: ' 자세히 보기', edit: '수정', input: '예: 우리 동네를 바꾸는 작은 실천', save: '수업 저장' },
   { kind: 'material', tab: '강의 자료', title: '동시 편집 강의 자료', detail: ' 상세보기', edit: '수정하기', input: '다시 찾기 쉬운 자료 제목', save: '자료 저장' },
-  { kind: 'course', tab: '대학원', title: '동시 편집 강좌', detail: '', edit: '', input: '', save: '저장' },
 ]) {
   test(`${record.tab} keeps the editor revision after a conflict and does not open search over a draft`, async ({ page }) => {
     const initial = await state(page);

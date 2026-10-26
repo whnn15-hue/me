@@ -70,10 +70,10 @@ test('desktop palette follows the system live across all workspaces without losi
   await page.addInitScript(()=>{
     if(!localStorage.getItem('introduce-me-theme')) localStorage.setItem('introduce-me-theme','invalid');
   });
-  await page.goto('/#careers');
+  await page.goto('/#home');
   const original=await (await page.request.get('/api/data')).json();
   const originalWorkspace=await (await page.request.get('/api/workspace')).json();
-  const main=page.getByRole('navigation',{name:'기록 종류',exact:true});
+  const main=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   const root=page.locator('.main-shell');
   await expect(root).toHaveCSS('background-color','rgb(243, 243, 243)');
   await expect(page.getByRole('region',{name:'기록 달력',exact:true})).toHaveCount(0);
@@ -95,7 +95,7 @@ test('desktop palette follows the system live across all workspaces without losi
   await expect(page.locator('.chart-axis').first()).toHaveCSS('fill','rgb(182, 182, 182)');
   await page.screenshot({path:'/tmp/introduce-me-neutral-dark.png',animations:'disabled'});
   // Every tab uses the same semantic surfaces, including its editor.
-  for(const [tab,add,dialog] of [['수업','수업 추가','새 수업 기록'],['강의 자료','자료 추가','강의 자료 추가'],['대학원','강좌 추가','강좌 추가']]){
+  for(const [tab,add,dialog] of [['수업','수업 추가','새 수업 기록'],['강의 자료','자료 추가','강의 자료 추가']]){
     await main.getByRole('button',{name:tab,exact:true}).click();
     await expect(root).toHaveCSS('background-color','rgb(20, 20, 20)');
     await page.getByRole('button',{name:add,exact:true}).first().click();
@@ -107,7 +107,7 @@ test('desktop palette follows the system live across all workspaces without losi
   await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'백업 및 설정',exact:true}).click();
   await expect(page.locator('.settings-card').first()).toHaveCSS('background-color','rgb(32, 32, 32)');
   await page.screenshot({path:'/tmp/introduce-me-dark-settings.png',animations:'disabled'});
-  await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'경력 아카이브',exact:true}).click();
+  await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'홈',exact:true}).click();
   await page.locator('.global-search-trigger').click();
   await expect(page.getByRole('dialog')).toHaveCSS('background-color','rgb(32, 32, 32)');
   await page.keyboard.press('Escape');

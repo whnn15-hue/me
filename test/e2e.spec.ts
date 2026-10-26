@@ -22,7 +22,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   await page.goto('/#careers');
   const initial = await data(page); const initialCount = initial.careers.length;
   await expect(page.locator('.career-row')).toHaveCount(initialCount);
-  await expect(page.locator('.nav-count')).toHaveText(String(initialCount));
+  await expect(page.getByRole('button',{name:'경력 아카이브',exact:true}).locator('.nav-count')).toHaveText(String(initialCount));
   if (initial.careers.some((career: { title: string }) => career.title.includes('KERIS'))) {
     await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill('KERIS');
     await expect(page.locator('.career-row').filter({hasText:initial.careers.find((career:{title:string})=>career.title.includes('KERIS')).title})).toBeVisible();

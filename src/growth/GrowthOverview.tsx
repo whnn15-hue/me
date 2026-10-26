@@ -8,13 +8,13 @@ import { growthModel, seoulToday } from "./growth-model";
 interface Props {
   careers: Career[]; documents: DocumentRecord[];
   onOpen: (ref: string) => void; onCategory: (category: Category) => void;
-  today?: string;
+  today?: string; onShowCareers?: () => void;
 }
 const mapY = [69, 43, 63, 28, 49, 24];
 function smoothPath(points: { x: number; y: number }[]) {
   return points.map((point, i) => !i ? `M${point.x},${point.y}` : `C${(points[i - 1].x + point.x) / 2},${points[i - 1].y} ${(points[i - 1].x + point.x) / 2},${point.y} ${point.x},${point.y}`).join(" ");
 }
-export default function GrowthOverview({ careers, documents, onOpen, onCategory, today = seoulToday() }: Props) {
+export default function GrowthOverview({ careers, documents, onOpen, onCategory, onShowCareers, today = seoulToday() }: Props) {
   const model = useMemo(() => growthModel(careers, documents, today), [careers, documents, today]);
   const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem("introduce-me-growth-open") !== "false"; } catch { return true; } });
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
@@ -40,12 +40,11 @@ export default function GrowthOverview({ careers, documents, onOpen, onCategory,
   function selectYear(year: number) { setSelectedYear(year); const index = journeyYears.findIndex(point => point.year === year); if (index >= 0 && (index < start || index >= start + 6)) setWindowStart(Math.min(index, Math.max(0, journeyYears.length - 6))); }
   function toggleExpanded() { const next = !expanded; setExpanded(next); try { localStorage.setItem("introduce-me-growth-open", String(next)); } catch { /* Presentation preference only. */ } }
   return <section className="growth-overview" aria-label="나의 성장">
-    <div className="growth-section-heading"><div><span className="growth-eyebrow">MY JOURNEY</span><h2>나의 성장</h2></div><div className="growth-section-actions"><a href="#career-records">이력 목록<ArrowUpRight size={14}/></a><button className="growth-disclosure" aria-expanded={expanded} aria-controls={`${id}-panels`} onClick={toggleExpanded}>{expanded ? "접기" : "펼치기"}<ChevronDown size={16}/></button></div></div>
+    <div className="growth-section-heading"><div><span className="growth-eyebrow">MY JOURNEY</span><h2>나의 성장</h2></div><div className="growth-section-actions"><button onClick={onShowCareers}>이력 목록<ArrowUpRight size={14}/></button><button className="growth-disclosure" aria-expanded={expanded} aria-controls={`${id}-panels`} onClick={toggleExpanded}>{expanded ? "접기" : "펼치기"}<ChevronDown size={16}/></button></div></div>
     {expanded && <div className="growth-dashboard" id={`${id}-panels`}>
       <section className="growth-card journey-card" aria-label="연도별 성장 지도">
         <header className="growth-card-heading"><h3><Map size={17}/>성장 지도</h3><div className="journey-pagination"><button aria-label="성장 지도 이전 연도" disabled={!start} onClick={() => setWindowStart(Math.max(0, start - 6))}><ChevronLeft size={16}/></button><button aria-label="성장 지도 다음 연도" disabled={start + 6 >= journeyYears.length} onClick={() => setWindowStart(Math.min(start + 6, journeyYears.length - 6))}><ChevronRight size={16}/></button></div></header>
         <div className="growth-map-canvas">
-          <img className="growth-landscape" src="/art/growth-landscape.webp" alt="" width="1536" height="1024" aria-hidden="true"/>
           <span className="map-compass" aria-hidden="true"><Compass size={21}/></span>
           {!!pins.length && <svg className="journey-route" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true"><path d={route} className="route-shadow"/><path d={route} className="route-line"/></svg>}
           {pins.map(point => <button key={point.year} className={`journey-pin ${active?.year === point.year ? "active" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%` }} aria-pressed={active?.year === point.year} aria-label={`${point.year}년 성장 기록 ${point.count}건`} onClick={() => selectYear(point.year)}><span className="pin-dot"><i/></span><span className="pin-label"><strong>{point.year}</strong><small>{point.count}개 기록</small></span></button>)}

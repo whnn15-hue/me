@@ -1,0 +1,84 @@
+/* Final shared scale and compact records, using the existing theme tokens. */
+html { font-size:16px; }
+body { font-size:16px; line-height:1.5; }
+button, input, select, textarea { font:inherit; }
+.app-shell :is(button, input, select, textarea), .modal :is(button, input, select, textarea) { font-size:14px; }
+.app-shell :is(.nav-item,.tree-children button,.field > span,.button,.breadcrumb,.privacy-label,.sync-status), .modal .field > span { font-size:14px; }
+.app-shell :is(small,.nav-count,.nav-section-label,.workspace-nav-break,.home-date,.library-kicker,.home-backup,.stat-foot,.chart-note,.growth-data-note,.record-tags,.record-format,.record-upload-date,.tags,.category-badge), .modal :is(small, .tags, .auto-tag-preview) { font-size:12px; }
+.app-shell :is(.page-heading h1,.home-heading h1,.materials-heading h1,.projects-heading h1,.reuse-heading h1) { font-size:28px; line-height:1.35; }
+.app-shell :is(.home-card h2,.growth-section-heading h2,.section-heading h2) { font-size:20px; }
+.app-shell :is(.growth-card-heading h3,.journey-records strong,.career-title,.materials-grid h3,.project-grid h2) { font-size:16px; }
+.app-shell :is(.tree-children small,.brand small,.topbar kbd,.home-search-launch small,.home-backup span,.growth-card-heading select,.journey-records small,.journey-records em,.chart-axis,.field-legend button,.stat-label,.materials-results-header p,.projects-result-line,.library-card-actions a,.library-card-actions button) { font-size:12px; }
+.app-shell .brand-icon { transform:none; background:transparent; box-shadow:none; padding:0; border-radius:0; width:44px; height:44px; }
+.brand-icon img { display:block; width:44px; height:44px; }
+.app-shell .brand strong { font-size:21px; letter-spacing:-.035em; }
+.app-shell .brand small { font-size:9px; letter-spacing:.12em; }
+.app-shell .brand-icon.large { background:var(--ui-solid); border-radius:16px; color:var(--ui-on-solid); }
+.app-shell .workspace-tree .nav-item > svg { width:20px; height:20px; stroke-width:1.75; flex-shrink:0; }
+.app-shell .workspace-tree .nav-item { min-height:44px; }
+.app-shell .workspace-tree .nav-count { margin-left:auto; }
+.app-shell .tree-children button { min-height:33px; }
+.app-shell .workspace-label { font-size:12px; }
+.app-shell .topbar-end { gap:15px; }
+.app-shell .home-search-launch { padding:15px 20px; margin-bottom:24px; box-shadow:none; }
+.app-shell .home-search-launch > span { font-size:16px; }
+.app-shell .home-dashboard .stats-grid { margin:0 0 24px; }
+.app-shell .home-dashboard .growth-overview { margin-bottom:24px; }
+.app-shell .stat-card { box-shadow:none; }
+.app-shell .stat-foot { display:none; }
+.app-shell .growth-map-canvas { background-color:var(--ui-inset); background-image:radial-gradient(var(--ui-mark) .8px,transparent .8px); background-size:24px 24px; }
+.app-shell .growth-map-canvas::after { display:none; }
+.app-shell .route-shadow { display:none; }
+.app-shell .pin-dot, .app-shell .pin-label { box-shadow:none; }
+.app-shell .growth-section-actions > button { display:inline-flex; gap:6px; align-items:center; font-size:13px; color:var(--ui-muted); }
+.app-shell .growth-card { box-shadow:none; }
+.app-shell .attention-grid strong { font-size:14px; }
+.app-shell .attention-grid small { font-size:12px; }
+.app-shell .library-kicker { display:none; }
+.app-shell :is(.materials-heading,.projects-heading) { margin-bottom:18px; }
+.app-shell .materials-import-panel { margin:12px 0; padding:0; border:0; background:transparent; font-size:13px; }
+.app-shell .materials-import-panel > summary { cursor:pointer; color:var(--ui-muted); margin-bottom:8px; }
+.app-shell .materials-toolbar { flex-wrap:wrap; padding:12px; border-radius:12px; }
+.app-shell .materials-search { flex:1 1 250px; }
+.app-shell .materials-select-filters { flex:0 1 auto; flex-wrap:wrap; }
+.app-shell .material-favorites-filter { display:grid; place-items:center; width:38px; min-height:38px; border:1px solid var(--ui-border); border-radius:8px; background:var(--ui-surface); color:var(--ui-muted); }
+.app-shell .material-favorites-filter[aria-pressed=true] { color:var(--ui-accent-ink); background:var(--ui-accent-soft); }
+.app-shell .materials-results-header { margin:12px 0; }
+.app-shell :is(.file-dropzone > button) { min-height:60px; }
+.app-shell .record-file-icon { display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:9px; background:var(--ui-inset); color:var(--ui-muted); }
+.app-shell :is(.materials-grid,.project-grid) { gap:12px; }
+.app-shell :is(.materials-grid.library-list,.project-grid.library-list) { display:flex; flex-direction:column; gap:8px; }
+.app-shell :is(.material-card,.project-card) { border-radius:11px; box-shadow:none; padding:0; }
+.app-shell :is(.material-card,.project-card):hover { transform:none; box-shadow:none; border-color:var(--ui-accent-line); }
+.app-shell :is(.material-card-open,.project-card-open) { display:flex; flex-direction:row; align-items:center; gap:14px; min-height:84px; padding:16px 50px 16px 16px; border-radius:10px; }
+.app-shell :is(.material-card-body,.project-card-body) { flex:1; min-width:0; padding:0; display:block; }
+.app-shell :is(.material-card-body h3,.project-card-body h2) { font-size:16px; line-height:1.4; margin:0 0 6px; min-height:0; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:550; }
+.app-shell .record-tags { display:flex; gap:8px; flex-wrap:wrap; color:var(--ui-muted); font-size:12px; line-height:1.4; }
+.app-shell .record-format { color:var(--ui-muted); font-size:12px; flex-shrink:0; }
+.app-shell .record-upload-date { color:var(--ui-muted); font-size:12px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.app-shell .library-favorite { top:22px; right:12px; border:none; background:transparent; box-shadow:none; color:var(--ui-muted); }
+.app-shell .library-favorite[aria-pressed=true] { color:var(--ui-accent-ink); background:var(--ui-accent-soft); }
+.app-shell .library-list .material-card { flex-direction:row; align-items:center; }
+.app-shell .library-list .material-card-open { padding-right:12px; }
+.app-shell .library-list .library-card-actions { flex:0 0 auto; align-self:center; border:0; padding:0 52px 0 8px; display:flex; gap:12px; margin:0; }
+.app-shell .library-list .library-card-actions :is(a,button) { font-size:12px; white-space:nowrap; color:var(--ui-muted); }
+.app-shell .library-grid :is(.material-card-open,.project-card-open) { flex-wrap:wrap; padding:18px 48px 16px 18px; gap:12px; min-height:132px; }
+.app-shell .library-grid :is(.material-card-body,.project-card-body) { flex-basis:calc(100% - 52px); }
+.app-shell .library-grid .record-upload-date { margin-left:auto; }
+.app-shell .library-grid .record-tags { max-height:34px; overflow:hidden; }
+.app-shell .library-grid .library-card-actions { padding:10px 18px; }
+.auto-tag-preview { display:flex; flex-wrap:wrap; gap:6px; margin:-4px 0 14px; font-size:12px; color:var(--ui-accent-ink); }
+.auto-tag-preview span { padding:3px 8px; border-radius:6px; background:var(--ui-accent-soft); }
+.auto-tag-preview:empty { display:none; }
+.app-shell .classroom-sections { margin-bottom:20px; }
+.app-shell .project-filters { padding:12px; gap:12px; }
+.app-shell .project-filter-select > span { font-size:12px; }
+.app-shell .projects-result-line { margin:12px 0; }
+.app-shell .home-favorites h2 { font-size:14px; }
+.app-shell .home-bottom-actions button { font-size:14px; }
+@media(min-width:1200px) { .app-shell .main-content { padding:28px 32px 40px; } .app-shell .materials-grid.library-grid, .app-shell .project-grid.library-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+.app-shell .nav-item > span:not(.nav-count) { font-size:14px; }
+.app-shell .tree-children button > span { font-size:13px; }
+.app-shell .library-list .library-card-actions { flex-direction:row; justify-content:flex-end; }
+.app-shell .materials-grid.library-list .library-card-actions a, .app-shell .materials-grid.library-list .library-card-actions button { padding:0; }
+.app-shell .library-list .library-card-actions { width:auto; min-width:180px; }

@@ -1,4 +1,6 @@
 import type { MaterialItem } from '../src/workspace/types';
+import type { WorkspaceItem } from '../src/workspace/types';
+export function recordTags(item: WorkspaceItem): string[];
 export const materialSubjects: string[];
 export const materialTrainings: string[];
 export function inferMaterialClassification(value?:string): {subjects:string[];trainings:string[]};

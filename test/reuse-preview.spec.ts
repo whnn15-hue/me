@@ -19,7 +19,6 @@ test("isolated preview: 50 photos, submission files, matching, ZIP, search and b
     return canvas.toDataURL("image/png").split(",")[1];
   }));
   const files = originals.map((base64, index) => ({ name: `${index < 25 ? "모둠 토의" : "학습지 쓰기"}-${index}.png`, mimeType: "image/png", buffer: Buffer.from(base64, "base64") }));
-  await page.getByRole("button", { name: "수업 하위 메뉴 펼치기" }).click();
   await page.getByRole("button", { name: /^사진 보관함/ }).click();
   await expect(page.getByRole("heading", { name: /사진 보관함/ })).toBeVisible();
   await page.getByLabel("사진 끌어 놓기", { exact: true }).setInputFiles(files);

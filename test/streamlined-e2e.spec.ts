@@ -18,8 +18,7 @@ test('four workspaces contain exclusive career collections, institution views an
   for(const item of fixtures){const response=await page.request.post('/api/careers',{data:{...item,startDate:'2026',datePrecision:'year',verified:false,evidenceStatus:'unneeded'}});expect(response.ok()).toBeTruthy();created.push(await response.json());}
   await page.reload();
   const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-  const primary=page.getByRole('navigation',{name:'기록 종류',exact:true});
-  await expect(primary.getByRole('button')).toHaveText(['이력','수업','강의 자료','대학원']);
+  const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   for(const name of ['파견','집필','콘텐츠 제작'])await expect(menu.getByRole('button',{name,exact:true})).toHaveCount(0);
   const categories=page.getByRole('navigation',{name:'이력 분류',exact:true});
   await expect(categories.getByRole('button',{name:/^근무/})).toHaveCount(0);
@@ -68,15 +67,14 @@ test('four workspaces contain exclusive career collections, institution views an
   await expect(page.getByText('하나씩 쌓아온 경험을, 한눈에 정리하세요.',{exact:true})).toHaveCount(0);
   await choose('강의, 연수');
   await page.screenshot({path:'/tmp/career-portfolio-desktop.png',animations:'disabled'});
-  for(const width of [375,768]){
+  for(const width of (process.env.TEST_DESKTOP_ONLY ? [1440,1280] : [375,768])){
     await page.setViewportSize({width,height:900});
     await page.locator('.sidebar').evaluate(element=>Promise.all(element.getAnimations().map(animation=>animation.finished)));
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   }
-  await page.setViewportSize({width:375,height:812});await page.screenshot({path:'/tmp/career-portfolio-mobile.png',animations:'disabled'});
+  if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});await page.screenshot({path:'/tmp/career-portfolio-mobile.png',animations:'disabled'});
   await primary.getByRole('button',{name:'수업',exact:true}).click();await expect(page.getByRole('heading',{name:'수업 기록',exact:true})).toBeVisible();
   await primary.getByRole('button',{name:'강의 자료',exact:true}).click();await expect(page.getByRole('heading',{name:'강의 자료',exact:true})).toBeVisible();
-  await primary.getByRole('button',{name:'대학원',exact:true}).click();await expect(page.getByRole('heading',{name:'대학원',exact:true})).toBeVisible();
   await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'강의 자료',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   const material=page.getByRole('dialog',{name:'강의 자료 추가',exact:true});
   await expect(material.locator('details.optional-fields')).not.toHaveAttribute('open');await expect(material.getByText('내가 만든 자료',{exact:true})).toHaveCount(0);
@@ -101,7 +99,7 @@ test('HTML uploads remain attachments and library favorites persist with links a
   expect(response.ok()).toBeTruthy();
   const materialId=(await response.json()).items.find((item:{title:string})=>item.title==='통합검증 HTML 수학 자료').id;
   await page.reload();
-  const primary=page.getByRole('navigation',{name:'기록 종류',exact:true});
+  const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   await primary.getByRole('button',{name:'강의 자료',exact:true}).click();
   await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('HTML');
   const favorite=page.getByRole('button',{name:'통합검증 HTML 수학 자료 즐겨찾기',exact:true});

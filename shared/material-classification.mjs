@@ -20,6 +20,17 @@ export function materialClassification(item) {
   const inferred = inferMaterialClassification([item.title, item.summary, item.eventName, ...(item.tags || [])].join(' '));
   return { subjects: item.subjects ?? inferred.subjects, trainings: item.trainings ?? inferred.trainings };
 }
+// Deterministic suggestions only: never turn people, dates or URLs into tags.
+// Existing tags take priority and are never replaced by inferred categories.
+export function recordTags(item) {
+  const existing = [...new Set(item.tags || [])];
+  if (!['material', 'project'].includes(item.kind)) return existing;
+  const subjects = (item.subjects || []).map(value => typeof value === 'string' ? value : value.subject);
+  const text = [item.title, item.summary, item.sourceFile?.name, item.drivingQuestion, item.activities, ...subjects, ...(item.trainings || [])].filter(Boolean).join(' ').normalize('NFC');
+  const inferred = inferMaterialClassification(text);
+  const extra = ['인공지능', '디지털', '영상', '독서', '속담', '스피치', '토론', '코딩'].filter(tag => text.includes(tag));
+  return [...existing, ...[...new Set([...inferred.subjects, ...inferred.trainings, ...extra])].filter(tag => !existing.includes(tag)).slice(0, Math.max(0, 30 - existing.length))];
+}
 export function materialFileFormat(name) {
   const extension = name.split('.').at(-1)?.toLowerCase();
   return { html: 'HTML', htm: 'HTML', ppt: 'PPT', pptx: 'PPT', pdf: 'PDF', hwp: 'HWP', hwpx: 'HWP', txt: 'TXT', mp4: '영상', mov: '영상' }[extension] || '기타';

@@ -22,7 +22,7 @@ export function linkedRefs(workspace: WorkspaceData, currentRef: string): string
 function linkChoices(workspace: WorkspaceData, careers: Career[]) {
   return [
     ...careers.map(career => ({ ref: `career:${career.id}`, kind: "career" as const, label: "이력", title: career.title, subtitle: [career.startDate, career.organization, career.role].filter(Boolean).join(" / "), tags: career.tags })),
-    ...workspace.items.map(item => ({ ref: `${item.kind}:${item.id}`, kind: item.kind, label: workspaceItemLabel(item), title: item.title, subtitle: item.kind === "course" ? [item.semester, item.professor].filter(Boolean).join(" / ") : item.kind === "project" ? [item.schoolYear, item.grade].filter(Boolean).join(" / ") : item.kind === "material" ? item.eventName : workspaceKindLabels[item.kind], tags: item.tags })),
+    ...workspace.items.filter(item => !["course", "assignment", "paper", "idea"].includes(item.kind)).map(item => ({ ref: `${item.kind}:${item.id}`, kind: item.kind, label: workspaceItemLabel(item), title: item.title, subtitle: item.kind === "course" ? [item.semester, item.professor].filter(Boolean).join(" / ") : item.kind === "project" ? [item.schoolYear, item.grade].filter(Boolean).join(" / ") : item.kind === "material" ? item.eventName : workspaceKindLabels[item.kind], tags: item.tags })),
   ];
 }
 export function LinkPicker({ workspace, careers, currentRef, value, onChange }: {
@@ -36,8 +36,8 @@ export function LinkPicker({ workspace, careers, currentRef, value, onChange }: 
   return <div className="workspace-link-picker">
     <div className="workspace-field-heading"><span><Link2 size={15} />관련 기록 연결</span><small>{value.length}개 선택</small></div>
 
-    <label className="search-box workspace-link-search"><Search size={15} /><input aria-label="연결할 기록 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="이력, 수업, 자료, 대학원 기록 찾기" /></label>
-    {value.length > 0 && <div className="workspace-selected-links">{value.map(ref => {
+    <label className="search-box workspace-link-search"><Search size={15} /><input aria-label="연결할 기록 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="이력, 수업, 자료 찾기" /></label>
+    {value.length > 0 && <div className="workspace-selected-links">{value.filter(ref => options.some(option => option.ref === ref)).map(ref => {
       const option = options.find(item => item.ref === ref);
       return <span key={ref}>{displayLabel(option?.title || "찾을 수 없는 연결")}<button type="button" aria-label={`${displayLabel(option?.title || "기록")} 연결 해제`} onClick={() => toggle(ref, false)}><X size={12} /></button></span>;
     })}</div>}

@@ -30,7 +30,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   Menu,
-  MoreHorizontal,
   Plus,
   Search,
   Settings2,
@@ -76,7 +75,6 @@ import BackupSettings from "./BackupSettings";
 import ProjectsView from "./workspace/ProjectsView";
 import MaterialImport from "./workspace/MaterialImport";
 import MaterialsView from "./workspace/MaterialsView";
-import GraduateView from "./workspace/GraduateView";
 import WorkspaceSearch from "./workspace/WorkspaceSearch";
 import WorkspaceBackup from "./workspace/WorkspaceBackup";
 import { displayLabel, RelatedLinks } from "./workspace/WorkspaceUI";
@@ -108,7 +106,6 @@ const navItems: {
   },
   { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
   { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
-  { view: "graduate", label: "대학원", icon: GraduationCap, description: "" },
   {
     view: "documents",
     label: "공문 보관함",
@@ -465,7 +462,8 @@ export default function App() {
     } else {
       const item = workspace.items.find(item => item.id === id && item.kind === kind);
       if (!item) return;
-      changeView(item.kind === "photo" ? "photos" : item.kind === "submission" ? "submissions" : item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? "materials" : "graduate");
+      if (["course", "assignment", "paper", "idea"].includes(item.kind)) { changeView("home"); return; }
+      changeView(item.kind === "photo" ? "photos" : item.kind === "submission" ? "submissions" : item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? "materials" : "home");
       setWorkspaceFocus(id);
       setWorkspaceFocusVersion(version => version + 1);
     }
@@ -789,7 +787,7 @@ export default function App() {
           }}
         >
           <span className="brand-icon">
-            <Layers3 size={23} />
+            <img src="/icons/record-room-192.png" alt="" width="40" height="40" />
           </span>
           <span>
             <strong>나의 기록실</strong><small>MY RECORD ROOM</small>
@@ -804,25 +802,6 @@ export default function App() {
         <WorkspaceTree view={view} careers={careers} documents={documents} workspace={workspace} category={category}
           onView={changeView} onCategory={next=>{changeView("careers");chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}
           onSection={(next,section,subject)=>{changeView(next);setWorkspaceTarget({section,subject});setWorkspaceFocusVersion(version=>version+1);}}/>
-        <div className="sidebar-bottom">
-          <button
-            className="account-button"
-            onClick={() => changeView("settings")}
-          >
-            <span className="avatar">
-              {status?.user?.name?.slice(0, 1) || "나"}
-            </span>
-            <span>
-              <strong>{status?.user?.name || "나의 워크스페이스"}</strong>
-              <small>
-                {status?.mode === "local"
-                  ? "로컬 개발 모드"
-                  : status?.user?.email || "로그인이 필요해요"}
-              </small>
-            </span>
-            <MoreHorizontal size={18} />
-          </button>
-        </div>
       </aside>
       {mobileNav && (
         <button
@@ -844,7 +823,7 @@ export default function App() {
           <div className="breadcrumb">
             <span>내 워크스페이스</span>
             <ChevronRight size={13} />
-            <strong>{view === "photos" ? "수업 / 사진 보관함" : view === "submissions" ? "이력 / 공모전 제출본" : navItems.find((n) => n.view === view)?.label}</strong>
+            <strong>{view === "photos" ? "사진 보관함" : view === "submissions" ? "공모전 제출본" : navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
             <ThemeControl />
@@ -855,9 +834,6 @@ export default function App() {
             <span className="privacy-label">
               <LockKeyhole size={13} />
               비공개
-            </span>
-            <span className="top-avatar">
-              {status?.user?.name?.slice(0, 1) || "나"}
             </span>
           </div>
         </header>
@@ -930,11 +906,17 @@ export default function App() {
             </div>
           ) : (
             <>
-              {["home", "careers", "projects", "materials", "graduate", "photos", "submissions"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view || view === "photos" && item.view === "projects" || view === "submissions" && item.view === "careers" ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
               {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 Firebase와 구글 드라이브에는 연결하지 않습니다.</div>}
               {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh}/>}
-              {view === "home" && <div className="reuse-home-actions"><button className="button secondary" onClick={() => changeView("photos")}><FolderOpen size={17}/>사진 보관함</button><button className="button secondary" onClick={() => changeView("submissions")}><FileText size={17}/>공모전 제출본, 사진 찾기</button></div>}
-              {view === "home" && status && <HomeDashboard careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onSearch={() => setGlobalSearch(true)} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
+              {view === "home" && status && <HomeDashboard overview={<>
+                  <section className="stats-grid" aria-label="경력 요약">
+                    <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
+                    <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
+                    <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
+                    <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
+                  </section>
+                  <GrowthOverview careers={careers} documents={documents} onOpen={openWorkspaceRef} onShowCareers={() => changeView("careers")} onCategory={next=>{changeView("careers");chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
+</>} careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onSearch={() => setGlobalSearch(true)} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
               {!["home", "projects", "materials", "graduate", "photos", "submissions"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
@@ -993,13 +975,6 @@ export default function App() {
               </div>}
               {isCareerView && (
                 <>
-                  <section className="stats-grid" aria-label="경력 요약">
-                    <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
-                    <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
-                    <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
-                    <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
-                  </section>
-                  <GrowthOverview careers={careers} documents={documents} onOpen={openWorkspaceRef} onCategory={next=>{chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
                   <nav className="category-tabs career-collections" aria-label="이력 분류">
                     {(["전체", ...careerCategoryChoices] as const).map(c => {
                       const count = c === "전체" ? careers.length : careers.filter(item => matchesCareerCategory(item,c,documents)).length;
@@ -1202,7 +1177,6 @@ export default function App() {
               )}
               {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
               {view === "materials" && <MaterialsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
-              {view === "graduate" && <GraduateView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
               {view === "documents" && (
                 <DocumentsView
                   filter={documentFilter} setFilter={setDocumentFilter}
