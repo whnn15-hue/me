@@ -36,10 +36,17 @@ function fixture(overrides = {}) {
     if (url.endsWith('/userinfo')) return json({ sub: 'google-owner', email: config.ownerEmail, email_verified: true });
     if (url.endsWith('/revoke')) return json({});
     if (url.includes('/upload/drive/')) return json({ id: `upload-${++sequence}` });
+    if (url.includes('/drive/v3/files?') && (options.method || 'GET') === 'GET') {
+      const q = new URL(url).searchParams.get('q') || '';
+      const uid = /key='archiveUid' and value='([^']*)'/.exec(q)?.[1];
+      const kind = /key='kind' and value='([^']*)'/.exec(q)?.[1];
+      return json({ files: [...files.values()].filter(file => file.mimeType === 'application/vnd.google-apps.folder' && !file.trashed
+        && file.appProperties?.archiveUid === uid && file.appProperties?.kind === kind) });
+    }
     if (url.includes('/drive/v3/files?')) {
       const metadata = JSON.parse(options.body);
       const id = `folder-${++sequence}`;
-      files.set(id, { ...metadata, id, trashed: false });
+      files.set(id, { ...metadata, id, trashed: false, createdTime: new Date(Date.UTC(2026, 0, 1, 0, 0, sequence)).toISOString() });
       return json({ id });
     }
     if (url.includes('/drive/v3/files/')) {
@@ -192,7 +199,7 @@ test('dated Drive backups preserve originals, owner metadata, digest, and succes
   assert.ok(uploads[0].options.body.includes(Buffer.from('ZIP-private-originals')));
   assert.ok(uploads[0].options.body.includes(Buffer.from('"kind":"backup"')));
   assert.ok(uploads[0].options.body.includes(Buffer.from(createHash('sha256').update('ZIP-private-originals').digest('hex'))));
-  assert.equal(f.calls.filter(call => call.url.startsWith('https://www.googleapis.com/drive/v3/files?')).length, 1);
+  assert.equal(f.calls.filter(call => call.url.startsWith('https://www.googleapis.com/drive/v3/files?') && call.options.method === 'POST').length, 1);
   assert.equal(f.leases.size, 0);
 });
 
@@ -324,7 +331,7 @@ test('disconnect and reconnect preserve the private folder and existing original
   assert.equal(access.folderId, folderId);
   const file = await drive.requireFile(owner.uid, 'existing-original', { kind: 'document' });
   assert.equal(file.metadata.name, '기존 공문.pdf');
-  assert.equal(f.calls.filter(call => call.url.startsWith('https://www.googleapis.com/drive/v3/files?')).length, 1);
+  assert.equal(f.calls.filter(call => call.url.startsWith('https://www.googleapis.com/drive/v3/files?') && call.options.method === 'POST').length, 1);
   assert.equal(f.calls.filter(call => call.options.method === 'DELETE' || call.options.method === 'PATCH').length, 0);
 });
 
@@ -347,4 +354,21 @@ test('scheduled backup cannot restore credentials deleted during a Firebase refr
   assert.equal(result.results[0].ok, false);
   assert.equal(f.records.has(`firebaseTokens/${owner.uid}`), false);
   assert.equal(f.calls.filter(call => call.url.includes('/upload/drive/')).length, 0);
+});
+
+test('a new host with an empty vault reuses the original archive folder instead of creating another', async () => {
+  const f = fixture(); const drive = f.create();
+  const original = { id: 'old-folder', name: '나의 경력 보관함', mimeType: 'application/vnd.google-apps.folder', trashed: false, createdTime: '2026-10-13T00:00:00Z', appProperties: { archiveUid: owner.uid, kind: 'archive-folder' } };
+  const duplicate = { ...original, id: 'new-folder', createdTime: '2026-11-11T11:19:00Z' };
+  const foreign = { ...original, id: 'other-owner-folder', createdTime: '2026-01-01T00:00:00Z', appProperties: { archiveUid: 'someone-else', kind: 'archive-folder' } };
+  for (const folder of [duplicate, original, foreign]) f.files.set(folder.id, folder);
+  f.files.set('old-original', { id: 'old-original', name: '기존 공문.pdf', size: '3', mimeType: 'application/pdf', trashed: false, parents: ['old-folder'], appProperties: { archiveUid: owner.uid, kind: 'document', sha256: 'a'.repeat(64) } });
+  await connect(f, drive);
+  // The vault was pointing at the duplicate created on the new host.
+  f.records.set(`driveFolder/${owner.uid}`, 'new-folder');
+  const access = await drive.accessFor(owner.uid);
+  assert.equal(access.folderId, 'old-folder');
+  assert.equal(f.records.get(`driveFolder/${owner.uid}`), 'old-folder');
+  assert.equal((await drive.requireFile(owner.uid, 'old-original', { kind: 'document' })).metadata.name, '기존 공문.pdf');
+  assert.equal(f.calls.filter(call => call.url.startsWith('https://www.googleapis.com/drive/v3/files?') && call.options.method === 'POST').length, 0, 'no new folder is created');
 });
