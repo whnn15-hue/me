@@ -48,7 +48,8 @@ export function normalizeCareer(input, previous = {}) {
   return result;
 }
 export function publicDocument(document, careers) {
-  const { storageName, sha256, ...visible } = document;
+  // sha256 identifies the owner's own original (research and material previews match on it).
+  const { storageName, ...visible } = document;
   return { ...visible, recordIds: careers.filter(c => c.documentIds.includes(document.id)).map(c => c.id) };
 }
 export class Store {

@@ -20,3 +20,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 import "./record-room.css";
 
 import "./ai-overview.css";
+// Loaded last: the 2026-11 visibility pass overrides earlier layers.
+import "./upgrade.css";

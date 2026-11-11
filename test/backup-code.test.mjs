@@ -344,6 +344,9 @@ test('browser code restore requires confirmation, cancels safely, and validates 
     const input = page.getByLabel('백업 코드', { exact: true });
     const restoreCode = page.getByRole('button', { name: '백업 코드로 복원', exact: true });
     const dialog = page.getByRole('dialog', { name: '백업으로 전체 기록을 복원할까요?', exact: true });
+    // Code restore is an emergency path, folded away by default.
+    assert.equal(await input.isVisible(), false);
+    await page.getByText('비상용 백업 코드로 복원', { exact: true }).click();
     await input.waitFor({ state: 'visible' });
     assert.equal(await restoreCode.isDisabled(), true);
     const state = () => page.evaluate(() => ({ calls:globalThis.fixture.calls, writes:globalThis.fixture.writes,
@@ -477,6 +480,8 @@ test('browser short import code authenticates its asset and preserves existing r
     const input = page.getByLabel('백업 코드', { exact: true });
     const restoreCode = page.getByRole('button', { name: '백업 코드로 복원', exact: true });
     const dialog = page.getByRole('dialog', { name: '백업으로 전체 기록을 복원할까요?', exact: true });
+    // Code restore is an emergency path, folded away by default.
+    await page.getByText('비상용 백업 코드로 복원', { exact: true }).click();
     await input.waitFor({ state: 'visible' });
     const state = () => page.evaluate(() => ({ calls:globalThis.fixture.calls, writes:globalThis.fixture.writes,
       errors:globalThis.fixture.errors, refreshes:globalThis.fixture.refreshes, toasts:globalThis.fixture.toasts,

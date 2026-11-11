@@ -166,7 +166,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   return (
     <div className="materials-view">
       <div className="materials-heading">
-        <div><span className="library-kicker">{classroom ? "CLASSROOM LIBRARY" : "RESOURCE LIBRARY"}</span><h1>{materialLabel}<span className="library-total" aria-hidden="true">{materials.length}</span></h1></div>
+        <div><span className="library-kicker">{classroom ? "학급 자료 보관" : "강의와 연수 자료"}</span><h1>{materialLabel}<span className="library-total" aria-hidden="true">{materials.length}</span></h1></div>
         <button className="button primary" onClick={() => setEditing(newMaterial(purpose))}><Plus size={17} /> 자료 추가</button>
       </div>
       {onFiles && <FileDropzone onFiles={files=>onFiles(files,purpose)} busy={uploading} label="자료 파일을 끌어 놓으면 자동 정리" accept=".pdf,.ppt,.pptx,.potx,.hwp,.hwpx,.docx,.dotx,.xlsx,.xltx,.cell,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a,.flac" hint="문서, 이미지, 효과음, 음악, 템플릿 / 파일당 25 MB, 큰 파일은 링크로 추가" />}
@@ -176,7 +176,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
       {favorites.error && <p role="alert" className="alert error">{displayLabel(favorites.error)}</p>}
       <div className="materials-toolbar">
         <label className="materials-search"><Search size={17} /><input aria-label={`${materialLabel} 검색`} value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 내용, 태그 검색" />{query && <button className="icon-button" aria-label="자료 검색어 지우기" onClick={() => setQuery("")}><X size={14} /></button>}</label>
-        <div className="materials-select-filters"><button className="material-favorites-filter" aria-label="즐겨찾는 자료만" aria-pressed={quick === "favorites"} onClick={() => setQuick(quick === "favorites" ? "all" : "favorites")}><Star size={17} fill={quick === "favorites" ? "currentColor" : "none"}/></button><select aria-label="과목 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">모든 과목</option>{allSubjects.map(value => <option key={value}>{value}</option>)}<option value="unclassified">미분류</option></select>
+        <div className="materials-select-filters"><button className="material-favorites-filter" aria-label="즐겨찾는 자료만" title="즐겨찾는 자료만 보기" aria-pressed={quick === "favorites"} onClick={() => setQuick(quick === "favorites" ? "all" : "favorites")}><Star size={21} strokeWidth={2} fill={quick === "favorites" ? "currentColor" : "none"} aria-hidden="true"/></button><select aria-label="과목 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">모든 과목</option>{allSubjects.map(value => <option key={value}>{value}</option>)}<option value="unclassified">미분류</option></select>
           <select aria-label="기초훈련 필터" value={training} onChange={event=>setTraining(event.target.value)}><option value="">모든 기초훈련</option>{materialTrainings.map(value=><option key={value}>{value}</option>)}</select>
           <select aria-label="자료 형식 필터" value={format} onChange={event => setFormat(event.target.value)}><option value="">모든 형식</option>{formats.map(value => <option key={value}>{value}</option>)}</select>
           <select aria-label="자료 태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">모든 태그</option>{allTags.map(value => <option key={value} value={value}>{displayLabel(value)}</option>)}</select>

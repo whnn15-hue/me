@@ -127,7 +127,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   // Download a complete backup, unlink evidence and remove originals, then confirm replacement restore.
   await navigate(page, '백업 및 설정');
   const backupDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: '백업 ZIP 받기', exact: true }).click();
+  await page.getByRole('button', { name: '전체 백업 ZIP 받기', exact: true }).click();
   const downloadedBackup = await backupDownload; const backupPath = await downloadedBackup.path();
   const backup = await archive(downloadedBackup); const manifest = JSON.parse(await backup.file('manifest.json')!.async('string'));
   expect(manifest.careers).toHaveLength(initialCount + 2); expect(manifest.documents).toHaveLength(2);

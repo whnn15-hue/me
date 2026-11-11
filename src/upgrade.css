@@ -1,0 +1,146 @@
+/* 2026-11 visibility pass. Loaded last so it wins over the earlier layered
+   refinements without editing each of them. Tokens live in theme.css. */
+:root {
+  --ui-favorite: #e0a100;
+  --ui-favorite-fill: #f6b800;
+  --ui-favorite-soft: #fff6d6;
+  --ui-favorite-line: #efd27a;
+}
+:root[data-theme="dark"] {
+  --ui-favorite: #ffcc4d;
+  --ui-favorite-fill: #ffc533;
+  --ui-favorite-soft: #3d3216;
+  --ui-favorite-line: #75602a;
+}
+
+/* A1. Favorite star: larger, clear outline when off, filled amber when on. */
+.app-shell .library-favorite,
+.library-favorite {
+  display: grid; place-items: center;
+  width: 40px; height: 40px; min-width: 40px;
+  border: 1.5px solid var(--ui-border); border-radius: 50%;
+  color: var(--ui-muted); background: var(--ui-surface);
+  box-shadow: none; cursor: pointer;
+}
+.app-shell .library-favorite svg, .library-favorite svg { width: 22px; height: 22px; stroke-width: 2; }
+.app-shell .library-favorite:hover, .library-favorite:hover { color: var(--ui-favorite); border-color: var(--ui-favorite-line); background: var(--ui-favorite-soft); }
+.app-shell .library-favorite[aria-pressed=true], .library-favorite[aria-pressed=true] {
+  color: var(--ui-favorite); border-color: var(--ui-favorite-line); background: var(--ui-favorite-soft);
+}
+.app-shell .library-favorite[aria-pressed=true] svg, .library-favorite[aria-pressed=true] svg { fill: var(--ui-favorite-fill); color: var(--ui-favorite); }
+.library-favorite:focus-visible { outline: 3px solid var(--ui-favorite-line); outline-offset: 2px; }
+/* Room for the 40px star next to the row actions in the list view. */
+.app-shell .library-list .library-card-actions { padding-right: 64px; }
+.app-shell .library-list .library-favorite { top: 50%; transform: translateY(-50%); right: 14px; }
+.material-favorites-filter { min-width: 40px; min-height: 40px; display: inline-grid; place-items: center; }
+.material-favorites-filter svg { width: 21px; height: 21px; }
+.material-favorites-filter[aria-pressed=true] { color: var(--ui-favorite); border-color: var(--ui-favorite-line); background: var(--ui-favorite-soft); }
+.material-favorites-filter[aria-pressed=true] svg { fill: var(--ui-favorite-fill); }
+.home-favorites h2 svg, .home-favorites button > svg:first-child { color: var(--ui-favorite); fill: var(--ui-favorite-fill); }
+.home-favorites button > svg:first-child { width: 17px; height: 17px; }
+
+/* A3. Compact one-row career list (the grid toggle keeps the card view). */
+.career-list .career-row:not(.as-card) {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 196px 104px 18px;
+  align-items: center; column-gap: 14px;
+  padding: 9px 16px; margin-bottom: 6px; min-height: 54px;
+  border-left-width: 1px; border-radius: 10px;
+}
+.career-list .career-row:not(.as-card) .category-icon { width: 30px; height: 30px; border-radius: 8px; }
+.career-list .career-row:not(.as-card) .category-icon svg { width: 16px; height: 16px; }
+.career-list .career-row:not(.as-card) .career-info {
+  display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap;
+}
+.career-list .career-row:not(.as-card) .career-category {
+  order: 0; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px; background: var(--ui-inset); color: var(--ui-muted);
+  font-size: 13px; line-height: 1.4; white-space: nowrap; margin: 0;
+}
+.career-list .career-row:not(.as-card) .career-info h4 {
+  order: 1; flex: 1 1 auto; min-width: 0; margin: 0;
+  font-size: 15px; line-height: 1.45; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.career-list .career-row:not(.as-card) .recognition-badges { order: 2; flex: 0 0 auto; margin: 0; flex-wrap: nowrap; }
+.career-list .career-row:not(.as-card) .lecture-institution,
+.career-list .career-row:not(.as-card) .career-meta {
+  order: 3; flex: 0 1 auto; max-width: 260px; margin: 0; min-width: 0;
+  color: var(--ui-muted); font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.career-list .career-row:not(.as-card) .lecture-institution svg { display: none; }
+.career-list .career-row:not(.as-card) .row-tags { display: none; }
+.career-list .career-row:not(.as-card) .career-row-date {
+  width: auto; text-align: right; color: var(--ui-text); font-size: 13px; line-height: 1.35; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.career-list .career-row:not(.as-card) .career-row-evidence { justify-self: start; }
+.career-list .career-row:not(.as-card) .career-row-evidence .evidence { font-size: 13px; padding: 4px 9px; white-space: nowrap; }
+.career-list .career-row:not(.as-card) .unverified-label { font-size: 12px; }
+.year-group .year-heading { margin-top: 18px; margin-bottom: 10px; }
+@media (max-width: 900px) {
+  .career-list .career-row:not(.as-card) { grid-template-columns: 30px minmax(0, 1fr) 18px; row-gap: 4px; }
+  .career-list .career-row:not(.as-card) .career-info { flex-wrap: wrap; }
+  .career-list .career-row:not(.as-card) .career-info h4 { flex-basis: 100%; white-space: normal; }
+  .career-list .career-row:not(.as-card) .career-row-date,
+  .career-list .career-row:not(.as-card) .career-row-evidence { grid-column: 2; justify-self: start; text-align: left; }
+  .career-list .career-row:not(.as-card) .career-row-arrow { grid-column: 3; grid-row: 1; }
+}
+
+/* B3. Home keeps the growth map only, full width. */
+.growth-dashboard.growth-map-only > .journey-card { grid-column: 1 / -1; }
+.growth-dashboard.growth-map-only .growth-map-canvas { min-height: 280px; }
+.growth-dashboard.growth-map-only .growth-data-note { grid-column: 1 / -1; }
+.journey-pin { cursor: pointer; }
+.journey-pin .pin-label small { font-size: 13px; }
+
+/* A5. Document vault: drop onto the list, labelled row actions, separated delete. */
+.document-drop-area { position: relative; border-radius: 16px; transition: box-shadow .15s, background .15s; }
+.document-drop-area.dragging { box-shadow: 0 0 0 3px var(--ui-accent-line); background: var(--ui-accent-soft); }
+.document-section-heading .compact-upload { min-height: 36px; padding: 0 14px; }
+.document-drop-hint { display: flex; align-items: center; gap: 7px; margin: -4px 0 14px; color: var(--ui-muted); font-size: 13px; line-height: 1.5; }
+.document-drop-hint svg { flex: 0 0 auto; color: var(--ui-accent-ink); }
+.document-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.doc-action {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 0 10px;
+  border: 1px solid transparent; border-radius: 8px; background: transparent;
+  color: var(--ui-text); font-size: 13px; font-weight: 500; white-space: nowrap; text-decoration: none; cursor: pointer;
+}
+.doc-action:hover:not(:disabled) { background: var(--ui-inset); border-color: var(--ui-border); }
+.doc-action:disabled { opacity: .5; cursor: progress; }
+.doc-action-divider { width: 1px; height: 22px; margin: 0 6px 0 10px; background: var(--ui-border); }
+.doc-action.danger { color: var(--ui-danger-ink); }
+.doc-action.danger:hover:not(:disabled) { background: var(--ui-danger-soft); border-color: var(--ui-danger-line); }
+@media (max-width: 900px) {
+  .doc-action span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .doc-action { padding: 0 9px; }
+}
+
+/* B4. One "백업 파일" card. */
+.backup-files-card .settings-card-heading .muted { margin-top: 4px; font-size: 13px; }
+.backup-files-primary {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 18px 20px; border: 1px solid var(--ui-accent-line); border-radius: 12px; background: var(--ui-accent-soft);
+}
+.backup-files-primary h3, .backup-files-row h3 { margin: 0 0 4px; font-size: 15px; }
+.backup-files-primary p, .backup-files-row p { margin: 0; color: var(--ui-muted); font-size: 13px; line-height: 1.55; }
+.backup-files-primary .button { flex: 0 0 auto; }
+.backup-files-secondary { display: grid; margin-top: 12px; }
+.backup-files-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 4px; border-bottom: 1px solid var(--ui-border); }
+.backup-files-row > div:first-child { min-width: 0; }
+.backup-files-row .workspace-json-embedded { flex: 0 0 auto; }
+.backup-files-row .workspace-json-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin: 0; }
+.backup-files-row .workspace-import-result { margin-top: 10px; font-size: 13px; }
+.backup-code-disclosure { margin-top: 14px; }
+.backup-code-disclosure > summary { cursor: pointer; color: var(--ui-muted); font-size: 13px; font-weight: 600; padding: 6px 2px; }
+.backup-code-disclosure[open] > summary { color: var(--ui-text); }
+.backup-code-disclosure .backup-code-restore { margin-top: 8px; }
+@media (max-width: 760px) {
+  .backup-files-primary, .backup-files-row { flex-direction: column; align-items: stretch; }
+  .backup-files-row .workspace-json-actions { justify-content: flex-start; }
+}
+
+/* A7. Korean section labels read better without uppercase tracking. */
+.nav-section-label, .workspace-nav-break { letter-spacing: 0; text-transform: none; font-size: 13px; font-weight: 700; color: var(--ui-muted); }
+.growth-eyebrow, .library-kicker, .reuse-heading .eyebrow, .page-heading .eyebrow { letter-spacing: 0; text-transform: none; }

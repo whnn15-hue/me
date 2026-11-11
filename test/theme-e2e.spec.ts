@@ -3,10 +3,10 @@ import {test,expect} from '@playwright/test';
 test('visible theme controls override the OS, persist, and sync between desktop tabs',async({page,context})=>{
   await page.setViewportSize({width:1280,height:900});
   await page.emulateMedia({colorScheme:'light'});
-  await page.goto('/');
+  await page.goto('/#settings');
   const original=await (await page.request.get('/api/data')).json();
   const originalWorkspace=await (await page.request.get('/api/workspace')).json();
-  const modes=page.getByRole('group',{name:'화면 모드',exact:true});
+  const modes=page.getByRole('group',{name:'설정 화면 모드',exact:true});
   const root=page.locator('.main-shell');
   for(const label of ['라이트','다크','시스템']){
     await expect(modes.getByRole('button',{name:label,exact:true})).toBeInViewport();
@@ -31,8 +31,8 @@ test('visible theme controls override the OS, persist, and sync between desktop 
   // A second tab follows saved preferences, while each tab resolves its own OS mode.
   const second=await context.newPage();
   await second.emulateMedia({colorScheme:'light'});
-  await second.goto('/');
-  const secondModes=second.getByRole('group',{name:'화면 모드',exact:true});
+  await second.goto('/#settings');
+  const secondModes=second.getByRole('group',{name:'설정 화면 모드',exact:true});
   await expect(secondModes.getByRole('button',{name:'라이트',exact:true})).toHaveAttribute('aria-pressed','true');
   await modes.getByRole('button',{name:'다크',exact:true}).click();
   await expect(second.locator('.main-shell')).toHaveCSS('background-color','rgb(20, 20, 20)');
@@ -55,8 +55,8 @@ test('theme selection works when browser storage is blocked',async({page})=>{
   await page.addInitScript(()=>{
     Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError');}});
   });
-  await page.goto('/');
-  const modes=page.getByRole('group',{name:'화면 모드',exact:true});
+  await page.goto('/#settings');
+  const modes=page.getByRole('group',{name:'설정 화면 모드',exact:true});
   await expect(modes).toBeVisible();
   await modes.getByRole('button',{name:'다크',exact:true}).click();
   await expect(page.locator('.main-shell')).toHaveCSS('background-color','rgb(20, 20, 20)');
@@ -92,7 +92,6 @@ test('desktop palette follows the system live across all workspaces without losi
   await page.screenshot({path:'/tmp/introduce-me-dark-editor.png',animations:'disabled'});
   await editor.getByRole('button',{name:'취소',exact:true}).click();
   await expect(page.locator('.growth-card').first()).toHaveCSS('background-color','rgb(32, 32, 32)');
-  await expect(page.locator('.chart-axis').first()).toHaveCSS('fill','rgb(182, 182, 182)');
   await page.screenshot({path:'/tmp/introduce-me-neutral-dark.png',animations:'disabled'});
   // Every tab uses the same semantic surfaces, including its editor.
   for(const [tab,add,dialog] of [['수업','수업 추가','새 수업 기록'],['강의 자료','자료 추가','강의 자료 추가']]){

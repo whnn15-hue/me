@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowUpRight,
@@ -54,6 +54,7 @@ export default function BackupSettings({
   onToast,
   careers,
   documents,
+  jsonBackup,
 }: {
   status: Status;
   onRefresh: () => Promise<void>;
@@ -61,6 +62,8 @@ export default function BackupSettings({
   onToast: (s: string) => void;
   careers: number;
   documents: number;
+  /** JSON export/import controls, shown inside the merged backup-file card. */
+  jsonBackup?: ReactNode;
 }) {
   const [busy, setBusy] = useState(""),
     [restore, setRestore] = useState<File | null>(null),
@@ -68,6 +71,7 @@ export default function BackupSettings({
     [backupCode, setBackupCode] = useState(""),
     [backupCodeError, setBackupCodeError] = useState("");
   const restoreRef = useRef<HTMLInputElement>(null);
+  const storageName = status.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
   async function localBackup() {
     setBusy("전체 백업 만드는 중");
     try {
@@ -83,7 +87,7 @@ export default function BackupSettings({
     }
   }
   async function driveBackup() {
-    setBusy("드라이브에 백업 중");
+    setBusy(`${storageName}에 백업 중`);
     try {
       await api("/backup/drive", { method: "POST" });
       await onRefresh();
@@ -159,7 +163,7 @@ export default function BackupSettings({
       await api("/auth/drive/disconnect", { method: "POST" });
       await onRefresh();
       setDisconnect(false);
-      onToast("드라이브 백업 연결을 해제했습니다. 기존 백업은 남아 있습니다.");
+      onToast(`${storageName} 연결을 해제했습니다. 기존 백업은 남아 있습니다.`);
     } catch (e) {
       onError(e);
     } finally {
@@ -190,7 +194,7 @@ export default function BackupSettings({
     }
   }
   async function connectDrive() {
-    setBusy("드라이브 연결 준비 중");
+    setBusy(`${storageName} 연결 준비 중`);
     try {
       const result = await api<{ url: string }>("/auth/drive/start", {
         method: "POST",
@@ -199,7 +203,7 @@ export default function BackupSettings({
         } : {}),
       });
       if (new URL(result.url).protocol !== "https:")
-        throw new Error("드라이브 연결 주소를 확인하지 못했습니다.");
+        throw new Error(`${storageName} 연결 주소를 확인하지 못했습니다.`);
       window.location.assign(result.url);
     } catch (e) {
       onError(e);
@@ -207,7 +211,6 @@ export default function BackupSettings({
       setBusy("");
     }
   }
-  const storageName = status.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
   const configured = cloudMode
     ? status.firebaseConfigured
     : status.googleConfigured && status.ownerConfigured;
@@ -225,7 +228,7 @@ export default function BackupSettings({
         {freeMode && (
           <div className="notice">
             <HardDrive size={17} />
-            <span>경력 정보는 계정에 저장하고 공문 원본은 {storageName}에 보관합니다. 공문을 올리기 전에 드라이브를 연결해 주세요.</span>
+            <span>경력 정보는 계정에 저장하고 공문 원본은 {storageName}에 보관합니다. 공문을 올리기 전에 {storageName}를 연결해 주세요.</span>
           </div>
         )}
         {freeMode && status.user && (
@@ -366,7 +369,7 @@ export default function BackupSettings({
             <p>
               <Check size={15} />
               {freeMode
-                ? "공문 원본은 드라이브에 유지, 복원할 때 원본 무결성 확인"
+                ? `공문 원본은 ${storageName}에 유지, 복원할 때 원본 무결성 확인`
                 : "파일 원본과 경력 연결 관계까지 함께 저장"}
             </p>
           </div>
@@ -393,69 +396,66 @@ export default function BackupSettings({
               cloudMode ? (
                 <button className="button primary" onClick={connectDrive} disabled={!!busy}>
                   <Cloud size={17} />
-                  드라이브 백업 연결
+                  {storageName} 연결
                 </button>
               ) : (
               <a className="button primary" href="/api/auth/drive">
                 <Cloud size={17} />
-                드라이브 백업 연결
+                {storageName} 연결
               </a>
               )
             ) : (
               <>
                 <button className="button primary" disabled>
                   <Cloud size={17} />
-                  드라이브 백업 연결
+                  {storageName} 연결
                 </button>
                 <span className="muted">
                   {cloudMode && status.user
-                    ? "드라이브 백업 연결 설정이 필요합니다. 서버 설정 후 연결할 수 있어요."
+                    ? `${storageName} 연결 설정이 필요합니다. 서버 설정 후 연결할 수 있어요.`
                     : "구글 로그인 연결 후 사용할 수 있어요."}
                 </span>
               </>
             )}
           </div>
         </section>
-        <section className="panel settings-card">
+        <section className="panel settings-card backup-files-card" aria-labelledby="backup-files-heading">
           <div className="settings-card-heading">
             <span className="integration-icon local-icon">
               <HardDrive size={26} />
             </span>
             <div>
-              <h2>파일로 백업, 복원</h2>
+              <h2 id="backup-files-heading">백업 파일</h2>
+              <p className="muted">컴퓨터에 보관하는 백업이에요. 정기적으로 받아 안전한 폴더에 두세요.</p>
             </div>
           </div>
-          <div className="local-backup-options">
+          <div className="backup-files-primary">
             <div>
-              <h3>전체 백업 내려받기</h3>
-              <p>
-                경력 정보와 첨부 원본이 포함된 ZIP입니다.
-                <br />
-                안전한 폴더에 보관해 주세요.
-              </p>
-              <button
-                className="button secondary"
-                onClick={localBackup}
-                disabled={!!busy}
-              >
-                <ArrowDownToLine size={16} />
-                백업 ZIP 받기
-              </button>
+              <h3>전체 백업 ZIP</h3>
+              <p>경력 정보와 공문 원본까지 모두 들어 있어요. 복원할 때 가장 확실한 백업이에요.</p>
             </div>
-            <div>
-              <h3>백업에서 복원하기</h3>
-              <p>
-                {freeMode ? "전체 백업 ZIP 또는 드라이브 자동 백업 JSON을 올려" : "이 앱에서 만든 백업 ZIP을 올려"}
-                <br />
-                경력과 공문을 복원합니다.
-              </p>
+            <button
+              className="button primary"
+              onClick={localBackup}
+              disabled={!!busy}
+            >
+              <ArrowDownToLine size={16} />
+              전체 백업 ZIP 받기
+            </button>
+          </div>
+          <div className="backup-files-secondary">
+            <div className="backup-files-row">
+              <div>
+                <h3>백업에서 복원</h3>
+                <p>{freeMode ? `전체 백업 ZIP 또는 ${storageName} 자동 백업 JSON으로 경력과 공문을 복원합니다.` : "이 앱에서 만든 백업 ZIP으로 경력과 공문을 복원합니다."}</p>
+              </div>
               <button
                 className="button secondary"
                 onClick={() => restoreRef.current?.click()}
                 disabled={!!busy}
               >
                 <Upload size={16} />
-                백업 파일 선택
+                백업 파일로 복원
               </button>
               <input
                 className="visually-hidden"
@@ -473,37 +473,47 @@ export default function BackupSettings({
                   e.target.value = "";
                 }}
               />
-              <div className="backup-code-restore">
-                <p>파일을 받기 어려우면 전달받은 백업 코드를 붙여넣으세요.</p>
-                <label className="field">
-                  <span>백업 코드</span>
-                  <textarea
-                    aria-label="백업 코드"
-                    rows={4}
-                    value={backupCode}
-                    autoComplete="off"
-                    spellCheck={false}
-                    disabled={!!busy}
-                    onChange={(e) => {
-                      setBackupCode(e.target.value);
-                      setBackupCodeError("");
-                    }}
-                  />
-                </label>
-                {backupCodeError && (
-                  <div className="alert error" role="alert">{backupCodeError}</div>
-                )}
-                <button
-                  className="button secondary"
-                  disabled={!!busy || !backupCode.trim()}
-                  onClick={restoreFromCode}
-                >
-                  <Upload size={16} />
-                  백업 코드로 복원
-                </button>
-              </div>
             </div>
+            {jsonBackup && <div className="backup-files-row">
+              <div>
+                <h3>전체 기록 JSON</h3>
+                <p>이력, 수업, 자료, 사진과 제출본의 기록과 연결 정보만 담아요. 원본 파일은 ZIP에 있어요.</p>
+              </div>
+              {jsonBackup}
+            </div>}
           </div>
+          <details className="backup-code-disclosure">
+            <summary>비상용 백업 코드로 복원</summary>
+            <div className="backup-code-restore">
+              <p>파일을 받기 어려우면 전달받은 백업 코드를 붙여넣으세요.</p>
+              <label className="field">
+                <span>백업 코드</span>
+                <textarea
+                  aria-label="백업 코드"
+                  rows={4}
+                  value={backupCode}
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={!!busy}
+                  onChange={(e) => {
+                    setBackupCode(e.target.value);
+                    setBackupCodeError("");
+                  }}
+                />
+              </label>
+              {backupCodeError && (
+                <div className="alert error" role="alert">{backupCodeError}</div>
+              )}
+              <button
+                className="button secondary"
+                disabled={!!busy || !backupCode.trim()}
+                onClick={restoreFromCode}
+              >
+                <Upload size={16} />
+                백업 코드로 복원
+              </button>
+            </div>
+          </details>
         </section>
         {freeMode ? <AiConnection onRefresh={onRefresh}/> : <>
         <section className="panel settings-card">
@@ -557,15 +567,10 @@ export default function BackupSettings({
           <h4>다른 컴퓨터에서 사용하려면</h4>
           <p>
             {freeMode
-              ? "경력 정보는 계정에, 공문 원본은 구글 드라이브에 저장됩니다. 이 웹주소에서 같은 구글 계정으로 로그인하면 다른 컴퓨터에서도 이어서 사용할 수 있어요."
+              ? `경력 정보는 계정에, 공문 원본은 ${storageName}에 저장됩니다. 이 웹주소에서 같은 구글 계정으로 로그인하면 다른 컴퓨터에서도 이어서 사용할 수 있어요.`
               : cloudMode
               ? "경력과 공문은 Firebase에 저장됩니다. 이 웹주소에서 같은 구글 계정으로 로그인하면 다른 컴퓨터에서도 이어서 사용할 수 있어요."
               : "앱을 HTTPS 주소로 배포하고 본인 구글 계정으로 로그인하세요. 로컬 개발 화면과 공개 배포는 별개의 단계예요."}
-          </p>
-          <h4>노션은요?</h4>
-          <p>
-            첫 버전은 구글 드라이브 백업을 지원합니다. 노션으로 경력을 열람하는
-            기능은 추후 확장할 수 있어요.
           </p>
         </div>
       </aside>
@@ -589,7 +594,7 @@ export default function BackupSettings({
             <div className="notice">
               <ShieldCheck size={16} />
               {freeMode && restore.name.toLowerCase().endsWith(".json")
-                ? "백업 정보와 드라이브 원본을 모두 확인한 뒤 복원합니다. 백업에 연결된 드라이브를 먼저 연결해 주세요."
+                ? `백업 정보와 ${storageName} 원본을 모두 확인한 뒤 복원합니다. 백업에 쓰인 ${storageName}를 먼저 연결해 주세요.`
                 : "백업 파일 구조와 첨부 원본의 무결성을 검사한 뒤 복원합니다."}
             </div>
           </div>
@@ -613,7 +618,7 @@ export default function BackupSettings({
       )}
       {disconnect && (
         <Modal
-          title="드라이브 백업 연결을 해제할까요?"
+          title={`${storageName} 연결을 해제할까요?`}
           onClose={() => setDisconnect(false)}
         >
           <div className="modal-body">

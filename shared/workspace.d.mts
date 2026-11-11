@@ -5,6 +5,7 @@ export const WORKSPACE_ROW_PREFIX: string;
 export const WORKSPACE_ROW_TAG: string;
 export const MAX_WORKSPACE_ITEMS: number;
 export const MAX_WORKSPACE_LINKS: number;
+export const RESEARCH_TYPES: readonly ("계획서" | "보고서" | "발표자료" | "부록·증빙" | "참고자료" | "기타")[];
 export function validWorkspaceId(value: unknown): value is string;
 export function normalizeWorkspaceUrl(value: unknown, options?: {httpsOnly?: boolean; driveOnly?: boolean}): string;
 export function workspaceItemRef(item: WorkspaceItem): string;
