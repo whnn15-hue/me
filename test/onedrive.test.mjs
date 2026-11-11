@@ -89,6 +89,9 @@ async function connect(f, drive = f.create(), expectRedirect = true) {
 test('storage IDs accept Google Drive and OneDrive personal formats only', () => {
   assert.ok(validGoogleDriveId('1AbC_def-GHIjkl'));
   assert.ok(validOneDriveItemId('ABCDEF0123456789!1234'));
+  // Format observed on a real personal account on 2026-11-11 (new-style item IDs).
+  assert.ok(validOneDriveItemId('AF91D1708B3A5395!sc72cd4398c0649d5b37282030bfcb165'));
+  assert.ok(validStorageFileId('AF91D1708B3A5395!s7085ee9ba1a04d3e9561d24f6eb7e9e4'));
   assert.ok(validStorageFileId('ABCDEF0123456789!1234') && validStorageFileId('1AbC_def-GHIjkl'));
   for (const bad of ['short', '../../../etc', 'a/b/c/d/e/f', 'ABC!12..34', 'x'.repeat(260), 42]) assert.equal(validStorageFileId(bad), false, String(bad));
   assert.equal(oneDriveName('a:b*c?.'), 'a_b_c_');
