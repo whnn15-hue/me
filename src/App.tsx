@@ -71,6 +71,7 @@ import BackupSettings from "./BackupSettings";
 import ProjectsView from "./workspace/ProjectsView";
 import MaterialImport from "./workspace/MaterialImport";
 import MaterialsView from "./workspace/MaterialsView";
+import ResearchView from "./workspace/ResearchView";
 import GraduateView from "./workspace/GraduateView";
 import WorkspaceSearch from "./workspace/WorkspaceSearch";
 import WorkspaceBackup from "./workspace/WorkspaceBackup";
@@ -104,6 +105,7 @@ const navItems: {
   { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
   { view: "materials", label: "강의 자료", icon: BookOpen, description: "만들고 모아둔 자료" },
   { view: "graduate", label: "대학원", icon: GraduationCap, description: "" },
+  { view: "research", label: "연구대회 자료", icon: FileText, description: "내가 만든 계획서와 보고서" },
   {
     view: "documents",
     label: "공문 보관함",
@@ -435,7 +437,7 @@ export default function App() {
     } else {
       const item = workspace.items.find(item => item.id === id && item.kind === kind);
       if (!item) return;
-      changeView(item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? "materials" : "graduate");
+      changeView(item.kind === "project" || item.kind === "material" && item.purpose === "classroom" ? "projects" : item.kind === "material" ? item.purpose === "research" ? "research" : "materials" : "graduate");
       setWorkspaceFocus(id);
       setWorkspaceFocusVersion(version => version + 1);
     }
@@ -604,6 +606,15 @@ export default function App() {
       setQueue(drafts.slice(1));
       setAnalysisNote([...new Set(notes)].join(" "));
     } else if (notes.length) setError(notes.join("\n"));
+  }
+  async function uploadResearchFile(file: File): Promise<DocumentRecord> {
+    if (freeMode && !status?.driveConnected) throw new Error("백업 및 설정에서 구글 드라이브를 먼저 연결해 주세요.");
+    const form = new FormData(); form.append("files", file);
+    const uploaded = await api<{documents: DocumentRecord[]}>("/documents", {method: "POST", body: form});
+    const original = uploaded.documents[0];
+    if (!original) throw new Error("원본 파일을 보관하지 못했습니다.");
+    setDocuments(current => [...current.filter(doc => doc.id !== original.id), original]);
+    return original;
   }
   async function uploadMaterials(files: File[], purpose: "lecture" | "classroom") {
     if (materialUploading.current || busy) return;
@@ -900,9 +911,9 @@ export default function App() {
             </div>
           ) : (
             <>
-              {["home", "careers", "projects", "materials", "graduate"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 4).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
+              {["home", "careers", "projects", "materials", "graduate", "research"].includes(view) && <nav className="workspace-main-tabs" aria-label="기록 종류">{navItems.slice(0, 5).map(item => <button key={item.view} className={view === item.view ? "active" : ""} aria-current={view === item.view ? "page" : undefined} onClick={() => changeView(item.view)}><item.icon size={17} />{item.label}</button>)}</nav>}
               {view === "home" && status && <HomeDashboard careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
-              {!["home", "projects", "materials", "graduate"].includes(view) && <div className="page-heading">
+              {!["home", "projects", "materials", "graduate", "research"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
                     {view === "careers"
@@ -1160,6 +1171,7 @@ export default function App() {
               {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
               {view === "materials" && <MaterialsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadHtmlPreview={freeMode ? async item => (await import("./free/material-preview")).loadMaterialHtml(item) : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} />}
               {view === "graduate" && <GraduateView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} />}
+              {view === "research" && <ResearchView initialSection={workspaceTarget.section} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} documents={documents} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onUploadFile={uploadResearchFile} />}
               {view === "documents" && (
                 <DocumentsView
                   documents={documents}

@@ -13,7 +13,7 @@ interface Props {
   onUpload: () => void; onCreate: () => void; busy: boolean;
 }
 function kindLabel(item: WorkspaceItem) {
-  return item.kind === "material" ? item.purpose === "classroom" ? "학급 자료" : "강의 자료" : item.kind === "project" ? "수업" : item.kind === "paper" ? "논문 노트" : "주제 메모";
+  return item.kind === "material" ? item.purpose === "classroom" ? "학급 자료" : item.purpose === "research" ? "연구대회 자료" : "강의 자료" : item.kind === "project" ? "수업" : item.kind === "paper" ? "논문 노트" : "주제 메모";
 }
 export default function HomeDashboard({ careers, documents, workspace, status, onOpen, onView, onUpload, onCreate, busy }: Props) {
   const today = seoulToday();
@@ -21,8 +21,9 @@ export default function HomeDashboard({ careers, documents, workspace, status, o
   const shortcuts = [
     { view: "careers", label: "이력", icon: Layers3, count: careers.length, detail: "활동과 증빙" },
     { view: "projects", label: "수업", icon: Folder, count: workspace.items.filter(item => item.kind === "project" || item.kind === "material" && item.purpose === "classroom").length, detail: "수업 기록과 학급 자료" },
-    { view: "materials", label: "강의 자료", icon: BookOpen, count: workspace.items.filter(item => item.kind === "material" && item.purpose !== "classroom").length, detail: "강의안과 참고 자료" },
+    { view: "materials", label: "강의 자료", icon: BookOpen, count: workspace.items.filter(item => item.kind === "material" && (item.purpose ?? "lecture") === "lecture").length, detail: "강의안과 참고 자료" },
     { view: "graduate", label: "대학원", icon: GraduationCap, count: workspace.items.filter(item => ["course", "assignment", "paper", "idea"].includes(item.kind)).length, detail: "강좌와 연구 노트" },
+    { view: "research", label: "연구대회 자료", icon: FileText, count: workspace.items.filter(item => item.kind === "material" && item.purpose === "research").length, detail: "계획서와 보고서, 발표자료" },
   ] as const;
   const dayLabel = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" }).format(new Date());
   const backupDate = status.lastBackup ? new Date(status.lastBackup) : null;

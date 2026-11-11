@@ -13,7 +13,8 @@ export interface ProjectItem extends WorkspaceItemBase {
 }
 export interface MaterialItem extends WorkspaceItemBase {
   kind: "material"; ownership: "created" | "collected"; author: string; eventName: string;
-  purpose?: "classroom" | "lecture";
+  purpose?: "classroom" | "lecture" | "research";
+  researchType?: "계획서" | "보고서" | "발표자료" | "부록·증빙" | "참고자료" | "기타";
   subjects?: string[];
   trainings?: string[];
   sourceFile?: { name: string; size: number; sha256: string };

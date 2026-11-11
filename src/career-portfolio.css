@@ -1,5 +1,5 @@
 /* The four workspaces and the career collections have separate visual levels. */
-.workspace-main-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; padding: 5px; background: var(--ui-inset, #edf1e9); border: 1px solid var(--ui-border, #e1e7dc); border-radius: 12px; margin-bottom: 30px; }
+.workspace-main-tabs { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 5px; padding: 5px; background: var(--ui-inset, #edf1e9); border: 1px solid var(--ui-border, #e1e7dc); border-radius: 12px; margin-bottom: 30px; }
 .workspace-main-tabs button { justify-content: center; border: 0; border-radius: 8px; padding: 13px 8px; min-height: 46px; color: var(--ui-muted, #697767); font-size: 14px; }
 .workspace-main-tabs button.active { background: var(--ui-surface, #fff); color: var(--ui-text, #254f3b); box-shadow: 0 2px 7px rgb(var(--ui-shadow-rgb, 0 0 0) / 0.063); }
 .page-heading h1 { font-size: 32px; letter-spacing: -.04em; }

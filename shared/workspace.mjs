@@ -79,8 +79,12 @@ export function normalizeWorkspaceItem(value, previous) {
       // Legacy material rows stay byte-for-byte shaped as before. An absent
       // purpose is interpreted as lecture by the view, not persisted here.
       if (merged.purpose !== undefined) {
-        if (!['classroom', 'lecture'].includes(merged.purpose)) fail('자료를 보관할 곳을 확인해 주세요.');
+        if (!['classroom', 'lecture', 'research'].includes(merged.purpose)) fail('자료를 보관할 곳을 확인해 주세요.');
         result.purpose = merged.purpose;
+      }
+      if (merged.researchType !== undefined) {
+        if (!['계획서', '보고서', '발표자료', '부록·증빙', '참고자료', '기타'].includes(merged.researchType)) fail('연구대회 자료 종류를 확인해 주세요.');
+        result.researchType = merged.researchType;
       }
       for (const field of ['subjects', 'trainings']) if (merged[field] !== undefined) result[field] = strings(merged[field], 30, 100);
       if (merged.sourceFile !== undefined) {
