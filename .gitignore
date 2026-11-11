@@ -18,3 +18,4 @@ server/seed.json
 
 .preview-dist/
 .preview-test-results/
+.vercel/

@@ -4,4 +4,4 @@ const values = { VITE_PREVIEW_MODE: 'true', VITE_CLOUD_MODE: 'false', VITE_DEPLO
   VITE_OWNER_EMAIL: '', VITE_FIREBASE_API_KEY: '', VITE_FIREBASE_PROJECT_ID: '', VITE_FIREBASE_AUTH_DOMAIN: '', VITE_FIREBASE_STORAGE_BUCKET: '', VITE_FIREBASE_APP_ID: '' };
 await build({ mode: 'preview', envPrefix: '__PREVIEW_NO_PUBLIC_ENV__',
   define: Object.fromEntries(Object.entries(values).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
-  build: { outDir: '.preview-dist', emptyOutDir: true } });
+  build: { outDir: process.env.PREVIEW_OUT_DIR || '.preview-dist', emptyOutDir: true } });

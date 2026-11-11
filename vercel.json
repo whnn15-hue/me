@@ -1,0 +1,114 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "node scripts/vercel-build.mjs",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/career-api.mjs": {
+      "maxDuration": 60,
+      "includeFiles": "node_modules/{pdfjs-dist,@napi-rs}/**"
+    },
+    "api/career-ai-background.mjs": {
+      "maxDuration": 120
+    },
+    "api/cron-backup.mjs": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-backup",
+      "schedule": "0 18 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/ai/connect/run",
+      "destination": "/api/career-ai-background"
+    },
+    {
+      "source": "/api/:path((?!career-api|career-ai-background|cron-backup).*)",
+      "destination": "/api/career-api?__path=:path"
+    },
+    {
+      "source": "/((?!api/|assets/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com https://*.web.app; frame-src 'self' https://*.firebaseapp.com https://*.web.app https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        }
+      ]
+    },
+    {
+      "source": "/imports/(.*).bin",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/octet-stream"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
