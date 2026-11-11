@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { createFreeOneDrive, UPLOAD_CHUNK_BYTES, decodeArchiveDescription, oneDriveName } from '../server/free/onedrive.mjs';
 import { readDriveFile } from '../server/free/files.mjs';
 import { validGoogleDriveId, validOneDriveItemId, validStorageFileId } from '../shared/storage-id.mjs';
+// Same encoding real OneDrive Personal applies to descriptions it returns.
+const oneDriveEncoded = text => String(text).replace(/[{}":]/g, c => ({ '{': '&#123;', '}': '&#125;', '"': '&quot;', ':': '&#58;' })[c]);
 
 const config = { appUrl: 'https://career.example.app', ownerEmail: 'owner@example.com', microsoftClientId: 'ms-client', microsoftClientSecret: 'ms-secret' };
 const owner = { uid: 'owner-uid', email: config.ownerEmail, token: 'verified-firebase-id-token' };
@@ -44,6 +46,7 @@ function fixture(overrides = {}) {
     if (url.endsWith(':/createUploadSession')) {
       const name = decodeURIComponent(url.split(':/').at(-2));
       const uploadUrl = `https://api.onedrive.com/rup/session-${++sequence}`;
+      if (JSON.parse(options.body).item?.description !== undefined) return json({ error: { code: 'invalidRequest', message: 'Invalid request' } }, 400);
       sessions.set(uploadUrl, { name, item: JSON.parse(options.body).item, chunks: [] });
       return json({ uploadUrl });
     }
@@ -58,13 +61,15 @@ function fixture(overrides = {}) {
       const id = `ABCDEF0123456789!${200 + sequence}`;
       const content = Buffer.concat(session.chunks.map(chunk => chunk.bytes));
       items.set(id, { id, name: session.name, size: content.length, file: { mimeType: options.headers['Content-Type'] },
-        parentReference: { id: FOLDER }, description: session.item.description, content });
+        parentReference: { id: FOLDER }, content });
       return json({ id, name: session.name }, 201);
     }
     const match = /\/me\/drive\/items\/([^/?]+)(\/content)?/.exec(url);
     if (match) {
       const item = items.get(decodeURIComponent(match[1]));
       if (!item) return json({}, 404);
+      if (options.method === 'PATCH') { item.description = oneDriveEncoded(JSON.parse(options.body).description); return json({ id: item.id }); }
+      if (options.method === 'DELETE') { items.delete(item.id); return json({}, 204); }
       if (match[2]) return { ok: true, status: 200, headers: new Headers({ 'content-length': String(item.content.length) }), body: new Blob([item.content]).stream() };
       const { content, ...metadata } = item; return json(metadata);
     }

@@ -6,6 +6,8 @@ import { createOneDriveMigration, migrationCounts } from '../server/free/storage
 import { createFreeApi } from '../server/free/api.mjs';
 import { planFileIdSwap } from '../shared/storage-migration.mjs';
 import { validOneDriveItemId } from '../shared/storage-id.mjs';
+// Same encoding real OneDrive Personal applies to descriptions it returns.
+const oneDriveEncoded = text => String(text).replace(/[{}":]/g, c => ({ '{': '&#123;', '}': '&#125;', '"': '&quot;', ':': '&#58;' })[c]);
 
 const config = { appUrl: 'https://career.example.app', ownerEmail: 'owner@example.com', projectId: 'career-test', firebaseWebApiKey: 'public-key',
   driveEnabled: true, googleClientId: 'google-client', googleClientSecret: 'google-secret', microsoftClientId: 'ms-client', microsoftClientSecret: 'ms-secret', storageProvider: 'google' };
@@ -52,6 +54,7 @@ function fixture({ files = 3, onOneDrive = 1, corrupt = [], clock } = {}) {
     if (url.includes('/children?')) return json({ value: [...items.values()].map(({ content, ...item }) => item) });
     if (url.endsWith(':/createUploadSession')) {
       stats.sessions++; const uploadUrl = `https://api.onedrive.com/rup/session-${++sequence}`;
+      if (JSON.parse(options.body).item?.description !== undefined) return json({ error: { code: 'invalidRequest', message: 'Invalid request' } }, 400);
       sessions.set(uploadUrl, { name: decodeURIComponent(url.split(':/').at(-2)), item: JSON.parse(options.body).item, chunks: [] }); return json({ uploadUrl });
     }
     if (url.startsWith('https://api.onedrive.com/rup/')) {
@@ -60,11 +63,11 @@ function fixture({ files = 3, onOneDrive = 1, corrupt = [], clock } = {}) {
       const total = Number(options.headers['Content-Range'].split('/')[1]), content = Buffer.concat(session.chunks);
       if (content.length < total) return json({}, 202);
       const id = `AF91D1708B3A5395!s${String(++sequence).padStart(32, '0')}`;
-      items.set(id, { id, name: session.name, size: content.length, file: { mimeType: 'application/pdf' }, parentReference: { id: FOLDER }, description: session.item.description, content });
+      items.set(id, { id, name: session.name, size: content.length, file: { mimeType: 'application/pdf' }, parentReference: { id: FOLDER }, content });
       return json({ id, name: session.name }, 201);
     }
     const match = /\/me\/drive\/items\/([^/?]+)(\/content)?/.exec(url);
-    if (match) { const item = items.get(decodeURIComponent(match[1])); if (!item) return json({}, 404); if (match[2]) return stream(item.content); const { content, ...metadata } = item; return json(metadata); }
+    if (match) { const item = items.get(decodeURIComponent(match[1])); if (!item) return json({}, 404); if (options.method === 'PATCH') { item.description = oneDriveEncoded(JSON.parse(options.body).description); return json({ id: item.id }); } if (options.method === 'DELETE') { items.delete(item.id); return json({}, 204); } if (match[2]) return stream(item.content); const { content, ...metadata } = item; return json(metadata); }
     throw new Error(`Unexpected request ${url}`);
   };
   const refreshFirebaseOwner = async (token, { uid }) => ({ uid, email: config.ownerEmail, idToken: 'refreshed', refreshToken: 'firebase-refresh' });

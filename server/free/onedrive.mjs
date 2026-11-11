@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { networkFetch } from '../auth.mjs';
-import { validOneDriveItemId } from '../../shared/storage-id.mjs';
+import { validOneDriveItemId, decodeHtmlEntities } from '../../shared/storage-id.mjs';
 
 // Microsoft OneDrive (personal accounts) storage provider. It implements the same
 // interface as createFreeDrive so the API, backups and document reads stay the
@@ -33,7 +33,7 @@ export function encodeArchiveDescription({ archiveUid, kind, sha256 }) {
 }
 export function decodeArchiveDescription(value) {
   try {
-    const parsed = JSON.parse(String(value || ''));
+    const parsed = JSON.parse(decodeHtmlEntities(value));
     if (parsed?.v !== 1 || typeof parsed.archiveUid !== 'string' || !KINDS.includes(parsed.kind)) return null;
     return { archiveUid: parsed.archiveUid, kind: parsed.kind, ...(/^[a-f0-9]{64}$/.test(parsed.sha256 || '') ? { sha256: parsed.sha256 } : {}) };
   } catch { return null; }
@@ -249,11 +249,12 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     if (!name || !KINDS.includes(kind)) throw fault('파일 이름 또는 종류가 올바르지 않습니다.');
     const contentType = typeof mime === 'string' && /^[\w.+-]+\/[\w.+-]+$/.test(mime) ? mime : 'application/octet-stream';
     const description = encodeArchiveDescription({ archiveUid: uid, kind, sha256: createHash('sha256').update(buffer).digest('hex') });
-    // An upload session sets the description atomically with the content, for
-    // every size; fragments go to the pre-authorized URL without the token.
+    // OneDrive Personal rejects a description in createUploadSession (400
+    // invalidRequest, verified 2026-11-11), so it is set right after the upload.
+    // Fragments go to the pre-authorized URL without the token.
     const session = await fetcher(`${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
       method: 'POST', headers: { ...tokenHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename', name, description } }), signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename', name } }), signal: AbortSignal.timeout(20000),
     });
     if (!session.ok) throw fault(session.status === 507 ? 'OneDrive 저장 공간이 부족합니다.' : 'OneDrive 파일 업로드를 시작하지 못했습니다.', session.status === 507 ? 507 : 502);
     const { uploadUrl } = await session.json();
@@ -277,6 +278,14 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
       throw error.status ? error : fault('OneDrive 파일 업로드에 실패했습니다.', 502);
     }
     if (!validOneDriveItemId(item?.id)) throw fault('OneDrive 업로드 응답이 올바르지 않습니다.', 502);
+    const itemURL = `${GRAPH}/me/drive/items/${encodeURIComponent(item.id)}`;
+    const labelled = await fetcher(itemURL, { method: 'PATCH', headers: { ...tokenHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description }), signal: AbortSignal.timeout(20000) }).catch(() => null);
+    if (!labelled?.ok) {
+      // An unlabelled file would fail every ownership check; never leave one behind.
+      await fetcher(itemURL, { method: 'DELETE', headers: tokenHeaders(token), signal: AbortSignal.timeout(10000) }).catch(() => {});
+      throw fault('OneDrive 파일 정보를 저장하지 못했습니다. 다시 시도해 주세요.', 502);
+    }
     return { driveFileId: item.id, fileName: item.name || name, mime: contentType };
   }
   async function upload(uid, buffer, fileName, mime, kind = 'export') {
