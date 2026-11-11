@@ -1,4 +1,5 @@
 import type { Career, DocumentRecord } from "../types";
+import type {ResourceType, DriveQuota} from "../../shared/resources.mjs";
 
 export type WorkspaceKind = "project" | "material" | "course" | "assignment" | "paper" | "idea" | "photo" | "submission";
 export interface WorkspaceItemBase {
@@ -14,10 +15,11 @@ export interface ProjectItem extends WorkspaceItemBase {
 export interface MaterialItem extends WorkspaceItemBase {
   kind: "material"; ownership: "created" | "collected"; author: string; eventName: string;
   purpose?: "classroom" | "lecture";
+  resourceType?: ResourceType;
   subjects?: string[];
   trainings?: string[];
   sourceFile?: { name: string; size: number; sha256: string };
-  date: string; audience: string[]; format: "PPT" | "PDF" | "HWP" | "TXT" | "HTML" | "영상" | "기타"; fileUrl: string; summary: string;
+  date: string; audience: string[]; format: "PPT" | "PDF" | "HWP" | "TXT" | "HTML" | "영상" | "오디오" | "이미지" | "기타"; fileUrl: string; summary: string;
 }
 export interface CourseItem extends WorkspaceItemBase { kind: "course"; semester: string; professor: string; }
 export interface AssignmentItem extends WorkspaceItemBase {
@@ -61,6 +63,8 @@ export interface WorkspaceSectionProps {
   initialSection?: string;
   initialSubject?: string;
   loadHtmlPreview?: (item: MaterialItem) => Promise<string>;
+  loadAudioPreview?: (item: MaterialItem) => Promise<Blob>;
+  readDriveStorage?: () => Promise<DriveQuota>;
 }
 // Descriptive aliases keep individual tab code concise.
 export type Project = ProjectItem;

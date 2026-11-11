@@ -11,7 +11,7 @@ export const MAX_BACKUP_SIZE = 200 * 1024 * 1024;
 export const fault = (message, status = 400) => Object.assign(new Error(message), { status });
 export function safeName(name) { return String(name || '').replace(/[\/\\\u0000-\u001f]/g, '_').slice(0, 300); }
 export async function readBounded(response, maxBytes) {
-  if (!response.ok) throw fault('구글 드라이브에서 파일을 읽지 못했습니다.', 502);
+  if (!response.ok) throw fault('드라이브에서 파일을 읽지 못했습니다.', 502);
   const declared = Number(response.headers.get('content-length'));
   if (declared > maxBytes) throw fault('파일 용량 제한을 초과했습니다.', 413);
   const reader = response.body?.getReader();
@@ -23,9 +23,11 @@ export async function readBounded(response, maxBytes) {
   } finally { await reader.cancel().catch(() => {}); }
 }
 export async function readDriveFile(drive, fetcher, uid, id, options = {}) {
-  const { metadata, accessToken } = await drive.requireFile(uid, id, { kind: options.kind, driveAccessToken: options.driveAccessToken });
+  const file = await drive.requireFile(uid, id, { kind: options.kind, driveAccessToken: options.driveAccessToken });
+  const { metadata, accessToken, download } = file;
   if (!Number.isFinite(Number(metadata.size)) || Number(metadata.size) > MAX_FILE_SIZE) throw fault('공문 및 HWPX 양식은 25MB까지 지원합니다.', 413);
-  const response = await fetcher(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(25000) });
+  // OneDrive supplies its own download; Google Drive is read with alt=media.
+  const response = download ? await download() : await fetcher(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(25000) });
   const buffer = await readBounded(response, MAX_FILE_SIZE);
   const objectHash = metadata.appProperties?.sha256;
   if (['document', 'template'].includes(options.kind) && !/^[a-f0-9]{64}$/.test(objectHash || '')) throw fault('원본 파일의 무결성 정보가 없습니다. 다시 업로드해 주세요.');

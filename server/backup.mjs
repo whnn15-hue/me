@@ -1,3 +1,4 @@
+import {extraFileTypes} from '../shared/resources.mjs';
 import JSZip from 'jszip';
 import { readFile, writeFile, unlink, stat } from 'node:fs/promises';
 import { join, extname } from 'node:path';
@@ -7,7 +8,7 @@ import { normalizeCareer, publicDocument, cleanText } from './store.mjs';
 import { networkFetch } from './auth.mjs';
 import { normalizeWorkspace } from '../shared/workspace.mjs';
 
-export const ALLOWED_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.hwp', '.hwpx', '.docx', '.html', '.htm', '.txt', '.xlsx', '.cell', '.png', '.jpg', '.jpeg', '.webp']);
+export const ALLOWED_EXTENSIONS = new Set([...Object.keys(extraFileTypes).map(extension=>'.'+extension), '.pdf', '.ppt', '.pptx', '.hwp', '.hwpx', '.docx', '.html', '.htm', '.txt', '.xlsx', '.cell', '.png', '.jpg', '.jpeg', '.webp']);
 const MAX_BACKUP_SIZE = 200 * 1024 * 1024;
 const MAX_MANIFEST_SIZE = 5 * 1024 * 1024;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;

@@ -94,10 +94,10 @@ test('material library filters subjects, trainings, format, tags and search with
     await page.getByRole('button', { name: /필터 초기화/ }).click();
     await page.getByLabel('자료 형식 필터', { exact: true }).selectOption('PPT');
     await page.getByLabel('자료 태그 필터', { exact: true }).selectOption('미디어');
-    await page.getByLabel('강의 자료 검색', { exact: true }).fill('가상 교육 실습');
+    await page.getByLabel('자료실 검색', { exact: true }).fill('가상 교육 실습');
     assert.equal(await cards.count(), 1);
     assert.match(await cards.innerText(), /가상 강의 자료/);
-    await page.getByLabel('강의 자료 검색', { exact: true }).fill('존재하지 않는 자료');
+    await page.getByLabel('자료실 검색', { exact: true }).fill('존재하지 않는 자료');
     await page.getByText('조건에 맞는 자료가 없어요', { exact: true }).waitFor();
     await page.getByRole('button', { name: /필터 초기화/ }).first().click();
     assert.equal(await cards.count(), 2);
@@ -111,7 +111,7 @@ test('material library filters subjects, trainings, format, tags and search with
 test('material editor validates Drive links and saves simplified fields with chosen career and project links', browserOptions, async () => {
   await fixture(async page => {
     await page.getByRole('button', { name: '자료 추가', exact: true }).click();
-    const editor = page.getByRole('dialog', { name: '강의 자료 추가', exact: true });
+    const editor = page.getByRole('dialog', { name: '자료 추가', exact: true });
     await editor.waitFor();
     assert.equal(await editor.getByText('내가 만든 자료',{exact:true}).count(),0);
     if(await editor.locator('details.optional-fields:not([open])').count()) await editor.locator('details.optional-fields > summary').click();
@@ -137,7 +137,7 @@ test('material editor validates Drive links and saves simplified fields with cho
     assert.equal(saved.item.title, '새로운 가상 자료'); assert.equal(saved.item.author, '');
     assert.equal(saved.item.eventName, ''); assert.equal(saved.item.date, '');
     assert.equal(saved.item.format, '영상'); assert.equal(saved.item.fileUrl, 'https://drive.google.com/file/d/synthetic-new/view');
-    assert.deepEqual(saved.item.audience, []); assert.deepEqual(saved.item.tags, ['수업 설계']);
+    assert.deepEqual(saved.item.audience, []); assert.deepEqual(saved.item.tags, ['수업 설계', '영상']);
     assert.equal(saved.item.summary, '프로젝트에서 다시 활용할 내용');
     assert.equal(await page.locator('input[type=file]').count(), 0);
     await page.getByRole('button', { name: '새로운 가상 자료 상세보기', exact: true }).click();
@@ -156,7 +156,7 @@ test('materials retain existing links when edited and require confirmation befor
   await fixture(async page => {
     await page.getByRole('button', { name: '가상 강의 자료 상세보기', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: '수정하기', exact: true }).click();
-    const editor = page.getByRole('dialog', { name: '강의 자료 수정', exact: true });
+    const editor = page.getByRole('dialog', { name: '자료 수정', exact: true });
     await editor.getByLabel('제목', { exact: false }).fill('수정된 가상 자료');
     if(await editor.locator('details.optional-fields:not([open])').count()) await editor.locator('details.optional-fields > summary').click();
     assert.equal(await editor.getByRole('checkbox', { name: /가상 강의 경력/ }).isChecked(), true);
@@ -168,7 +168,7 @@ test('materials retain existing links when edited and require confirmation befor
     let detail = page.getByRole('dialog', { name: '수정된 가상 자료', exact: true });
     await detail.waitFor();
     await detail.getByRole('button', { name: '삭제', exact: true }).click();
-    const confirmation = page.getByRole('dialog', { name: '강의 자료를 삭제할까요?', exact: true });
+    const confirmation = page.getByRole('dialog', { name: '자료를 삭제할까요?', exact: true });
     await confirmation.waitFor();
     assert.deepEqual(await page.evaluate(() => fixture.deletes), []);
     await confirmation.getByRole('button', { name: '취소', exact: true }).click();
@@ -187,7 +187,7 @@ test('material editor and delete confirmation retain their original revision thr
   await fixture(async page => {
     await page.getByRole('button', { name: '가상 강의 자료 상세보기', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: '수정하기', exact: true }).click();
-    let editor = page.getByRole('dialog', { name: '강의 자료 수정', exact: true });
+    let editor = page.getByRole('dialog', { name: '자료 수정', exact: true });
     await editor.getByLabel('제목', { exact: false }).fill('사용자가 작성한 초안');
     await page.evaluate(() => { fixture.conflict = true; });
     await editor.getByRole('button', { name: '자료 저장', exact: true }).click();
@@ -201,14 +201,14 @@ test('material editor and delete confirmation retain their original revision thr
     const detail = page.getByRole('dialog', { name: '서버에서 바뀐 최신 제목', exact: true });
     await detail.waitFor();
     await detail.getByRole('button', { name: '수정하기', exact: true }).click();
-    editor = page.getByRole('dialog', { name: '강의 자료 수정', exact: true });
+    editor = page.getByRole('dialog', { name: '자료 수정', exact: true });
     assert.equal(await editor.getByLabel('제목', { exact: false }).inputValue(), '서버에서 바뀐 최신 제목');
     await page.evaluate(() => { fixture.conflict = false; });
     await editor.getByRole('button', { name: '자료 저장', exact: true }).click();
     await editor.waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate(() => fixture.saves[2].expectedRevision), 10);
     await detail.getByRole('button', { name: '삭제', exact: true }).click();
-    const confirmation = page.getByRole('dialog', { name: '강의 자료를 삭제할까요?', exact: true });
+    const confirmation = page.getByRole('dialog', { name: '자료를 삭제할까요?', exact: true });
     await confirmation.waitFor();
     await page.evaluate(() => fixture.refreshWorkspace(20));
     await confirmation.getByRole('button', { name: '자료 삭제', exact: true }).click();

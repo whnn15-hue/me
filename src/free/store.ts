@@ -7,6 +7,7 @@ import { type Career, type DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId } from "./normalize";
 import { emptyWorkspace, isWorkspaceMetadataRow, mergeWorkspaceData, mutateWorkspace, normalizeWorkspace, translateWorkspaceOriginals, workspaceFromRows, workspaceToRows, type WorkspaceMetadataRow } from "../../shared/workspace.mjs";
 import type { WorkspaceArchive, WorkspaceData, WorkspaceImportResult, WorkspaceItem } from "../workspace/types";
+import { planFileIdSwap, type MigrationTarget } from "../../shared/storage-migration.mjs";
 
 export interface FreeSnapshot {
   careers: Career[];
@@ -180,6 +181,15 @@ export async function addFreeDocument(input: DocumentRecord): Promise<{ document
     validateFreeSnapshotBudget(view.careers, [...view.documents, document], view.workspace);
     tx.set(row(ctx, version, "documents", document.id), documentMetadata(document));
     return { value: { document: linkedDocument(document, view.careers), duplicate: false }, changed: true };
+  });
+}
+// Applies verified Google Drive → OneDrive copies in one revision-checked
+// transaction. Records edited or replaced meanwhile are left untouched.
+export async function applyFreeStorageMigration(mapping: Record<string, MigrationTarget>): Promise<{ updated: number; skipped: number }> {
+  return mutate((view, tx, ctx, version) => {
+    const { updates, skipped } = planFileIdSwap(view.documents, mapping);
+    for (const document of updates) tx.set(row(ctx, version, "documents", document.id), documentMetadata(normalizeDocumentRecord(document)));
+    return { value: { updated: updates.length, skipped: skipped.length }, changed: updates.length > 0 };
   });
 }
 export async function deleteFreeDocument(id: string): Promise<DocumentRecord> {

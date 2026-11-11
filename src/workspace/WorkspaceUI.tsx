@@ -6,7 +6,7 @@ import type { WorkspaceData, WorkspaceKind, WorkspaceItem } from "./types";
 
 export const displayLabel = displayText;
 export const workspaceKindLabels: Record<WorkspaceKind | "career" | "document", string> = {
-  career: "이력", project: "수업", material: "강의 자료", course: "대학원 강좌",
+  career: "이력", project: "수업", material: "자료실", course: "대학원 강좌",
   assignment: "과제", paper: "논문", idea: "메모", document: "공문", photo: "사진", submission: "공모전 제출본",
 };
 export const workspaceKindIcons = {

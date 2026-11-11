@@ -5,6 +5,7 @@ import { MAX_WORKSPACE_ITEMS, normalizeWorkspace, normalizeWorkspaceItem, validW
 import { readBackupFile, type RestoredDocument } from "./backup";
 import { sha256, trashDriveFile, uploadDriveFile, validateDriveUploadFile } from "./drive";
 import { normalizeDocumentRecord, validRecordId } from "./normalize";
+import { validStorageFileId } from "../../shared/storage-id.mjs";
 import { activateRestoredData, appendFreeWorkspaceItems, ArchiveRevisionConflictError, readFreeSnapshot, validateFreeSnapshotBudget } from "./store";
 
 const MAX_METADATA_SIZE = 5 * 1024 * 1024;
@@ -156,7 +157,7 @@ export async function applyMaterialImport(prepared: PreparedMaterialImport, opti
       const original = incoming.get(entry.documentId)!;
       report({ phase: "uploading", completed: index, total: additions.length, fileName: original.file.name });
       const stored = await uploadDriveFile(original.file, "document", original.document.sha256);
-      if (!/^[A-Za-z0-9_-]{8,200}$/.test(stored.id)) throw new Error("저장한 수업 자료의 드라이브 주소를 확인할 수 없습니다.");
+      if (!validStorageFileId(stored.id)) throw new Error("저장한 수업 자료의 드라이브 주소를 확인할 수 없습니다.");
       uploaded.push(stored.id);
       checkCancellation(options.signal);
       const enriched = options.enrich ? await options.enrich(entry.item, original.file, stored.id, original.document.sha256) : entry.item;

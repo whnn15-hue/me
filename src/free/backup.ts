@@ -1,3 +1,5 @@
+import {extraFileTypes} from "../../shared/resources.mjs";
+import { validStorageFileId } from "../../shared/storage-id.mjs";
 import JSZip from "jszip";
 import type { Career, DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId as validId } from "./normalize";
@@ -10,7 +12,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_CAREERS = 100_000;
 const MAX_DOCUMENTS = 10_000;
 const MAX_ENTRIES = MAX_DOCUMENTS + 10;
-const ALLOWED_EXTENSIONS = new Set(["pdf", "ppt", "pptx", "hwp", "hwpx", "docx", "html", "htm", "txt", "xlsx", "cell", "png", "jpg", "jpeg", "webp"]);
+const ALLOWED_EXTENSIONS = new Set([...Object.keys(extraFileTypes), "pdf", "ppt", "pptx", "hwp", "hwpx", "docx", "html", "htm", "txt", "xlsx", "cell", "png", "jpg", "jpeg", "webp"]);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const invalid = (message: string): Error => new Error(message);
@@ -293,7 +295,7 @@ export async function readDriveSnapshotFile(file: File): Promise<{ careers: Care
   const documents = raw.documents.map(value => {
     const input = record(value);
     if (!validId(input.id) || documentIds.has(input.id) || typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256)
-      || hashes.has(input.sha256) || typeof input.driveFileId !== "string" || !/^[A-Za-z0-9_-]{8,200}$/.test(input.driveFileId)
+      || hashes.has(input.sha256) || !validStorageFileId(input.driveFileId)
       || driveIds.has(input.driveFileId)) throw invalid("드라이브 백업의 파일 ID, 중복, 무결성 정보가 올바르지 않습니다.");
     const document = normalizeDocumentRecord(input);
     originalBytes += document.size;

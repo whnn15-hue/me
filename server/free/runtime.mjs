@@ -4,6 +4,7 @@ import { createFreeApi } from './api.mjs';
 import { createFreeAuth } from './auth.mjs';
 import { networkFetch } from '../auth.mjs';
 import { budgetedFetch } from './deadline.mjs';
+import { createRedisStore, redisStoreConfig } from './redis-store.mjs';
 
 function lazyVault(factory) {
   let current;
@@ -17,7 +18,8 @@ export function createFreeRuntime({ env = process.env, storeFactory = getStore, 
   let authentication, authenticationConfig;
   return async () => {
     const aiEnabled = env.APP_AI_ENABLED === 'true'; const driveEnabled = env.APP_DRIVE_ENABLED === 'true';
-    const config = { appUrl: String(env.APP_URL || '').replace(/\/$/, ''), ownerEmail: String(env.OWNER_EMAIL || '').trim().toLowerCase(), projectId: String(env.APP_FIREBASE_PROJECT_ID || '').trim(), firebaseWebApiKey: String(env.APP_FIREBASE_WEB_API_KEY || '').trim(), driveEnabled, googleClientId: driveEnabled ? env.GOOGLE_CLIENT_ID || '' : '', googleClientSecret: driveEnabled ? env.GOOGLE_CLIENT_SECRET || '' : '', aiEnabled, geminiKey: aiEnabled ? env.APP_GEMINI_KEY || '' : '', geminiModel: env.APP_GEMINI_MODEL || 'gemini-2.5-flash' };
+    const config = { appUrl: String(env.APP_URL || '').replace(/\/$/, ''), ownerEmail: String(env.OWNER_EMAIL || '').trim().toLowerCase(), projectId: String(env.APP_FIREBASE_PROJECT_ID || '').trim(), firebaseWebApiKey: String(env.APP_FIREBASE_WEB_API_KEY || '').trim(), driveEnabled, googleClientId: driveEnabled ? env.GOOGLE_CLIENT_ID || '' : '', googleClientSecret: driveEnabled ? env.GOOGLE_CLIENT_SECRET || '' : '', aiEnabled, geminiKey: aiEnabled ? env.APP_GEMINI_KEY || '' : '', geminiModel: env.APP_GEMINI_MODEL || 'gemini-2.5-flash',
+      storageProvider: env.APP_STORAGE_PROVIDER === 'onedrive' ? 'onedrive' : 'google', microsoftClientId: driveEnabled ? env.MICROSOFT_CLIENT_ID || '' : '', microsoftClientSecret: driveEnabled ? env.MICROSOFT_CLIENT_SECRET || '' : '' };
     const signature = JSON.stringify([config.projectId, config.ownerEmail, config.firebaseWebApiKey]);
     if (!authentication || signature !== authenticationConfig) {
       authentication = authFactory(config, { fetcher: budgetedFetch(fetcher) }); authenticationConfig = signature;
@@ -28,5 +30,11 @@ export function createFreeRuntime({ env = process.env, storeFactory = getStore, 
     return apiFactory({ config, vault, auth: authentication, fetcher });
   };
 }
-const runtime = createFreeRuntime();
+// Vercel has no Blobs; when Upstash Redis credentials are present the same
+// encrypted vault is kept there instead. Netlify keeps using Blobs.
+export function defaultStoreFactory(env = process.env, fetcher = fetch) {
+  const redis = redisStoreConfig(env);
+  return redis ? options => createRedisStore({ ...redis, name: options.name, fetcher }) : getStore;
+}
+const runtime = createFreeRuntime({ storeFactory: defaultStoreFactory() });
 export const freeRuntime = () => runtime();

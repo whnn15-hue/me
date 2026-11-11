@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { validStorageFileId } from '../shared/storage-id.mjs';
 import { normalizeCareer, publicDocument } from './store.mjs';
 import { emptyWorkspace, normalizeWorkspace, mutateWorkspace, mergeWorkspaceData, translateWorkspaceOriginals } from '../shared/workspace.mjs';
 
@@ -99,7 +100,7 @@ function importedDocuments(documents) {
       throw bad('가져올 공문의 ID, 파일명, 크기, 무결성 정보를 확인해 주세요.');
     if (Object.hasOwn(document, 'storageName') || Object.hasOwn(document, 'filePath'))
       throw bad('JSON에는 원본 파일 경로를 지정할 수 없습니다. 원본 복원에는 ZIP 백업을 사용해 주세요.');
-    if (document.driveFileId !== undefined && (typeof document.driveFileId !== 'string' || !/^[A-Za-z0-9_-]{8,200}$/.test(document.driveFileId)))
+    if (document.driveFileId !== undefined && !validStorageFileId(document.driveFileId))
       throw bad('드라이브 원본 파일 ID가 올바르지 않습니다.');
     for (const field of ['mime', 'createdAt', 'text', 'analysisStatus'])
       if (document[field] !== undefined && typeof document[field] !== 'string') throw bad('공문 메타데이터의 문자열 형식이 올바르지 않습니다.');

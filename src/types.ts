@@ -54,6 +54,9 @@ export interface Status {
   driveConfigured?: boolean;
   aiConfigured: boolean;
   driveConnected: boolean;
+  storageProvider?: "google" | "onedrive";
+  storageAccount?: string;
+  oneDriveMigrationAvailable?: boolean;
   ownerConfigured: boolean;
   lastBackup: string | null;
   backupError?: string;
