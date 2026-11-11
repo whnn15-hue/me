@@ -97,7 +97,7 @@ await writeFile(bundlePath, bundle.outputFiles[0].contents);
 const {
   normalizeCareer, normalizeDocumentRecord, readFreeSnapshot, readFreeData, readFreeWorkspace,
   mutateFreeWorkspace, importFreeWorkspace, exportFreeWorkspace, activateRestoredData,
-  deleteFreeCareer, updateFreeCareer,
+  deleteFreeCareer, updateFreeCareer, deleteFreeDocument,
   validateFreeSnapshotBudget, createBackupBlob, readBackupFile, readDriveSnapshotFile,
   applyEvidenceImport, freeApi,
 } = await import(pathToFileURL(bundlePath).href);
@@ -134,6 +134,21 @@ const body = (fields = {}) => ({ item: { kind: 'idea', title: 'New graduate idea
 const archive = (careers = [], workspace = { schemaVersion: 1, items: [], links: [] }, documents = []) => ({ format: 'introduce-me-workspace', version: 1, createdAt: stamp, careers, documents, workspace });
 const file = (blob, name = 'backup.zip') => new File([blob], name, { type: name.endsWith('.json') ? 'application/json' : 'application/zip' });
 const assertOriginalUnchanged = state => { assert.deepEqual(state.originals.get('existing_drive_original'), content); assert.deepEqual(state.trashed, []); };
+
+test('research files keep their originals and career links in free-mode backups and reject deletion while in use', async () => {
+  const state = fixture();
+  const research = item('research_report', 'material', { purpose: 'research', researchType: '보고서', title: '가상 연구 보고서', ownership: 'created', sourceFile: { name: document().name, size: content.length, sha256: hash(content) } });
+  const workspace = seedWorkspace(state, [research], [{ from: 'career:existing_career', to: 'material:research_report' }]);
+  const before = structuredClone([...state.rows]);
+  await assert.rejects(() => deleteFreeDocument('existing_document'), /연구대회 자료/);
+  assert.deepEqual([...state.rows], before);
+  const exported = await freeApi('/backup/export', { method: 'GET' });
+  const restored = await readBackupFile(file(exported.value.blob));
+  assert.deepEqual(restored.workspace.items, workspace.items);
+  assert.deepEqual(restored.workspace.links, workspace.links);
+  assert.equal(restored.documents[0].sha256, research.sourceFile.sha256);
+  assertOriginalUnchanged(state);
+});
 
 test('reading a legacy archive yields an empty workspace without changing any stored rows', async () => {
   const state = fixture(), before = structuredClone([...state.rows]);

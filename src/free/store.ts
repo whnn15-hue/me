@@ -198,6 +198,8 @@ export async function deleteFreeDocument(id: string): Promise<DocumentRecord> {
     const document = view.documents.find(existing => existing.id === id);
     if (!document) throw new Error("공문을 찾을 수 없습니다.");
     if (view.workspace.items.some(item => item.kind === "photo" && item.documentId === id || item.kind === "submission" && item.documentIds.includes(id))) throw new Error("사진 보관함 또는 제출본에서 사용 중인 원본입니다. 해당 연결을 먼저 해제해 주세요.");
+    if (document.sha256 && view.workspace.items.some(item => item.kind === "material" && item.purpose === "research" && item.sourceFile?.sha256 === document.sha256))
+      throw new Error("연구대회 자료에서 사용하는 원본입니다. 해당 자료를 삭제하거나 원본을 바꾼 뒤 파일을 삭제해 주세요.");
     const linked = view.careers.filter(career => career.documentIds.includes(id));
     if (linked.length > 398) throw new Error("이 공문에 연결된 경력이 너무 많습니다. 일부 경력의 연결을 먼저 해제해 주세요.");
     for (const career of linked) tx.set(row(ctx, version, "careers", career.id), normalizeCareer({ documentIds: career.documentIds.filter(existing => existing !== id) }, career));

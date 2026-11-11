@@ -144,6 +144,8 @@ export function createApp(overrides = {}) {
   app.delete('/api/documents/:id', locked(async (req, res) => {
     const document = store.document(req.params.id); if (!document) throw fault('공문을 찾을 수 없습니다.', 404);
     if (readWorkspace(store).items.some(item => item.kind === 'photo' && item.documentId === document.id || item.kind === 'submission' && item.documentIds.includes(document.id))) throw fault('사진 보관함 또는 제출본에서 사용 중인 원본입니다. 해당 연결을 먼저 해제해 주세요.', 409);
+    if (document.sha256 && readWorkspace(store).items.some(item => item.kind === 'material' && item.purpose === 'research' && item.sourceFile?.sha256 === document.sha256))
+      throw fault('연구대회 자료에서 사용하는 원본입니다. 해당 자료를 삭제하거나 원본을 바꾼 뒤 파일을 삭제해 주세요.', 409);
     store.transaction(() => { for (const career of store.careers()) if (career.documentIds.includes(document.id)) store.putCareer(normalizeCareer({ documentIds: career.documentIds.filter(id => id !== document.id) }, career)); store.deleteDocument(document.id); });
     await unlink(join(store.dataDir, 'originals', document.storageName)).catch(error => { if (error.code !== 'ENOENT') throw error; });
     changed(); res.json({ ok: true });

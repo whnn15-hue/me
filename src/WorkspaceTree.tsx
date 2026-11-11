@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Image, Trophy, BookOpen, ChevronRight, FileText, Folder, FolderOpen, GraduationCap, House, Layers3, Settings2, Star } from "lucide-react";
+import { Image, Trophy, BookOpen, FileStack, ChevronRight, FileText, Folder, FolderOpen, GraduationCap, House, Layers3, Settings2, Star } from "lucide-react";
 import { careerCategoryChoices, matchesCareerCategory } from "../shared/career-organization.mjs";
 import {resourceType,resourceTypes} from "../shared/resources.mjs";
 import { materialClassification } from "../shared/material-classification.mjs";
@@ -26,7 +26,7 @@ export default function WorkspaceTree({ view, careers, documents, workspace, cat
     if (!open[key]) setBranch(key, true);
     if (key === "careers") onCategory("전체"); else onView(key);
   }
-  const lectures = workspace.items.filter((item): item is MaterialItem => item.kind === "material" && item.purpose !== "classroom");
+  const lectures = workspace.items.filter((item): item is MaterialItem => item.kind === "material" && (item.purpose ?? "lecture") === "lecture");
   const subjects = [...new Set(lectures.flatMap(item => materialClassification(item).subjects))].sort((a,b)=>a.localeCompare(b,"ko"));
   return <nav className="workspace-tree" aria-label="주 메뉴">
     <button className={`nav-item ${view === "home" ? "active" : ""}`} aria-current={view === "home" ? "page" : undefined} onClick={() => onView("home")}><House size={19}/><span>홈</span></button>
@@ -39,6 +39,7 @@ export default function WorkspaceTree({ view, careers, documents, workspace, cat
       </div>}
     </div>)}
     {([{view:"photos",label:"사진 보관함",icon:Image,kind:"photo"},{view:"submissions",label:"공모전 제출본",icon:Trophy,kind:"submission"}] as const).map(item => <button key={item.view} className={`nav-item independent-workspace ${view === item.view ? "active" : ""}`} aria-current={view === item.view ? "page" : undefined} onClick={() => onView(item.view)}><item.icon size={20} strokeWidth={1.75}/><span>{item.label}</span><span className="nav-count">{workspace.items.filter(row => row.kind === item.kind).length}</span></button>)}
+    <button className={`nav-item independent-workspace ${view === "research" ? "active" : ""}`} aria-current={view === "research" ? "page" : undefined} onClick={() => onView("research")}><FileStack size={20} strokeWidth={1.75}/><span>연구대회 자료</span><span className="nav-count">{workspace.items.filter(row => row.kind === "material" && row.purpose === "research").length}</span></button>
     <div className="workspace-nav-break">보관 도구</div>
     {minor.map(item=><button key={item.view} className={`nav-item ${view===item.view?'active':''}`} aria-current={view===item.view?'page':undefined} onClick={()=>onView(item.view)}><item.icon size={18}/><span>{item.label}</span></button>)}
   </nav>;

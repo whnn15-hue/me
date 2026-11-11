@@ -4,6 +4,8 @@ export const WORKSPACE_ROW_PREFIX = '__workspace_';
 export const WORKSPACE_ROW_TAG = 'introduce-me-workspace';
 export const MAX_WORKSPACE_ITEMS = 5000;
 export const MAX_WORKSPACE_LINKS = 10000;
+// Research-competition files (연구대회 자료) are materials with purpose 'research'.
+export const RESEARCH_TYPES = ['계획서', '보고서', '발표자료', '부록·증빙', '참고자료', '기타'];
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const encoder = new TextEncoder();
 const size = value => encoder.encode(JSON.stringify(value)).byteLength;
@@ -122,8 +124,13 @@ export function normalizeWorkspaceItem(value, previous) {
       // Legacy material rows stay byte-for-byte shaped as before. An absent
       // purpose is interpreted as lecture by the view, not persisted here.
       if (merged.purpose !== undefined) {
-        if (!['classroom', 'lecture'].includes(merged.purpose)) fail('자료를 보관할 곳을 확인해 주세요.');
+        if (!['classroom', 'lecture', 'research'].includes(merged.purpose)) fail('자료를 보관할 곳을 확인해 주세요.');
         result.purpose = merged.purpose;
+      }
+      // Optional and additive: absent on every pre-existing row.
+      if (merged.researchType !== undefined) {
+        if (!RESEARCH_TYPES.includes(merged.researchType)) fail('연구대회 자료 종류를 확인해 주세요.');
+        result.researchType = merged.researchType;
       }
       for (const field of ['subjects', 'trainings']) if (merged[field] !== undefined) result[field] = strings(merged[field], 30, 100);
       // A manually replaced link has no verified connection to the old original.
