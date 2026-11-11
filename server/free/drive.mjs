@@ -159,11 +159,37 @@ export function createFreeDrive({ vault, config, fetcher = networkFetch, capture
     return { accessToken: fresh.access_token, expiresAt };
   }
 
+  // Archive folders this app created for the owner (drive.file only lists the
+  // app's own files), oldest first. A new host has an empty vault, so without
+  // this search it would create a second folder and reject every original
+  // stored in the first one.
+  async function archiveFolders(uid, token, kind) {
+    const quote = value => String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set('q', `mimeType='application/vnd.google-apps.folder' and trashed=false and appProperties has { key='archiveUid' and value='${quote(uid)}' } and appProperties has { key='kind' and value='${kind}' }`);
+    url.searchParams.set('fields', 'files(id,mimeType,trashed,appProperties,createdTime)');
+    url.searchParams.set('orderBy', 'createdTime');
+    url.searchParams.set('pageSize', '20');
+    url.searchParams.set('spaces', 'drive');
+    const response = await fetcher(url.href, { headers: tokenHeaders(token), signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw fault('드라이브 보관 폴더를 확인하지 못했습니다.', 502);
+    const { files = [] } = await response.json();
+    return files.filter(file => validFileId(file.id) && !file.trashed && file.mimeType === 'application/vnd.google-apps.folder'
+      && file.appProperties?.archiveUid === uid && file.appProperties?.kind === kind)
+      .sort((a, b) => String(a.createdTime || '').localeCompare(String(b.createdTime || '')));
+  }
+
   async function folderFor(uid, token) {
     const key = `driveFolder/${uid}`;
     const kind = 'archive-folder';
     let folder = await vault.getJSON(key);
     if (!validFileId(folder)) folder = null;
+    const [original] = await archiveFolders(uid, token, kind);
+    if (original) {
+      if (original.id !== folder) await vault.setJSON(key, original.id);
+      return original.id;
+    }
+    // Search can lag right after creation; fall back to the stored folder.
     if (folder) {
       const response = await fetcher(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folder)}?fields=id,trashed,mimeType,appProperties`, {
         headers: tokenHeaders(token), signal: AbortSignal.timeout(20000),
