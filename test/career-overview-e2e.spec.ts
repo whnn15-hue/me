@@ -14,7 +14,8 @@ test('desktop overview shows every career, filters the matrix, opens details and
   await expect(overview).toBeVisible();await overview.getByLabel('전체 이력 검색 지우기').click();await overview.getByRole('button',{name:'전체 펼치기'}).click();
   await expect(overview.locator('.overview-records tbody tr')).toHaveCount(before.careers.length+1);
   await page.screenshot({path:'/workspace/artifacts/career-overview-light.png',animations:'disabled'});
-  await page.getByRole('group',{name:'화면 모드',exact:true}).getByRole('button',{name:'다크',exact:true}).click();await expect(overview).toHaveCSS('background-color','rgb(32, 32, 32)');await page.screenshot({path:'/workspace/artifacts/career-overview-dark.png',animations:'disabled'});
+  // The top-bar theme control was removed; the default "system" mode follows the OS.
+  await page.emulateMedia({colorScheme:'dark'});await expect(overview).toHaveCSS('background-color','rgb(32, 32, 32)');await page.screenshot({path:'/workspace/artifacts/career-overview-dark.png',animations:'disabled'});
   await page.setViewportSize({width:1280,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.emulateMedia({media:'print'});await expect(page.locator('.sidebar')).toBeHidden();await expect(overview.locator('.overview-records')).toBeVisible();await page.emulateMedia({media:'screen'});
   await page.getByRole('button',{name:'목록 관리',exact:true}).click();await expect(page.locator('.career-row').filter({hasText:'한눈검증 가상 연구대회'})).toBeVisible();expect(errors).toEqual([]);

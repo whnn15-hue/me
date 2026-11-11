@@ -36,7 +36,7 @@ test('archive desk connects review queues, favorites, keyboard search and select
     await expect(page.getByRole('dialog',{name:'업그레이드검증 즐겨찾는 강의안',exact:true})).toBeVisible();
     await page.keyboard.press('Escape');
     await home(page).click();
-    await page.getByRole('button',{name:/어떤 기록을 찾으세요/}).click();
+    await page.getByRole('button',{name:'모든 기록 검색 열기'}).click();
     const search=page.getByRole('dialog',{name:'모든 기록 검색',exact:true});
     const input=search.getByRole('combobox',{name:'모든 기록 검색어',exact:true});
     await expect(input).toBeFocused();

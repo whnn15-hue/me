@@ -26,6 +26,8 @@ import {
   GraduationCap,
   Layers3,
   LayoutGrid,
+  Link2,
+  Trash2,
   List,
   LoaderCircle,
   LockKeyhole,
@@ -41,10 +43,8 @@ import {
   X,
 } from "lucide-react";
 import { archiveAttention, matchesWords, documentFormat, sortDocuments } from "./archive-tools";
-import FileDropzone from "./FileDropzone";
 import GrowthOverview from "./growth/GrowthOverview";
 import WorkspaceTree from "./WorkspaceTree";
-import ThemeControl from "./ThemeControl";
 import CareerOverview from "./CareerOverview";
 import AiConnection from "./AiConnection";
 import HomeDashboard from "./home/HomeDashboard";
@@ -193,6 +193,7 @@ export default function App() {
     [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0),
     [globalSearch, setGlobalSearch] = useState(false);
   const materialUploading = useRef(false);
+  const storageName = status?.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
   const [workspaceTarget, setWorkspaceTarget] = useState<{section?: string; subject?: string}>({});
   const [view, setView] = useState<View>(initialView),
     [query, setQuery] = useState(""),
@@ -641,7 +642,7 @@ export default function App() {
   }
   async function uploadMaterials(files: File[], purpose: "lecture" | "classroom") {
     if (materialUploading.current || busy) return;
-    if (!status?.driveConnected) { setError("백업 및 설정에서 구글 드라이브를 먼저 연결해 주세요."); return; }
+    if (!status?.driveConnected) { setError(`백업 및 설정에서 ${storageName}를 먼저 연결해 주세요.`); return; }
     materialUploading.current = true; setBusy("자료 자동 정리 중"); setError("");
     const warnings: string[] = [];
     try {
@@ -799,14 +800,9 @@ export default function App() {
             <strong>나의 기록실</strong><small>MY RECORD ROOM</small>
           </span>
         </a>
-        <div className="workspace-label">
-          <span className="workspace-dot" />
-          나만의 아카이브
-          <LockKeyhole size={12} />
-        </div>
-        <div className="nav-section-label">WORKSPACE</div>
+        <div className="nav-section-label">작업 공간</div>
         <WorkspaceTree view={view} careers={careers} documents={documents} workspace={workspace} category={category}
-          onView={changeView} onCategory={next=>{changeView("careers");chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}
+          onView={changeView} onCategory={next=>{changeView("careers");chooseCategory(next);if(next!=="전체")requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}
           onSection={(next,section,subject)=>{changeView(next);setWorkspaceTarget({section,subject});setWorkspaceFocusVersion(version=>version+1);}}/>
       </aside>
       {mobileNav && (
@@ -827,20 +823,13 @@ export default function App() {
             <Menu size={21} />
           </button>
           <div className="breadcrumb">
-            <span>내 워크스페이스</span>
-            <ChevronRight size={13} />
             <strong>{view === "photos" ? "사진 보관함" : view === "submissions" ? "공모전 제출본" : navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
-            <ThemeControl />
             {authorized && <button className="global-search-trigger" aria-label="모든 기록 검색 열기" onClick={() => setGlobalSearch(true)}><Search size={15} /><span>통합 검색</span><kbd>{/Mac/.test(navigator.platform) ? "⌘ K" : "Ctrl K"}</kbd></button>}
             {authorized && <button className={`sync-status ${status.driveConnected ? "connected" : ""}`} onClick={() => changeView("settings")}>
-              <Cloud size={15} />{status.driveConnected ? "드라이브 연결됨" : "백업 설정"}
+              <Cloud size={15} />{status.driveConnected ? `${storageName} 연결됨` : "백업 설정"}
             </button>}
-            <span className="privacy-label">
-              <LockKeyhole size={13} />
-              비공개
-            </span>
           </div>
         </header>
         <main className="main-content">
@@ -912,7 +901,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 Firebase와 구글 드라이브에는 연결하지 않습니다.</div>}
+              {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 계정과 실제 저장소에는 연결하지 않습니다.</div>}
               {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh}/>}
               {view === "home" && status && <HomeDashboard onOverview={() => {changeView("careers");setCareerMode("overview");}} overview={<>
                   <section className="stats-grid" aria-label="경력 요약">
@@ -921,21 +910,21 @@ export default function App() {
                     <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
                     <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
                   </section>
-                  <GrowthOverview careers={careers} documents={documents} onOpen={openWorkspaceRef} onShowCareers={() => changeView("careers")} onCategory={next=>{changeView("careers");chooseCategory(next);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
-</>} careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onSearch={() => setGlobalSearch(true)} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
+                  <GrowthOverview careers={careers} documents={documents} onShowCareers={() => changeView("careers")} onYear={next=>{changeView("careers");chooseCategory("전체");setYear(String(next));requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
+</>} careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
               {!["home", "projects", "materials", "graduate", "photos", "submissions"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
                   <div className="eyebrow">
                     {view === "careers"
-                      ? "MY CAREER"
-                      : view === "projects" ? "TEACHING PORTFOLIO"
-                      : view === "materials" ? "MY LEARNING LIBRARY"
-                      : view === "graduate" ? "STUDY & RESEARCH"
+                      ? "나의 경력 기록"
+                      : view === "projects" ? "수업 포트폴리오"
+                      : view === "materials" ? "강의와 연수 자료"
+                      : view === "graduate" ? "공부와 연구"
                       : view === "documents"
-                        ? "DOCUMENT LIBRARY"
+                        ? "공문 원본 보관"
                         : view === "resume"
-                          ? "MAKE IT YOURS"
-                          : "SAFE & CONNECTED"}
+                          ? "제출용 문서 만들기"
+                          : "백업과 연결"}
                   </div>
                   <h1>
                     {isCareerView
@@ -993,7 +982,6 @@ export default function App() {
                     })}
                   </nav>
                   {category !== "전체" && collectionDocuments.length > 0 && <details className="collection-evidence"><summary><FileText size={16}/>{careerViewLabel} 관련 공문 {collectionDocuments.length}개</summary><div>{collectionDocuments.map(document => <div key={document.id}><span>{displayLabel(document.name)}</span><button className="button secondary" onClick={()=>void download(`/documents/${document.id}/file`,document.name).catch(fail)}><Download size={14}/>원본</button><button className="text-button" onClick={()=>{setLinkDoc(document);setLinkId("");setLinkQuery("");}}>이력 연결</button></div>)}</div></details>}
-                  <FileDropzone onFiles={uploadFiles} busy={!!busy} label="공문 끌어 놓기" />
                   <section className="career-section" id="career-records">
                     <div className="section-heading">
                       <h2>
@@ -1237,9 +1225,9 @@ export default function App() {
                   onToast={setToast}
                   careers={careers.length}
                   documents={documents.length}
+                  jsonBackup={<WorkspaceBackup embedded onImport={importWorkspaceArchive} onError={fail} onToast={setToast} />}
                 />
               )}
-              {view === "settings" && status && <WorkspaceBackup onImport={importWorkspaceArchive} onError={fail} onToast={setToast} />}
             </>
           )}
         </main>
@@ -1509,7 +1497,7 @@ export default function App() {
               {deleteTarget.type === "career"
                 ? " 경력을 삭제합니다. 연결된 공문 원본은 보관함에 남습니다."
                 : freeMode
-                  ? " 파일과 경력의 연결을 앱에서 삭제합니다. 이전 백업을 복원할 수 있도록 드라이브 원본은 보관합니다."
+                  ? ` 파일과 경력의 연결을 앱에서 삭제합니다. 이전 백업을 복원할 수 있도록 ${storageName} 원본은 보관합니다.`
                   : " 파일과 경력의 연결을 삭제합니다. 원본 파일도 앱에서 삭제됩니다."}
             </p>
             <p className="muted">
@@ -1679,12 +1667,15 @@ function DocumentsView({
         <button onClick={() => setFilter(filter === "미연결 파일" ? "전체 파일" : "미연결 파일")} aria-pressed={filter === "미연결 파일"} className={filter === "미연결 파일" ? "active" : ""}>미연결 {documents.length - linkedCount}개 살펴보기<ArrowRight size={14} /></button>
       </div>
       <div
-        className={`upload-dropzone ${drag ? "dragging" : ""}`}
+        className={`document-drop-area ${drag ? "dragging" : ""}`}
+        aria-busy={busy}
         onDragOver={(e) => {
           e.preventDefault();
           setDrag(true);
         }}
-        onDragLeave={() => setDrag(false)}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1692,27 +1683,12 @@ function DocumentsView({
           if (!busy) onDrop(e.dataTransfer.files);
         }}
       >
-        <span className="upload-icon">
-          <CloudUpload size={30} />
-        </span>
-        <h2>공문 업로드</h2>
-
-        <button className="button primary" onClick={onUpload} disabled={busy}>
-          <Plus size={17} />
-          파일 선택하기
-        </button>
-        <small>
-          PDF, PPTX, HWP, HWPX, DOCX, XLSX, CELL, TXT, HTML, 이미지, 파일당 최대 25 MB, 한 번에
-          10개
-
-        </small>
-      </div>
       <div className="section-heading document-section-heading">
         <h2>
           보관 중인 공문 <span>{documents.length}</span>
         </h2>
-        <span className="muted">동일한 파일은 중복 없이 보관해요</span>
       </div>
+      <p className="document-drop-hint"><CloudUpload size={15} aria-hidden="true" />파일을 이 목록에 끌어 놓아도 올라가요. PDF, PPTX, HWP, HWPX, DOCX, XLSX, CELL, TXT, HTML, 이미지, 파일당 25 MB, 한 번에 10개. 같은 파일은 한 번만 보관해요.</p>
       <div className="filter-toolbar">
         <label className="search-box">
           <Search size={18} />
@@ -1793,54 +1769,60 @@ function DocumentsView({
                   </div>
                 </div>
                 <div className="document-actions">
-                  <button className="icon-button" title="문서 내용 살펴보기" aria-label={`${displayLabel(d.name)} 내용 살펴보기`} onClick={() => setPreviewId(d.id)}><Eye size={18}/></button>
+                  <button className="doc-action" title="문서 내용 살펴보기" aria-label={`${displayLabel(d.name)} 내용 살펴보기`} onClick={() => setPreviewId(d.id)}><Eye size={16} aria-hidden="true"/><span>살펴보기</span></button>
                   <button
-                    className="icon-button"
+                    className="doc-action"
                     title="경력 초안 만들기"
                     aria-label={`${displayLabel(d.name)} 경력 초안 만들기`}
                     onClick={() => onAnalyze(d)}
                     disabled={busy}
                   >
-                    <Sparkles size={17} />
+                    <Sparkles size={16} aria-hidden="true" />
+                    <span>초안 만들기</span>
                   </button>
                   <button
-                    className="icon-button"
+                    className="doc-action"
                     title="기존 경력에 연결"
                     aria-label={`${displayLabel(d.name)} 기존 경력에 연결`}
                     onClick={() => onLink(d)}
                     disabled={busy}
                   >
-                    <Plus size={18} />
+                    <Link2 size={16} aria-hidden="true" />
+                    <span>연결</span>
                   </button>
                   {cloudMode ? (
                     <button
-                      className="icon-button"
+                      className="doc-action"
                       title="원본 다운로드"
                       aria-label={`${displayLabel(d.name)} 다운로드`}
                       onClick={() => onDownload(d)}
                       disabled={busy}
                     >
-                      <ArrowDownToLine size={17} />
+                      <ArrowDownToLine size={16} aria-hidden="true" />
+                      <span>다운로드</span>
                     </button>
                   ) : (
                     <a
-                    className="icon-button"
+                    className="doc-action"
                     title="원본 다운로드"
                     href={`/api/documents/${d.id}/file`}
                     download
                     aria-label={`${displayLabel(d.name)} 다운로드`}
                   >
-                    <ArrowDownToLine size={17} />
+                    <ArrowDownToLine size={16} aria-hidden="true" />
+                    <span>다운로드</span>
                   </a>
                   )}
+                  <span className="doc-action-divider" aria-hidden="true" />
                   <button
-                    className="icon-button delete-file"
-                    title="파일 삭제"
+                    className="doc-action danger delete-file"
+                    title="파일 삭제 (확인 후 삭제)"
                     aria-label={`${displayLabel(d.name)} 삭제`}
                     onClick={() => onDelete(d)}
                     disabled={busy}
                   >
-                    <X size={17} />
+                    <Trash2 size={16} aria-hidden="true" />
+                    <span>삭제</span>
                   </button>
                 </div>
               </article>
@@ -1848,6 +1830,7 @@ function DocumentsView({
           })}
         </div>
       )}
+      </div>
       {preview && <Modal title="공문 살펴보기" onClose={() => setPreviewId(null)} wide>
         <div className="modal-body document-preview">
           <div className="document-preview-heading"><span className="document-file-icon"><FileText size={24}/><small>{preview.name.split(".").at(-1)?.toUpperCase()}</small></span><div><h3>{displayLabel(preview.name)}</h3><p>{documentFormat(preview.name)} / {fileSize(preview.size)} / {new Date(preview.createdAt).toLocaleDateString("ko-KR", {timeZone:"Asia/Seoul"})}</p></div></div>

@@ -7,8 +7,8 @@
   --ui-inset: #f5f5f5;
   --ui-border: #e6e6e6;
   --ui-text: #242424;
-  --ui-muted: #666666;
-  --ui-subtle: #737373;
+  --ui-muted: #555555;
+  --ui-subtle: #626262;
   --ui-mark: #bbbbbb;
   --ui-solid: #292929;
   --ui-on-solid: #ffffff;
@@ -51,8 +51,8 @@
     --ui-inset: #292929;
     --ui-border: #383838;
     --ui-text: #ededed;
-    --ui-muted: #b6b6b6;
-    --ui-subtle: #a6a6a6;
+    --ui-muted: #c8c8c8;
+    --ui-subtle: #b4b4b4;
     --ui-mark: #646464;
     --ui-solid: #dedede;
     --ui-on-solid: #202020;
@@ -121,7 +121,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-color: va
 .field-ring > div { width: 122px; height: 122px; background: var(--ui-surface); }
 .field-legend { gap: 0; }
 .field-legend li + li { border-top: 1px solid var(--ui-border); }
-.field-legend button { min-height: 46px; font-size: 12px; }
+.field-legend button { min-height: 46px; font-size: 13px; }
 .field-legend strong, .field-legend small { color: var(--ui-muted); }
 .material-cover, .project-cover { color: var(--ui-muted); background: var(--ui-inset); }
 .material-subject-badge, .material-card h3, .project-card h2, .grad-card h3, .lecture-institution { color: var(--ui-text); }
@@ -138,7 +138,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-color: va
 /* Keep text and its surface in sync during a live theme change. */
 .button, .nav-item, .tree-parent .nav-item, .pin-dot { transition-property: box-shadow, transform; }
 .theme-control { display: inline-flex; align-items: center; flex-shrink: 0; gap: 3px; padding: 4px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-inset); }
-.theme-control button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: 8px; color: var(--ui-muted); font-size: 12px; white-space: nowrap; }
+.theme-control button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: 8px; color: var(--ui-muted); font-size: 13px; white-space: nowrap; }
 .theme-control button:hover { color: var(--ui-text); }
 .theme-control button[aria-pressed="true"] { color: var(--ui-text); background: var(--ui-surface); box-shadow: 0 1px 4px rgb(var(--ui-shadow-rgb) / .08); font-weight: 600; }
 .theme-control button[aria-pressed="true"] svg { color: var(--ui-accent-ink); }

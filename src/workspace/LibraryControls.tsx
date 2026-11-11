@@ -26,5 +26,5 @@ export function useFavorites({ workspace, onSave, onError }: Pick<WorkspaceSecti
   return { toggle, pending, error };
 }
 export function FavoriteButton({ item, pending, onToggle }: { item: WorkspaceItem; pending: string; onToggle: (item: WorkspaceItem) => Promise<void> }) {
-  return <button type="button" className="library-favorite" aria-label={`${item.title.replaceAll('·', ',')} 즐겨찾기`} aria-pressed={Boolean(item.favorite)} disabled={Boolean(pending)} onClick={() => void onToggle(item)}><Star size={17} fill={item.favorite ? "currentColor" : "none"} /></button>;
+  return <button type="button" className="library-favorite" aria-label={`${item.title.replaceAll('·', ',')} 즐겨찾기`} title={item.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"} aria-pressed={Boolean(item.favorite)} disabled={Boolean(pending)} onClick={() => void onToggle(item)}><Star size={22} strokeWidth={2} fill={item.favorite ? "currentColor" : "none"} aria-hidden="true" /></button>;
 }

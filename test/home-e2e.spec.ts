@@ -39,9 +39,8 @@ test('desktop record room: home overview, retired sections, independent librarie
     expect(await page.evaluate(()=>document.fonts.check('14px "Pretendard Variable"','이력 수업 강의 자료 대학원'))).toBe(true);
     await expect(page.locator('body')).toHaveCSS('font-family',/Pretendard Variable/);
     await page.screenshot({path:'/tmp/record-room-home-light.png',animations:'disabled'});
-    await page.getByRole('region',{name:'선택한 연도 기록'}).getByRole('button',{name:/홈검증 오늘 특강/}).click();
-    await expect(page.getByRole('dialog',{name:'경력 상세',exact:true})).toContainText('홈검증 연수원');
-    await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
+    // The per-year card was removed; the growth map opens the year in the career list instead.
+    await expect(page.getByRole('region',{name:'선택한 연도 기록'})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
     await menu.getByRole('button',{name:'홈',exact:true}).click();
     await page.getByRole('region',{name:'즐겨찾는 기록',exact:true}).getByRole('button',{name:/홈검증 최근 강의안/}).click();
@@ -59,14 +58,15 @@ test('desktop record room: home overview, retired sections, independent librarie
     await menu.getByRole('button',{name:'백업 및 설정',exact:true}).click();
     const settingsModes=page.getByRole('group',{name:'설정 화면 모드',exact:true});
     await settingsModes.getByRole('button',{name:'다크',exact:true}).click();
-    const topModes=page.getByRole('group',{name:'화면 모드',exact:true});
-    await expect(topModes.getByRole('button',{name:'다크',exact:true})).toHaveAttribute('aria-pressed','true');
+    // The top-bar theme control was removed; settings is the only place to choose it.
+    await expect(page.getByRole('group',{name:'화면 모드',exact:true})).toHaveCount(0);
+    await expect(settingsModes.getByRole('button',{name:'다크',exact:true})).toHaveAttribute('aria-pressed','true');
     await expect(page.locator('.app-build')).toContainText('화면 버전');
     await menu.getByRole('button',{name:'홈',exact:true}).click();await page.reload();
     await expect(page.locator('.home-card').first()).toHaveCSS('background-color','rgb(32, 32, 32)');
     await page.screenshot({path:'/tmp/record-room-home-dark.png',animations:'disabled'});
     await page.setViewportSize({width:1280,height:900});
-    await expect(topModes).toBeInViewport();
+    await expect(page.getByRole('button',{name:'모든 기록 검색 열기'})).toBeInViewport();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.getByRole('button',{name:'경력 추가',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'새 경력 기록하기',exact:true})).toBeVisible();

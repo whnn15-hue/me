@@ -29,9 +29,11 @@ function previewArchive(archive: unknown, filename: string): Preview {
   }
   return { archive, filename, careers: record.careers.length, documents: record.documents.length, items, links, labels };
 }
-export default function WorkspaceBackup({ onImport, onError, onToast }: {
+export default function WorkspaceBackup({ onImport, onError, onToast, embedded = false }: {
   onImport: (archive: unknown) => Promise<WorkspaceImportResult>;
   onError: (error: unknown) => void; onToast: (message: string) => void;
+  /** Render only the controls, inside the settings "백업 파일" card. */
+  embedded?: boolean;
 }) {
   const [busy, setBusy] = useState(false), [preview, setPreview] = useState<Preview | null>(null), [result, setResult] = useState<WorkspaceImportResult | null>(null);
   const [resultLabels, setResultLabels] = useState<Record<string, string>>({});
@@ -65,12 +67,15 @@ export default function WorkspaceBackup({ onImport, onError, onToast }: {
     } catch (error) { onError(error); } finally { setBusy(false); }
   }
   return <>
-    <section className="panel settings-card workspace-json-panel" aria-labelledby="workspace-json-heading">
-      <div className="settings-card-heading"><span className="integration-icon"><FileJson size={23} /></span><div><h2 id="workspace-json-heading">전체 기록 JSON 백업</h2><p>이력, 수업, 자료, 사진과 제출본, 보관된 이전 기록을 함께 백업합니다.</p></div></div>
-      <p>JSON에는 기록과 원본 파일의 위치가 담깁니다. 공문 원본 파일까지 내려받으려면 기존 백업 ZIP을 함께 보관해 주세요.</p>
+    {embedded ? <div className="workspace-json-embedded">
       <div className="workspace-json-actions"><button className="button secondary" disabled={busy} onClick={() => void exportJSON()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}전체 기록 JSON 내보내기</button><button className="button secondary" disabled={busy} onClick={() => input.current?.click()}><Upload size={16} />JSON 가져오기</button><input ref={input} className="visually-hidden" type="file" accept=".json,application/json" aria-label="가져올 전체 기록 JSON" onChange={event => void readFile(event.target.files?.[0])} /></div>
       {result && <div className="workspace-import-result" role="status">이력 {result.added.careers}개, 공문 정보 {result.added.documents}개, 학습 기록 {result.added.items}개, 연결 {result.added.links}개를 추가했습니다.{result.conflicts.length > 0 && <details><summary>현재 기록을 유지한 항목 {result.conflicts.length}개</summary><ul>{result.conflicts.map((conflict, index) => <li key={`${conflict.ref}-${index}`}>{displayLabel(resultLabels[conflict.ref] || "기록 또는 연결 정보")}: {displayLabel(conflict.reason)}</li>)}</ul></details>}</div>}
-    </section>
+    </div> : <section className="panel settings-card workspace-json-panel" aria-labelledby="workspace-json-heading">
+          <div className="settings-card-heading"><span className="integration-icon"><FileJson size={23} /></span><div><h2 id="workspace-json-heading">전체 기록 JSON 백업</h2><p>이력, 수업, 자료, 사진과 제출본, 보관된 이전 기록을 함께 백업합니다.</p></div></div>
+          <p>JSON에는 기록과 원본 파일의 위치가 담깁니다. 공문 원본 파일까지 내려받으려면 기존 백업 ZIP을 함께 보관해 주세요.</p>
+          <div className="workspace-json-actions"><button className="button secondary" disabled={busy} onClick={() => void exportJSON()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}전체 기록 JSON 내보내기</button><button className="button secondary" disabled={busy} onClick={() => input.current?.click()}><Upload size={16} />JSON 가져오기</button><input ref={input} className="visually-hidden" type="file" accept=".json,application/json" aria-label="가져올 전체 기록 JSON" onChange={event => void readFile(event.target.files?.[0])} /></div>
+          {result && <div className="workspace-import-result" role="status">이력 {result.added.careers}개, 공문 정보 {result.added.documents}개, 학습 기록 {result.added.items}개, 연결 {result.added.links}개를 추가했습니다.{result.conflicts.length > 0 && <details><summary>현재 기록을 유지한 항목 {result.conflicts.length}개</summary><ul>{result.conflicts.map((conflict, index) => <li key={`${conflict.ref}-${index}`}>{displayLabel(resultLabels[conflict.ref] || "기록 또는 연결 정보")}: {displayLabel(conflict.reason)}</li>)}</ul></details>}</div>}
+        </section>}
     {preview && <Modal title="JSON 기록을 가져올까요?" subtitle={displayLabel(preview.filename)} onClose={() => !busy && setPreview(null)}>
       <div className="modal-body"><div className="workspace-import-counts"><div><small>이력</small><strong>{preview.careers}</strong></div><div><small>공문 정보</small><strong>{preview.documents}</strong></div><div><small>학습 기록</small><strong>{preview.items}</strong></div></div><p className="workspace-import-review-note">파일에 담긴 연결은 {preview.links}개입니다. 이미 같은 ID로 저장된 기록은 현재 내용을 유지하며, 다른 기록을 추가합니다. 실제 추가 개수는 중복 확인 후 달라질 수 있어요.</p><p className="workspace-import-review-note">공문 원본은 JSON에 포함되지 않습니다. 보관함이나 연결한 드라이브에 남아 있는 본인 원본을 확인한 뒤 연결합니다. 원본 파일도 사라졌다면 원본이 포함된 ZIP 백업을 사용해 주세요.</p></div>
       <div className="modal-footer"><button className="button secondary" disabled={busy} onClick={() => setPreview(null)}>취소</button><button className="button primary" disabled={busy} onClick={() => void applyImport()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}현재 기록에 추가</button></div>

@@ -5,8 +5,8 @@
 .page-heading h1 { font-size: 32px; letter-spacing: -.04em; }
 .career-collections { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; overflow: visible; border: 0; margin: 0 0 22px; padding: 0; }
 .career-collections button { display: flex; align-items: center; gap: 9px; padding: 14px 12px; min-height: 51px; border: 1px solid var(--ui-border, #e2e8dc); border-radius: 9px; background: var(--ui-surface, #fff); color: var(--ui-muted, #596b55); text-align: left; white-space: nowrap; }
-.career-collections button strong { font-size: 12px; font-weight: 500; }
-.career-collections button > span { margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; }
+.career-collections button strong { font-size: 13px; font-weight: 500; }
+.career-collections button > span { margin-left: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
 .career-collections button svg { flex-shrink: 0; opacity: .85; }
 .career-collections button:hover { border-color: var(--ui-border, #b9cbb0); background: var(--ui-inset, #f5f8f0); }
 .career-collections button.active { color: var(--ui-on-solid, #fff); background: var(--ui-solid, #315c45); border-color: var(--ui-solid, #315c45); box-shadow: 0 3px 8px rgb(var(--ui-shadow-rgb, 0 0 0) / 0.082); }
@@ -15,10 +15,10 @@
 .stat-card { min-height: 70px; padding: 14px 18px; background: transparent; border: 0; box-shadow: none; border-radius: 0; border-right: 1px solid var(--ui-border, #e0e6d9); }
 .stat-card:last-child { border-right: 0; }
 .stat-card:hover { background: var(--ui-inset, #e8eee1); box-shadow: none; transform: none; }
-.stat-label { font-size: 11px; }
+.stat-label { font-size: 13px; }
 .stat-icon { display: none; }
 .stat-value { font-size: 23px; margin-top: 7px; }
-.stat-value small { font-size: 11px; }
+.stat-value small { font-size: 13px; }
 .career-section { margin-top: 25px; }
 .stats-grid + .file-dropzone > button, .collection-evidence + .file-dropzone > button { min-height: 56px; padding: 12px 16px; justify-content: flex-start; }
 .file-dropzone { border-radius: 9px; }
@@ -46,7 +46,7 @@
 .lecture-institution { display: flex; align-items: center; gap: 6px; margin: 9px 0 5px; color: var(--ui-text, #315d43); font-size: 13px; font-weight: 600; line-height: 1.65; }
 .lecture-institution svg { flex-shrink: 0; }
 .lecture-institution span { overflow-wrap: anywhere; }
-.career-row-date { flex-shrink: 0; width: 112px; font-size: 11px; }
+.career-row-date { flex-shrink: 0; width: 112px; font-size: 13px; }
 .career-info .row-tags { margin-top: 10px; }
 .recognition-badges { margin-top: 11px; }
 .recognition-badges strong { line-height: 1.6; }
@@ -62,34 +62,34 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ui-solid, 
 }
 @media (max-width: 700px) {
   .workspace-main-tabs { margin-bottom: 22px; gap: 3px; padding: 4px; }
-  .workspace-main-tabs button { font-size: 12px; gap: 5px; min-height: 44px; padding: 9px 2px; }
+  .workspace-main-tabs button { font-size: 13px; gap: 5px; min-height: 44px; padding: 9px 2px; }
   .workspace-main-tabs button svg { width: 14px; }
   .page-heading h1 { font-size: 27px; }
   .career-collections { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; margin-bottom: 16px; }
   .career-collections button { min-height: 44px; padding: 10px; }
-  .career-collections button strong { font-size: 11px; }
-  .career-collections button > span { font-size: 10px; }
+  .career-collections button strong { font-size: 13px; }
+  .career-collections button > span { font-size: 12px; }
   .stats-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0; overflow: hidden; }
   .stat-card { min-height: 62px; padding: 11px 14px; }
   .stat-card:nth-child(2) { border-right: 0; }
   .stat-card:nth-child(-n+2) { border-bottom: 1px solid var(--ui-border, #e0e6d9); }
   .stat-value { font-size: 21px; margin-top: 5px; }
   .stats-grid + .file-dropzone > button, .collection-evidence + .file-dropzone > button { min-height: 48px; padding: 12px; }
-  .file-dropzone strong { font-size: 12px; }
+  .file-dropzone strong { font-size: 13px; }
   .stats-grid + .file-dropzone span, .collection-evidence + .file-dropzone span { display: none; }
   .institution-select { flex-basis: 100%; max-width: none; }
   .filter-selects .select-wrap:not(.institution-select) { flex: 1; }
   .filter-selects .select-wrap select { width: 100%; }
   .archive-result-bar { row-gap: 8px; }
   .archive-result-bar > div { flex-wrap: wrap; gap: 8px; }
-  .group-select { font-size: 11px; }
+  .group-select { font-size: 13px; }
   .year-heading h3 { font-size: 21px; }
   .institution-group .year-heading h3 { font-size: 15px; }
   .institution-group .year-line { display: none; }
   .institution-group .year-count { flex-shrink: 0; margin-left: auto; }
   .career-row:not(.as-card) { padding: 16px 13px; column-gap: 10px; }
   .career-info h4 { font-size: 14px; }
-  .lecture-institution { font-size: 12px; }
+  .lecture-institution { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .career-row { transition: none; } }
 /* Keep the record list close to the navigation on small screens. */
@@ -100,12 +100,12 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ui-solid, 
   .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .page-heading h1 { font-size: 25px; }
   .page-heading .page-actions { margin-top: 0; gap: 6px; }
-  .page-heading .page-actions .button { min-height: 44px; padding: 10px; font-size: 11px; gap: 5px; }
+  .page-heading .page-actions .button { min-height: 44px; padding: 10px; font-size: 13px; gap: 5px; }
   .page-heading .page-actions .button svg { width: 15px; }
   .career-collections { display: flex; overflow-x: auto; scrollbar-width: thin; padding: 0 0 10px; margin-bottom: 12px; }
   .career-collections button { flex: 0 0 auto; min-width: 110px; gap: 10px; }
-  .career-collections button strong { font-size: 12px; }
+  .career-collections button strong { font-size: 13px; }
   .stats-grid .stat-card { min-height: 44px; padding: 10px; }
   .stats-grid .stat-value { font-size: 18px; }
-  .stats-grid .stat-label { font-size: 10px; }
+  .stats-grid .stat-label { font-size: 12px; }
 }
