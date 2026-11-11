@@ -2,6 +2,15 @@
 
 2026-11-11에 사용자가 배포 횟수 한도 때문에 호스팅을 Vercel로 옮기기로 결정했습니다. 작업 브랜치는 `claude/vercel-onedrive`이며 `preview/resource-library`(`0baaa42`)에서 시작했습니다. 이 문서의 변경은 **아직 `main`에 반영하지 않았고, 실제 Vercel 프로젝트도 만들지 않았습니다.** 사용자가 Vercel 계정을 연결하고 정식 배포를 요청하기 전까지 Netlify 사이트가 그대로 운영본입니다.
 
+## 진행 상황 (2026-11-11)
+
+- Vercel 프로젝트 `introduce-me` 생성, GitHub `whnn15-hue/me` 연결, 정식 브랜치 `main`, Node 24.x. 정식 주소 `https://introduce-me-three.vercel.app`. 미리보기와 `.vercel.app` 주소는 Vercel 로그인 보호(`all_except_custom_domains`)가 걸려 있습니다.
+- Upstash Redis `introduce-me-vault`(iad1, eviction 끔)를 Production에만 연결했습니다.
+- Production 환경 변수: Netlify의 공개 설정값 13개와 새로 만든 `CRON_SECRET`, 사용자가 직접 넣은 `GOOGLE_CLIENT_SECRET`. `APP_STORAGE_PROVIDER`는 아직 넣지 않았습니다(구글 드라이브 유지).
+- Google OAuth 클라이언트(웹 클라이언트 2)에 `https://introduce-me-three.vercel.app/api/auth/callback`, Firebase 승인된 도메인에 `introduce-me-three.vercel.app`을 추가했습니다(사용자 작업, 승인된 도메인은 공개 설정으로 확인).
+- 첫 API 배포 하나가 Production으로 만들어져 즉시 취소했습니다(환경 변수 없는 상태). 브랜치 미리보기는 격리 빌드로 READY를 확인했습니다.
+- 사용자가 "정식 전환 승인" 후 `main`에 `[skip netlify]` 병합 커밋으로 반영합니다.
+
 ## 무엇이 바뀌나
 
 | 구성 | Netlify (현재) | Vercel (이전 후) |
