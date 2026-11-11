@@ -4,13 +4,14 @@ import { FreeRestRepository } from './repository.mjs';
 import { fault, safeName, MAX_FILE_SIZE } from './files.mjs';
 import { extname } from 'node:path';
 import { normalizeWorkspace } from '../../shared/workspace.mjs';
+import { validStorageFileId } from '../../shared/storage-id.mjs';
 
 export const MAX_SNAPSHOT_SIZE = 5 * 1024 * 1024;
 export function serializeDriveSnapshot(snapshot) {
   if (!Array.isArray(snapshot.careers) || !Array.isArray(snapshot.documents) || snapshot.careers.length > 100000 || snapshot.documents.length > 10000) throw fault('자동 백업 항목 수가 복원 범위를 초과했습니다.', 413);
   const documentIds = new Set(), hashes = new Set();
   const documents = snapshot.documents.map(input => {
-    if (!input || !/^[A-Za-z0-9_-]{1,100}$/.test(input.id || '') || documentIds.has(input.id) || !/^[A-Za-z0-9_-]{8,200}$/.test(input.driveFileId || '') || !/^[a-f0-9]{64}$/.test(input.sha256 || '') || hashes.has(input.sha256) || !Number.isSafeInteger(input.size) || input.size < 0 || input.size > MAX_FILE_SIZE) throw fault('공문 파일의 자동 백업 정보가 올바르지 않습니다.');
+    if (!input || !/^[A-Za-z0-9_-]{1,100}$/.test(input.id || '') || documentIds.has(input.id) || !validStorageFileId(input.driveFileId) || !/^[a-f0-9]{64}$/.test(input.sha256 || '') || hashes.has(input.sha256) || !Number.isSafeInteger(input.size) || input.size < 0 || input.size > MAX_FILE_SIZE) throw fault('공문 파일의 자동 백업 정보가 올바르지 않습니다.');
     if (['name', 'mime', 'createdAt', 'text', 'analysisStatus'].some(field => input[field] != null && typeof input[field] !== 'string')) throw fault('공문 메타데이터의 형식이 올바르지 않습니다.');
     const name = safeName(input.name); if (!ALLOWED_EXTENSIONS.has(extname(name).toLowerCase())) throw fault('지원하지 않는 공문 파일 형식입니다.');
     documentIds.add(input.id); hashes.add(input.sha256);

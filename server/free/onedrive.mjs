@@ -290,6 +290,26 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     } finally { await release(); }
   }
 
+  // Finds an archive file already in the app folder by its recorded SHA-256, so
+  // an interrupted copy can be resumed without uploading the same file twice.
+  async function findArchivedFile(uid, sha256, kind = 'document') {
+    if (!/^[a-f0-9]{64}$/.test(sha256 || '')) return null;
+    const { accessToken: token, folderId } = await accessFor(uid);
+    let next = `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}/children?$select=id,name,size,description,deleted&$top=200`;
+    for (let page = 0; next && page < 100; page++) {
+      if (!next.startsWith(`${GRAPH}/`)) throw fault('OneDrive 목록 주소가 올바르지 않습니다.', 502);
+      const response = await fetcher(next, { headers: tokenHeaders(token), signal: AbortSignal.timeout(20000) });
+      if (!response.ok) throw fault('OneDrive 앱 폴더 목록을 읽지 못했습니다.', 502);
+      const data = await response.json();
+      for (const item of data.value || []) {
+        const meta = decodeArchiveDescription(item.description);
+        if (!item.deleted && validOneDriveItemId(item.id) && meta?.archiveUid === uid && meta.kind === kind && meta.sha256 === sha256) return { driveFileId: item.id, size: Number(item.size) };
+      }
+      next = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
+    }
+    return null;
+  }
+
   async function backup(account) {
     requireConfigured();
     const uid = requireOwner(account);
@@ -367,5 +387,5 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     }
   }
 
-  return { provider: 'onedrive', configured, status, start, callback, disconnect, access, accessFor, requireFile, upload, backup, scheduled, scheduledBackup: scheduled };
+  return { provider: 'onedrive', configured, status, start, callback, disconnect, access, accessFor, requireFile, upload, findArchivedFile, backup, scheduled, scheduledBackup: scheduled };
 }

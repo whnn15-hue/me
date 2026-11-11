@@ -21,6 +21,7 @@ import { cloudMode, cloudRefreshToken, freeMode, signInCloud, signOutCloud } fro
 import { Modal } from "./CareerEditor";
 import EvidenceImport from "./EvidenceImport";
 import AiConnection from "./AiConnection";
+import OneDriveMigration from "./OneDriveMigration";
 import ThemeControl from "./ThemeControl";
 import { type Status } from "./types";
 
@@ -235,6 +236,15 @@ export default function BackupSettings({
             onRefresh={onRefresh}
             onToast={onToast}
             onBackup={driveBackup}
+          />
+        )}
+        {freeMode && status.user && status.oneDriveMigrationAvailable && status.storageProvider !== "onedrive" && (
+          <OneDriveMigration
+            disabled={!!busy}
+            onBackup={localBackup}
+            onRefresh={onRefresh}
+            onToast={onToast}
+            onError={onError}
           />
         )}
         <section className="panel settings-card">

@@ -1,6 +1,7 @@
 import { createFreeAuth } from './auth.mjs';
 import { createFreeDrive } from './drive.mjs';
 import { createFreeOneDrive } from './onedrive.mjs';
+import { createOneDriveMigration } from './storage-migration.mjs';
 import { FreeRestRepository } from './repository.mjs';
 import { createDriveBackup, readDriveFile, extractFile, fault, safeName, MAX_FILE_SIZE } from './files.mjs';
 import { createAiSettings } from './ai-settings.mjs';
@@ -33,6 +34,11 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
   drive = (storageProvider === 'onedrive' ? createFreeOneDrive : createFreeDrive)({ vault, config, fetcher, captureBackup, captureSnapshot, refreshFirebaseOwner: auth.refreshFirebaseOwner });
   const ai = createAiSettings({ vault, config, fetcher });
   const repoFor = user => repositoryFactory({ projectId: config.projectId, uid: user.uid, idToken: user.token, fetcher });
+  // While Google Drive is active, a second OneDrive connection exists only to
+  // copy the archive across (see docs/ONEDRIVE.md). It shares the encrypted vault.
+  const migrationOneDrive = storageProvider === 'google' && config.microsoftClientId
+    ? createFreeOneDrive({ vault, config, fetcher, captureBackup, captureSnapshot, refreshFirebaseOwner: auth.refreshFirebaseOwner }) : null;
+  const migration = createOneDriveMigration({ config, vault, drive, oneDrive: migrationOneDrive, fetcher, repoFor });
   const bridge = async (handler, req) => { const { adapter, getResponse } = responseAdapter(); const result = await handler(req, adapter); return getResponse() || (result instanceof Response ? result : json(result || { ok: true })); };
   async function handle(request) {
     const responseHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', Vary: 'Origin' };
@@ -47,8 +53,9 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
       if (path.startsWith('/.netlify/functions/career-api')) path = '/api' + path.slice('/.netlify/functions/career-api'.length);
       const query = Object.fromEntries(url.searchParams);
       if (path === (storageProvider === 'onedrive' ? '/api/auth/onedrive/callback' : '/api/auth/callback') && request.method === 'GET') response = await bridge(drive.callback, { query });
+      else if (path === '/api/auth/onedrive/callback' && request.method === 'GET' && migration.available) response = await bridge(migration.callback, { query });
       else {
-        const statusBase = { mode: 'firebase', backend: 'netlify-free', user: null, googleConfigured: configured, ownerConfigured: Boolean(config.ownerEmail), aiConfigured: Boolean(config.aiEnabled && config.geminiKey), driveConfigured: configured && drive.configured, driveConnected: false, lastBackup: null, storageProvider };
+        const statusBase = { mode: 'firebase', backend: 'netlify-free', user: null, googleConfigured: configured, ownerConfigured: Boolean(config.ownerEmail), aiConfigured: Boolean(config.aiEnabled && config.geminiKey), driveConfigured: configured && drive.configured, driveConnected: false, lastBackup: null, storageProvider, oneDriveMigrationAvailable: migration.available };
         if (path === '/api/status' && request.method === 'GET' && !request.headers.get('authorization')) response = json(statusBase);
         else {
           if (!configured) throw fault('앱 주소, Firebase 웹 설정과 본인 계정을 먼저 설정해 주세요.', 503);
@@ -69,6 +76,9 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
           else if (path === '/api/ai/settings' && request.method === 'PUT') response = json(await ai.connect(user, body));
           else if (path === '/api/ai/settings' && request.method === 'DELETE') response = json(await ai.disconnect(user));
           else if (path === '/api/auth/drive/start' && request.method === 'POST') response = await bridge(drive.start, req);
+          else if (path === '/api/migration/onedrive/status' && request.method === 'GET') response = json(await migration.status(user));
+          else if (path === '/api/migration/onedrive/start' && request.method === 'POST') response = await bridge(migration.start, req);
+          else if (path === '/api/migration/onedrive/step' && request.method === 'POST') response = json(await migration.step(user, body));
           else if (path === '/api/auth/drive/access' && request.method === 'POST') response = await bridge(drive.access, req);
           else if (path === '/api/auth/drive/disconnect' && request.method === 'POST') response = await bridge(drive.disconnect, req);
           else if (path === '/api/auth/logout' && request.method === 'POST') response = json({ ok: true });
@@ -123,6 +133,6 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
     if (!body || typeof body!=='object' || Array.isArray(body)) throw fault('연결 요청이 올바르지 않습니다.');
     return ai.jobs.run(user,body);
   }
-  return { handle: request => runWithDeadline(() => handle(request), /\/ai\/(?:settings|models)$/.test(new URL(request.url).pathname) && ['POST','PUT'].includes(request.method) ? 26000 : 22000),
+  return { handle: request => runWithDeadline(() => handle(request), /\/migration\/onedrive\/step$/.test(new URL(request.url).pathname) ? 55000 : /\/ai\/(?:settings|models)$/.test(new URL(request.url).pathname) && ['POST','PUT'].includes(request.method) ? 26000 : 22000),
     runAiConnection:request=>runWithDeadline(()=>runAiConnection(request),100000),drive,configured };
 }
