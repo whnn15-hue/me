@@ -1,5 +1,5 @@
 import { driveQuota } from "../../shared/resources.mjs";
-import { validOneDriveItemId } from "../../shared/storage-id.mjs";
+import { decodeHtmlEntities, validOneDriveItemId } from "../../shared/storage-id.mjs";
 import type { DriveFile } from "./drive";
 
 // Browser-side Microsoft OneDrive (personal) operations. The server returns a
@@ -24,7 +24,7 @@ export function oneDriveName(value: string) {
 
 function archiveProperties(description?: string): Record<string, string> {
   try {
-    const parsed = JSON.parse(description || "");
+    const parsed = JSON.parse(decodeHtmlEntities(description || ""));
     if (parsed?.v !== 1 || typeof parsed.archiveUid !== "string" || !kinds.includes(parsed.kind)) return {};
     return { archiveUid: parsed.archiveUid, kind: parsed.kind, ...(typeof parsed.sha256 === "string" ? { sha256: parsed.sha256 } : {}) };
   } catch { return {}; }
@@ -84,7 +84,7 @@ export async function uploadOneDriveFile(
   const session = await graphResponse(await fetch(
     `${GRAPH}/me/drive/items/${encodeURIComponent(credentials.folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
       method: "POST", headers: { ...auth(credentials), "Content-Type": "application/json" }, credentials: "omit",
-      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename", name, description } }),
+      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename", name } }),
     }));
   const { uploadUrl } = await session.json();
   if (typeof uploadUrl !== "string" || !uploadUrl.startsWith("https://")) throw new Error("OneDrive 업로드 주소를 확인하지 못했습니다.");
@@ -100,6 +100,14 @@ export async function uploadOneDriveFile(
       if (response.status === 202) continue;
       const item: GraphItem = await (await graphResponse(response)).json();
       if (!validOneDriveItemId(item.id)) break;
+      // OneDrive Personal rejects a description in createUploadSession, so the
+      // archive label is set right after the upload; an unlabelled file is removed.
+      const itemURL = `${GRAPH}/me/drive/items/${encodeURIComponent(item.id)}`;
+      const labelled = await fetch(itemURL, { method: "PATCH", credentials: "omit", headers: { ...auth(credentials), "Content-Type": "application/json" }, body: JSON.stringify({ description }) }).catch(() => null);
+      if (!labelled?.ok) {
+        await fetch(itemURL, { method: "DELETE", credentials: "omit", headers: auth(credentials) }).catch(() => undefined);
+        throw new Error("OneDrive 파일 정보를 저장하지 못했습니다. 다시 시도해 주세요.");
+      }
       return { ...driveShaped(item), appProperties: { archiveUid, kind, sha256: fileHash } };
     }
   } catch (error) {
