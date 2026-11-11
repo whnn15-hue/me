@@ -66,7 +66,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com https://*.web.app; frame-src 'self' https://*.firebaseapp.com https://*.web.app https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://graph.microsoft.com https://api.onedrive.com https://*.1drv.com https://*.microsoftpersonalcontent.com https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com https://*.web.app; frame-src 'self' https://*.firebaseapp.com https://*.web.app https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         }
       ]
     },

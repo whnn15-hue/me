@@ -126,7 +126,7 @@ test('vercel.json mirrors the Netlify routes, headers and schedule', async () =>
   const netlifyCsp = /Content-Security-Policy = "([^"]+)"/.exec(toml)[1];
   for (const name of ['X-Content-Type-Options', 'X-Frame-Options', 'Referrer-Policy', 'Permissions-Policy', 'Strict-Transport-Security']) assert.ok(toml.includes(`${name} = "${vercelHeaders[name]}"`), name);
   // Same policy, plus the Microsoft hosts needed for OneDrive.
-  const strip = csp => csp.replace(/ https:\/\/(login\.microsoftonline\.com|graph\.microsoft\.com|[^ ;]*1drv[^ ;]*|[^ ;]*sharepoint[^ ;]*|[^ ;]*onedrive[^ ;]*|[^ ;]*live\.com[^ ;]*)/g, '');
+  const strip = csp => csp.replace(/ https:\/\/(login\.microsoftonline\.com|graph\.microsoft\.com|[^ ;]*1drv[^ ;]*|[^ ;]*sharepoint[^ ;]*|[^ ;]*onedrive[^ ;]*|[^ ;]*microsoftpersonalcontent[^ ;]*|[^ ;]*live\.com[^ ;]*)/g, '');
   assert.equal(strip(vercelHeaders['Content-Security-Policy']), netlifyCsp);
   for (const entry of Object.keys(config.functions)) await readFile(new URL(`../${entry}`, import.meta.url));
   const build = await readFile(new URL('../scripts/vercel-build.mjs', import.meta.url), 'utf8');

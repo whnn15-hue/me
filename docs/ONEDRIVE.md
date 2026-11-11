@@ -17,6 +17,16 @@
 
 ## Azure 앱 등록
 
+**2026-11-11 등록 완료 (일부):** 사용자의 개인 마이크로소프트 계정 디렉터리("기본 디렉터리")에 앱 `이력보관함 OneDrive`를 만들었습니다.
+
+- 애플리케이션(클라이언트) ID: `ea01775f-4639-42c4-a243-7bbe1851f682` (공개 식별자)
+- 계정 유형: 개인 Microsoft 계정만 (`PersonalMicrosoftAccount`), access token v2
+- API 권한: Microsoft Graph 위임 `Files.ReadWrite.AppFolder`, `User.Read`, `offline_access`, `openid`, `profile`
+- 퍼블릭 클라이언트 흐름: **연결 시험용으로 켜 둠**. 실제 운영 전환 때 끄면 됩니다.
+- **아직 남은 것:** Vercel 주소가 정해진 뒤 웹 리디렉션 URI(`https://<주소>/api/auth/onedrive/callback`)를 추가하고, 클라이언트 암호를 사용자가 직접 만들어 Vercel 환경 변수에만 넣습니다. 앱 폴더 이름은 OneDrive에서 `앱/이력보관함 OneDrive`로 보입니다.
+
+처음부터 새로 등록할 때의 절차는 아래와 같습니다.
+
 1. https://portal.azure.com 에서 본인 디렉터리를 가진 마이크로소프트 계정으로 **앱 등록 → 새 등록**.
    - 지원되는 계정 유형: **개인 Microsoft 계정만**
    - 리디렉션 URI: 플랫폼 **웹**, `https://<실제 사이트 주소>/api/auth/onedrive/callback`
@@ -61,6 +71,17 @@
 - 서버 보관함의 `lastBackup`, `lastBackupKind`, `backupError`는 공통 키라 유지됩니다. 구글용 `driveTokens`, `driveFolder`, `driveConnectionVersion`은 롤백을 위해 남겨 둡니다.
 - 구글 드라이브의 날짜별 백업 JSON/ZIP은 옮기지 않아도 됩니다. 필요하면 새 OneDrive 앱 폴더에 보관용으로만 복사합니다.
 - 이전 전·후로 전체 백업 ZIP을 내려받아 두고, 이전은 한 번에 한 기록씩 CAS(`revision`)로 저장해 중간에 실패해도 섞이지 않게 합니다.
+
+## 이전 방식 (결정 대기)
+
+기존 원본을 모두 옮길지, 새 원본만 OneDrive에 저장할지는 사용자가 아직 정하지 않았습니다. 권장 방식은 **앱 안의 1회성 이전 도구**입니다.
+
+1. 이전 전 전체 백업 ZIP을 내려받습니다.
+2. 브라우저에서 구글 드라이브와 OneDrive 연결을 모두 연 상태로, 공문 기록마다 구글 원본을 받아 SHA-256을 확인하고 OneDrive 앱 폴더에 올린 뒤 다시 SHA-256을 확인합니다.
+3. 같은 기록의 `driveFileId`를 새 ID로 바꿔 `revision` CAS로 저장합니다. 실패한 기록은 구글 ID를 그대로 두고 목록으로 보여 줍니다.
+4. 모든 기록이 OneDrive ID가 되면 그때 `APP_STORAGE_PROVIDER=onedrive`로 정식 전환합니다. 구글 원본은 지우지 않습니다.
+
+"새 원본만" 방식을 고르면 구글 ID 기록을 읽을 때 구글 드라이브로 대신 여는 이중 읽기가 필요합니다. 지금 코드는 한 번에 한 저장소만 쓰므로 그 경우 추가 작업이 필요합니다.
 
 ## 롤백
 
