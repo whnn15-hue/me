@@ -1,4 +1,5 @@
 import {extraFileTypes} from "../../shared/resources.mjs";
+import { validStorageFileId } from "../../shared/storage-id.mjs";
 import JSZip from "jszip";
 import type { Career, DocumentRecord } from "../types";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId as validId } from "./normalize";
@@ -294,7 +295,7 @@ export async function readDriveSnapshotFile(file: File): Promise<{ careers: Care
   const documents = raw.documents.map(value => {
     const input = record(value);
     if (!validId(input.id) || documentIds.has(input.id) || typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256)
-      || hashes.has(input.sha256) || typeof input.driveFileId !== "string" || !/^[A-Za-z0-9_-]{8,200}$/.test(input.driveFileId)
+      || hashes.has(input.sha256) || !validStorageFileId(input.driveFileId)
       || driveIds.has(input.driveFileId)) throw invalid("드라이브 백업의 파일 ID, 중복, 무결성 정보가 올바르지 않습니다.");
     const document = normalizeDocumentRecord(input);
     originalBytes += document.size;

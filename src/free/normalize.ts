@@ -1,5 +1,6 @@
 import { categories, type Career, type DocumentRecord } from "../types";
 import {extraFileTypes} from "../../shared/resources.mjs";
+import { validStorageFileId } from "../../shared/storage-id.mjs";
 
 export function validRecordId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(value);
@@ -88,7 +89,7 @@ export function normalizeDocumentRecord(value: unknown): DocumentRecord {
   const hash = input.sha256 == null ? "" : text(input.sha256, 1000);
   if (hash && !/^[a-f0-9]{64}$/.test(hash)) return invalid("공문 원본의 SHA-256 정보가 올바르지 않습니다.");
   const driveFileId = input.driveFileId == null ? "" : text(input.driveFileId, 1000);
-  if (driveFileId && !/^[A-Za-z0-9_-]{8,200}$/.test(driveFileId)) return invalid("구글 드라이브 파일 ID가 올바르지 않습니다.");
+  if (driveFileId && !validStorageFileId(driveFileId)) return invalid("드라이브 파일 ID가 올바르지 않습니다.");
   const result: DocumentRecord = {
     id: input.id, name, size, mime: text(input.mime, 100) || "application/octet-stream", createdAt,
     text: text(input.text, 24000), analysisStatus: text(input.analysisStatus, 50), recordIds: [],

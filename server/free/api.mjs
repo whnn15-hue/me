@@ -1,5 +1,6 @@
 import { createFreeAuth } from './auth.mjs';
 import { createFreeDrive } from './drive.mjs';
+import { createFreeOneDrive } from './onedrive.mjs';
 import { FreeRestRepository } from './repository.mjs';
 import { createDriveBackup, readDriveFile, extractFile, fault, safeName, MAX_FILE_SIZE } from './files.mjs';
 import { createAiSettings } from './ai-settings.mjs';
@@ -28,7 +29,8 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
   let drive;
   const captureBackup = createDriveBackup({ config, fetcher, getDrive: () => drive, repositoryFactory });
   const captureSnapshot = createAutomaticSnapshot({ config, fetcher, repositoryFactory });
-  drive = createFreeDrive({ vault, config, fetcher, captureBackup, captureSnapshot, refreshFirebaseOwner: auth.refreshFirebaseOwner });
+  const storageProvider = config.storageProvider === 'onedrive' ? 'onedrive' : 'google';
+  drive = (storageProvider === 'onedrive' ? createFreeOneDrive : createFreeDrive)({ vault, config, fetcher, captureBackup, captureSnapshot, refreshFirebaseOwner: auth.refreshFirebaseOwner });
   const ai = createAiSettings({ vault, config, fetcher });
   const repoFor = user => repositoryFactory({ projectId: config.projectId, uid: user.uid, idToken: user.token, fetcher });
   const bridge = async (handler, req) => { const { adapter, getResponse } = responseAdapter(); const result = await handler(req, adapter); return getResponse() || (result instanceof Response ? result : json(result || { ok: true })); };
@@ -44,9 +46,9 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
       const url = new URL(request.url); let path = url.pathname;
       if (path.startsWith('/.netlify/functions/career-api')) path = '/api' + path.slice('/.netlify/functions/career-api'.length);
       const query = Object.fromEntries(url.searchParams);
-      if (path === '/api/auth/callback' && request.method === 'GET') response = await bridge(drive.callback, { query });
+      if (path === (storageProvider === 'onedrive' ? '/api/auth/onedrive/callback' : '/api/auth/callback') && request.method === 'GET') response = await bridge(drive.callback, { query });
       else {
-        const statusBase = { mode: 'firebase', backend: 'netlify-free', user: null, googleConfigured: configured, ownerConfigured: Boolean(config.ownerEmail), aiConfigured: Boolean(config.aiEnabled && config.geminiKey), driveConfigured: configured && drive.configured, driveConnected: false, lastBackup: null };
+        const statusBase = { mode: 'firebase', backend: 'netlify-free', user: null, googleConfigured: configured, ownerConfigured: Boolean(config.ownerEmail), aiConfigured: Boolean(config.aiEnabled && config.geminiKey), driveConfigured: configured && drive.configured, driveConnected: false, lastBackup: null, storageProvider };
         if (path === '/api/status' && request.method === 'GET' && !request.headers.get('authorization')) response = json(statusBase);
         else {
           if (!configured) throw fault('앱 주소, Firebase 웹 설정과 본인 계정을 먼저 설정해 주세요.', 503);

@@ -86,7 +86,7 @@ export default function BackupSettings({
     try {
       await api("/backup/drive", { method: "POST" });
       await onRefresh();
-      onToast("구글 드라이브에 날짜별 백업을 저장했습니다.");
+      onToast(`${status.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브"}에 날짜별 백업을 저장했습니다.`);
     } catch (e) {
       onError(e);
     } finally {
@@ -206,6 +206,7 @@ export default function BackupSettings({
       setBusy("");
     }
   }
+  const storageName = status.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
   const configured = cloudMode
     ? status.firebaseConfigured
     : status.googleConfigured && status.ownerConfigured;
@@ -223,7 +224,7 @@ export default function BackupSettings({
         {freeMode && (
           <div className="notice">
             <HardDrive size={17} />
-            <span>경력 정보는 계정에 저장하고 공문 원본은 구글 드라이브에 보관합니다. 공문을 올리기 전에 드라이브를 연결해 주세요.</span>
+            <span>경력 정보는 계정에 저장하고 공문 원본은 {storageName}에 보관합니다. 공문을 올리기 전에 드라이브를 연결해 주세요.</span>
           </div>
         )}
         {freeMode && status.user && (
@@ -305,7 +306,8 @@ export default function BackupSettings({
               <Cloud size={27} />
             </span>
             <div>
-              <h2>구글 드라이브 백업</h2>
+              <h2>{storageName} 백업</h2>
+              {status.storageAccount && <p className="muted">{status.storageAccount}</p>}
             </div>
             <span
               className={`connection-badge ${status.driveConnected ? "connected" : ""}`}
@@ -606,7 +608,7 @@ export default function BackupSettings({
         >
           <div className="modal-body">
             <p className="confirm-description">
-              자동 백업을 중지합니다. 구글 드라이브에 이미 저장한 백업은
+              자동 백업을 중지합니다. {storageName}에 이미 저장한 백업은
               삭제하지 않습니다.
             </p>
           </div>

@@ -2,6 +2,8 @@ import { isHtmlBytes } from "../../shared/html.mjs";
 import {extraFileTypes, validExtraFile, driveQuota} from "../../shared/resources.mjs";
 import { api } from "../api";
 import { cloudUserError, readyCloudUser } from "../cloud";
+import { validGoogleDriveId } from "../../shared/storage-id.mjs";
+import { downloadOneDriveContent, ownedOneDriveItem, readOneDriveStorage, trashOneDriveItem, uploadOneDriveFile, type OneDriveAccess } from "./onedrive";
 
 export interface DriveFile {
   id: string;
@@ -12,7 +14,9 @@ export interface DriveFile {
   appProperties?: Record<string, string>;
 }
 
-type DriveAccess = { accessToken: string; folderId: string };
+// The server picks the storage provider; OneDrive access carries provider "onedrive".
+type DriveAccess = { accessToken: string; folderId: string; provider?: "google" | "onedrive" };
+const isOneDrive = (credentials: DriveAccess): credentials is OneDriveAccess => credentials.provider === "onedrive";
 
 const fileTypes: Record<string, string> = {
   ...extraFileTypes,
@@ -59,12 +63,13 @@ export async function validateDriveUploadFile(file: File, kind: "document" | "te
 async function access(): Promise<DriveAccess> {
   const result = await api<DriveAccess>("/auth/drive/access", { method: "POST" });
   if (!result.accessToken || !result.folderId)
-    throw new Error("백업 및 공문 보관에 사용할 구글 드라이브를 먼저 연결해 주세요.");
+    throw new Error("백업 및 공문 보관에 사용할 드라이브를 먼저 연결해 주세요.");
   return result;
 }
 
 export async function readDriveStorage() {
   const credentials=await access();
+  if (isOneDrive(credentials)) return readOneDriveStorage(credentials);
   const response=await driveResponse(await fetch('https://www.googleapis.com/drive/v3/about?fields=storageQuota',{
     headers:{Authorization:`Bearer ${credentials.accessToken}`},credentials:'omit',signal:AbortSignal.timeout(15000),
   }));
@@ -72,7 +77,7 @@ export async function readDriveStorage() {
 }
 
 function checkedId(id: string) {
-  if (!/^[A-Za-z0-9_-]{8,200}$/.test(id))
+  if (!validGoogleDriveId(id))
     throw new Error("구글 드라이브 파일 정보를 확인할 수 없습니다.");
   return id;
 }
@@ -125,6 +130,7 @@ export async function uploadDriveFile(
   const archiveUid = await ownerUid();
   const fileHash = digest || await sha256(await file.arrayBuffer());
   if (!/^[a-f0-9]{64}$/.test(fileHash)) throw new Error("파일 무결성 정보를 확인해 주세요.");
+  if (isOneDrive(credentials)) return { ...await uploadOneDriveFile(file, mimeType, kind, fileHash, archiveUid, credentials), sha256: fileHash };
   const boundary = `career_${crypto.randomUUID().replaceAll("-", "")}`;
   const metadata = {
     name: file.name,
@@ -159,7 +165,8 @@ export async function downloadDriveFile(
   expected?: { size?: number; sha256?: string; kind?: "document" },
 ) {
   const credentials = await access();
-  const metadata = await ownedFile(fileId, credentials);
+  const onedrive = isOneDrive(credentials) ? await ownedOneDriveItem(fileId, credentials, await ownerUid()) : null;
+  const metadata = onedrive ? onedrive.metadata : await ownedFile(fileId, credentials);
   const size = Number(metadata.size || 0);
   if (
     !Number.isSafeInteger(size) ||
@@ -170,11 +177,10 @@ export async function downloadDriveFile(
     throw new Error("공문 원본의 크기 또는 보관 정보를 확인할 수 없습니다.");
   if (size > 200 * 1024 * 1024)
     throw new Error("한 번에 내려받을 수 있는 파일 크기는 최대 200 MB입니다.");
-  const response = await driveResponse(await fetch(
+  const blob = onedrive ? await downloadOneDriveContent(onedrive.downloadUrl) : await (await driveResponse(await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
     { headers: { Authorization: `Bearer ${credentials.accessToken}` }, credentials: "omit" },
-  ));
-  const blob = await response.blob();
+  ))).blob();
   if (blob.size !== size) throw new Error("공문 원본을 완전히 내려받지 못했습니다.");
   if (expected?.sha256 && await sha256(await blob.arrayBuffer()) !== expected.sha256)
     throw new Error("공문 원본이 백업 이후 변경되었습니다. 파일 무결성을 확인해 주세요.");
@@ -183,6 +189,10 @@ export async function downloadDriveFile(
 
 export async function trashDriveFile(fileId: string) {
   const credentials = await access();
+  if (isOneDrive(credentials)) {
+    await ownedOneDriveItem(fileId, credentials, await ownerUid());
+    return trashOneDriveItem(fileId, credentials);
+  }
   await ownedFile(fileId, credentials);
   await driveResponse(await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
