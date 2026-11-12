@@ -27,10 +27,14 @@ test("isolated preview: 50 photos, submission files, matching, ZIP, search and b
   await page.getByLabel("사진 끌어 놓기", { exact: true }).setInputFiles(files.slice(0,2));
   await expect(page.getByText("0장 추가, 동일 파일 2장 제외", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "표시된 사진 선택", exact: true }).click();
-  await page.getByRole("button", { name: "검토 완료", exact: true }).click();
+  await expect(page.getByRole("button", { name: "검토 완료", exact: true })).toHaveCount(0);
+  await expect(page.locator('.reuse-badge').filter({hasText:/검토/})).toHaveCount(0);
+  await page.getByRole("button", { name: "태그 추가", exact: true }).click();
   await expect(page.getByText("선택한 사진을 정리했습니다.", { exact: true })).toBeVisible();
-  await expect(page.locator(".reuse-photo .confirmed")).toHaveCount(50);
+  await expect(page.locator(".reuse-photo .tags").filter({hasText:'쓰기'})).toHaveCount(50);
   await page.getByRole("button", { name: "모둠 토의-0.png", exact: true }).click();
+  await expect(page.getByRole('dialog',{name:'사진 편집'})).toBeVisible();
+  await expect(page.getByLabel('태그와 설명 검토 완료')).toHaveCount(0);
   await page.getByRole("textbox", { name: "장면 설명", exact: true }).fill("예시 모둠 토의 장면");
   await page.getByRole("button", { name: "사진 저장", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);

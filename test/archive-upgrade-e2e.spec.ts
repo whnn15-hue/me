@@ -21,9 +21,12 @@ test('archive desk connects review queues, favorites, keyboard search and select
     expect(result.ok()).toBeTruthy(); materialId=(await result.json()).items.find((item:{title:string})=>item.title==='업그레이드검증 즐겨찾는 강의안').id;
     const protectedData=await data(page),protectedWorkspace=await workspace(page);
     await page.goto('/');
+    await expect(page.getByRole('button',{name:/확인 전 경력|내용 확인/})).toHaveCount(0);
     const queue=page.getByRole('region',{name:'정리할 기록',exact:true});
     await queue.getByRole('button',{name:/날짜 입력/}).click();
     await expect(page.locator('.career-row').filter({hasText:'업그레이드검증 날짜 없는 기록'})).toBeVisible();
+    await expect(page.locator('.unverified-label')).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'확인 전만 보기'})).toHaveCount(0);
     await expect(page.locator('.career-row').filter({hasText:'업그레이드검증 수학 연수'})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'정리할 기록',exact:true})).toHaveCount(0);
     await page.getByLabel('경력 검색',{exact:true}).fill('검증연수원 업그레이드검증');
@@ -31,6 +34,8 @@ test('archive desk connects review queues, favorites, keyboard search and select
     await page.getByRole('button',{name:'이력서로 만들기',exact:true}).click();
     await expect(page.locator('.selection-count')).toHaveText('1개 선택');
     await expect(page.locator('.resume-career.selected')).toContainText('업그레이드검증 날짜 없는 기록');
+    await expect(page.locator('.resume-career.selected')).not.toContainText('확인 전');
+    await expect(page.locator('.unverified-label')).toHaveCount(0);
     await home(page).click();
     await page.getByRole('region',{name:'즐겨찾는 기록'}).getByRole('button',{name:/업그레이드검증 즐겨찾는 강의안/}).click();
     await expect(page.getByRole('dialog',{name:'업그레이드검증 즐겨찾는 강의안',exact:true})).toBeVisible();

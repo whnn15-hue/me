@@ -10,7 +10,7 @@
 .home-shortcuts b { font-size:30px; letter-spacing:-.04em; }
 .home-attention { margin-bottom:20px; }
 .home-attention > header { margin-bottom:16px; }
-.attention-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.attention-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
 .attention-grid > button { display:flex; align-items:center; gap:12px; background:var(--ui-inset); border:1px solid transparent; border-radius:13px; padding:16px 13px; text-align:left; }
 .attention-grid > button:not(:disabled):hover { border-color:var(--ui-accent-line); background:var(--ui-accent-soft); }
 .attention-grid > button:disabled { opacity:.55; cursor:default; }

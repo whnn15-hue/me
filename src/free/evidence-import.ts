@@ -4,6 +4,7 @@ import { readBackupFile, type RestoredDocument } from "./backup";
 import { sha256, trashDriveFile, uploadDriveFile, validateDriveUploadFile } from "./drive";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId } from "./normalize";
 import { activateRestoredData, ArchiveRevisionConflictError, readFreeSnapshot } from "./store";
+import { sameEvidenceCareer } from "./evidence-approval";
 
 const MAX_METADATA_SIZE = 5 * 1024 * 1024;
 const MAX_ORIGINALS_SIZE = 200 * 1024 * 1024;
@@ -29,6 +30,8 @@ export interface EvidenceImportOptions {
   approvedLinks: Record<string, string[]>;
   /** Omitted or [] never creates a career, even when the package suggests one. */
   approvedNewCareerIds?: string[];
+  /** Chat-approved automatic imports recheck identity against the fresh snapshot. */
+  requireMatchingCareerDetails?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: EvidenceImportProgress) => void;
 }
@@ -137,6 +140,10 @@ export async function applyEvidenceImport(
     || new Set(selectedIds).size !== selectedIds.length)
     throw new Error("묶음에 제안된 새 경력 중 추가할 항목을 확인해 주세요.");
   const carrierById = new Map(prepared.careers.map(career => [career.id, career]));
+  const automaticTargets = options.requireMatchingCareerDetails
+    ? new Map(prepared.careers.map(({ id, title, startDate }) => [id, { id, title, startDate }])) : null;
+  if (automaticTargets && selectedIds.length)
+    throw new Error("새 이력은 연결 내용을 확인한 뒤 추가해 주세요.");
   // Snapshot normalized suggestions before awaits. Document links come only from
   // explicit owner choices below; a prepared package cannot claim verification.
   const approvedCareers = selectedIds.map(id => normalizeCareer({
@@ -179,6 +186,15 @@ export async function applyEvidenceImport(
   checkCancellation(options.signal);
   const current = await readFreeSnapshot();
   checkCancellation(options.signal);
+  if (automaticTargets) {
+    const latest = new Map(current.careers.map(career => [career.id, career]));
+    for (const item of incoming) {
+      if (!item.links.length || item.links.some(id => {
+        const expected = automaticTargets.get(id), actual = latest.get(id);
+        return !expected || !actual || !sameEvidenceCareer(expected, actual);
+      })) throw new Error("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 최신 연결 내용을 확인해 주세요.");
+    }
+  }
   const liveCareerIds = new Set(current.careers.map(career => career.id));
   const newCareers = approvedCareers.filter(career => !liveCareerIds.has(career.id));
   const targetCareerIds = new Set([...liveCareerIds, ...newCareers.map(career => career.id)]);

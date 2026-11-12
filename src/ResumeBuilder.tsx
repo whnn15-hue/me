@@ -20,7 +20,7 @@ import { type DocumentRecord, type Career, type HwpxField } from "./types";
 
 const period = (c: Career) =>
   !c.startDate
-    ? "날짜 확인 필요"
+    ? "날짜 미입력"
     : c.endDate && c.endDate !== c.startDate
       ? `${c.startDate} ~ ${c.endDate}`
       : c.startDate;
@@ -111,7 +111,6 @@ export default function ResumeBuilder({
         "활동내용",
         "태그",
         "증빙 개수",
-        "확인 상태",
       ],
       ...chosen.map((c) => [
         period(c),
@@ -122,7 +121,6 @@ export default function ResumeBuilder({
         c.description,
         c.tags.join(", "),
         String(c.documentIds.length),
-        c.verified ? "확인함" : "확인 전",
       ]),
     ];
     saveBlob(
@@ -146,7 +144,7 @@ export default function ResumeBuilder({
     }
   }
   function print() {
-    const html = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><title>${escape(title)}</title><style>body{font-family:"Noto Sans CJK KR",sans-serif;color:#26372f;margin:0;padding:38px}h1{font-size:26px;margin:0 0 18px}h2{font-size:15px;margin:0 0 8px}.profile{margin-bottom:30px;color:#59635e}table{border-collapse:collapse;width:100%;font-size:11px}th{background:#f0f3ef;text-align:left;padding:10px}td{padding:12px 10px;border-bottom:1px solid #e4e8e3;vertical-align:top}p{white-space:pre-wrap;margin:5px 0;color:#66716b}.title{font-weight:700}@page{size:A4;margin:15mm}@media print{body{padding:0}tr{break-inside:avoid}thead{display:table-header-group}}</style></head><body><h1>${escape(title)}</h1><div class="profile">${escape(name)}${contact ? "<p>" + escape(contact) + "</p>" : ""}</div><table><thead><tr><th>기간</th><th>활동 및 주요 내용</th><th>기관, 역할</th></tr></thead><tbody>${chosen.map((c) => `<tr><td style="width:18%">${escape(period(c))}</td><td><div class="title">${escape(c.title)}</div>${c.description ? "<p>" + escape(c.description) + "</p>" : ""}${!c.verified ? "<p>확인 전 기록</p>" : ""}</td><td style="width:24%">${escape(c.organization)}${c.role ? "<p>" + escape(c.role) + "</p>" : ""}</td></tr>`).join("")}</tbody></table></body></html>`;
+    const html = `<!doctype html><html lang="ko"><head><meta charset="UTF-8"><title>${escape(title)}</title><style>body{font-family:"Noto Sans CJK KR",sans-serif;color:#26372f;margin:0;padding:38px}h1{font-size:26px;margin:0 0 18px}h2{font-size:15px;margin:0 0 8px}.profile{margin-bottom:30px;color:#59635e}table{border-collapse:collapse;width:100%;font-size:11px}th{background:#f0f3ef;text-align:left;padding:10px}td{padding:12px 10px;border-bottom:1px solid #e4e8e3;vertical-align:top}p{white-space:pre-wrap;margin:5px 0;color:#66716b}.title{font-weight:700}@page{size:A4;margin:15mm}@media print{body{padding:0}tr{break-inside:avoid}thead{display:table-header-group}}</style></head><body><h1>${escape(title)}</h1><div class="profile">${escape(name)}${contact ? "<p>" + escape(contact) + "</p>" : ""}</div><table><thead><tr><th>기간</th><th>활동 및 주요 내용</th><th>기관, 역할</th></tr></thead><tbody>${chosen.map((c) => `<tr><td style="width:18%">${escape(period(c))}</td><td><div class="title">${escape(c.title)}</div>${c.description ? "<p>" + escape(c.description) + "</p>" : ""}</td><td style="width:24%">${escape(c.organization)}${c.role ? "<p>" + escape(c.role) + "</p>" : ""}</td></tr>`).join("")}</tbody></table></body></html>`;
     const frame = document.createElement("iframe");
     frame.style.cssText = "position:fixed;width:0;height:0;border:0";
     frame.title = "이력서 인쇄";
@@ -309,7 +307,6 @@ export default function ResumeBuilder({
                   <strong>{c.title}</strong>
                   <em>
                     {c.organization || "기관 미입력"}
-                    {!c.verified && <i>확인 전</i>}
                   </em>
                 </span>
               </label>
@@ -407,11 +404,6 @@ export default function ResumeBuilder({
                               .join(", ")}
                           </span>
                           {c.description && <p>{c.description}</p>}
-                          {!c.verified && (
-                            <small className="unverified-label">
-                              내용 확인 필요
-                            </small>
-                          )}
                         </div>
                       </article>
                     ))}

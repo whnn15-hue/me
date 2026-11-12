@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { evidenceFileFromImportCode } from "./backup-code";
+import { automaticEvidenceLinks, hasEvidenceImportApproval } from "./free/evidence-approval";
 import { displayText } from "./display";
 import type { Career } from "./types";
 import type {
@@ -85,6 +86,8 @@ export default function EvidenceImport({
   const [step, setStep] = useState<"input" | "preparing" | "review" | "importing" | "complete">("input");
   const [progress, setProgress] = useState<EvidenceImportProgress | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [autoPending, setAutoPending] = useState(false);
+  const [autoNote, setAutoNote] = useState("");
   const [error, setError] = useState("");
   const [canceled, setCanceled] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -127,7 +130,8 @@ export default function EvidenceImport({
         ? "증빙 정리를 마쳤어요"
         : "공문 원본을 연결된 드라이브에 보관하고 있어요";
 
-  // A link only loads the review. Saving still requires the owner's button.
+  // Ordinary links load the review. Only exact archives separately approved
+  // by the owner can use the automatic path below.
   // Deferring one microtask avoids duplicate loading in React Strict Mode.
   useEffect(() => {
     if (!initialCode) { lastInitialCode.current = null; return; }
@@ -151,19 +155,26 @@ export default function EvidenceImport({
     setError("");
     setCanceled(false);
     setResult(null);
+    setAutoPending(false);
+    setAutoNote("");
     try {
       const archive = file ?? await evidenceFileFromImportCode(suppliedCode);
       const { readEvidenceImportFile, readEvidenceImportReviewCareers } = await import("./free/evidence-import");
       const content = await readEvidenceImportFile(archive);
-      const latestCareers = await readEvidenceImportReviewCareers();
+      const [latestCareers, approved] = await Promise.all([
+        readEvidenceImportReviewCareers(), hasEvidenceImportApproval(archive),
+      ]);
+      const automaticLinks = approved ? automaticEvidenceLinks(content, latestCareers) : null;
       const liveIds = new Set(latestCareers.map(career => career.id));
       const newIds = (content.newCareerIds ?? []).filter(id => !liveIds.has(id));
       const availableIds = new Set([...liveIds, ...newIds]);
       const selections = Object.fromEntries(content.documents.map(document => [document.id, document.recordIds.filter(id => availableIds.has(id))]));
       setPrepared(content);
       setReviewCareers(latestCareers);
-      setApprovedLinks(selections);
+      setApprovedLinks(automaticLinks ?? selections);
       setApprovedNewCareerIds(newIds);
+      setAutoPending(Boolean(automaticLinks));
+      if (approved && !automaticLinks) setAutoNote("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.");
       setCode("");
       setStep("review");
     } catch (cause) {
@@ -175,9 +186,10 @@ export default function EvidenceImport({
     }
   }
 
-  async function confirmImport() {
+  async function confirmImport(automatic = false) {
     if (!prepared || operationRef.current || disabled || !driveConnected) return;
     operationRef.current = true;
+    setAutoPending(false);
     const controller = new AbortController();
     controllerRef.current = controller;
     onBusyChange(true);
@@ -191,6 +203,7 @@ export default function EvidenceImport({
       const saved = await applyEvidenceImport(prepared, {
         approvedLinks,
         approvedNewCareerIds,
+        requireMatchingCareerDetails: automatic,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -217,7 +230,15 @@ export default function EvidenceImport({
     }
   }
 
+  useEffect(() => {
+    if (!autoPending || step !== "review" || disabled || !driveConnected) return;
+    let active = true;
+    queueMicrotask(() => { if (active && !operationRef.current) void confirmImport(true); });
+    return () => { active = false; };
+  }, [autoPending, step, disabled, driveConnected]);
+
   function toggleLink(documentId: string, careerId: string, checked: boolean) {
+    setAutoPending(false);
     setApprovedLinks(current => ({
       ...current,
       [documentId]: checked
@@ -227,6 +248,7 @@ export default function EvidenceImport({
   }
 
   function toggleNewCareer(careerId: string, checked: boolean) {
+    setAutoPending(false);
     setApprovedNewCareerIds(current => checked ? [...new Set([...current, careerId])] : current.filter(id => id !== careerId));
     setApprovedLinks(current => Object.fromEntries(Object.entries(current).map(([documentId, ids]) => [
       documentId,
@@ -238,6 +260,8 @@ export default function EvidenceImport({
 
   function reset() {
     if (operationRef.current) return;
+    setAutoPending(false);
+    setAutoNote("");
     setPrepared(null);
     setReviewCareers([]);
     setApprovedLinks({});
@@ -252,6 +276,8 @@ export default function EvidenceImport({
 
   return (
     <section className="panel settings-card evidence-import" aria-labelledby="evidence-import-heading">
+      {autoPending && <div className="evidence-import-notice" role="status"><CloudUpload size={16} /><span>{driveConnected ? "요청하신 증빙을 기존 이력에 자동으로 연결하고 저장합니다." : "요청하신 증빙의 자동 저장을 준비했습니다. 드라이브 연결이 필요합니다."}</span><button type="button" className="text-button" onClick={() => setAutoPending(false)}>자동 저장 취소</button></div>}
+      {autoNote && <div className="evidence-import-notice" role="status">{autoNote}</div>}
       <div className="evidence-import-heading">
         <span className="evidence-import-symbol"><FolderInput size={24} /></span>
         <div>
@@ -318,7 +344,7 @@ export default function EvidenceImport({
           </div>
           {suggestedNewCareers.length > 0 && (
             <section className="evidence-new-careers" aria-labelledby="evidence-new-careers-heading">
-              <div><h3 id="evidence-new-careers-heading">새 경력 {approvedNewCareerIds.length}건 추가</h3><p>공문을 바탕으로 정리한 경력입니다. 필요한 항목만 체크하세요. 새 경력은 확인 필요 상태로 저장됩니다.</p></div>
+              <div><h3 id="evidence-new-careers-heading">새 경력 {approvedNewCareerIds.length}건 추가</h3><p>공문을 바탕으로 정리한 경력입니다. 필요한 항목만 체크하세요.</p></div>
               <fieldset disabled={locked}>
                 <legend className="visually-hidden">추가할 새 경력 선택</legend>
                 {suggestedNewCareers.map(career => (
@@ -346,7 +372,7 @@ export default function EvidenceImport({
                   <div className="evidence-file-heading">
                     <span className="evidence-file-index">{String(index + 1).padStart(2, "0")}</span>
                     <FileText size={18} className="evidence-file-icon" />
-                    <div className="evidence-file-name"><h4>{displayText(document.name)}</h4><p>{sizeLabel(document.size)}{document.analysisStatus && <><span aria-hidden="true">, </span>{displayText(document.analysisStatus)}</>}</p></div>
+                    <div className="evidence-file-name"><h4>{displayText(document.name)}</h4><p>{sizeLabel(document.size)}</p></div>
                     <span className={`evidence-link-count ${selected.length ? "has-links" : ""}`}>{selected.length ? <><Link2 size={12} /> {selected.length}</> : "우선 보관"}</span>
                   </div>
                   {proposedCareers.length > 0 ? (
@@ -408,7 +434,7 @@ export default function EvidenceImport({
       {step === "complete" && result && (
         <div className="evidence-import-complete" role="status">
           <span className="evidence-complete-mark"><Check size={22} /></span>
-          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 확인 필요 상태로 추가했습니다.</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
+          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 추가했습니다.</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
           <div className="evidence-complete-actions">
             <button className="button secondary" disabled={disabled} onClick={() => void onBackup()}><FileCheck2 size={15} /> 지금 백업하기</button>
             <button className="text-button" disabled={disabled} onClick={reset}>다른 증빙 가져오기 <ArrowRight size={14} /></button>
