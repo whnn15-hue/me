@@ -1,5 +1,5 @@
 // Presentation categories are exclusive. Legacy stored values remain valid for backups.
-export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '표창', '파견', '집필', '콘텐츠 제작', '자격증', '기타'];
+export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '표창', '파견', '집필', '콘텐츠 제작', '자격증'];
 const fold = value => String(value || '').normalize('NFC').replaceAll('_', ' ');
 const isKeris = text => /KERIS|한국교육학술정보원/i.test(text);
 const internalProgramme = /수학탐험대.*디지털\s*교구.*활용사례집.*제작|연구학교.*성과보고회.*시도.*운영\s*용역|인공지능.*초등수학.*온라인\s*연수.*운영\s*계획|AI\s*디지털교과서.*수정\s*보완.*검토위원회.*운영\s*계획/i;
@@ -33,6 +33,13 @@ export function careerSection(career, documents = []) {
   if (career.category === '콘텐츠 제작' || creator && !reviewer && (combined || !['강의·연수','위원회·지원단'].includes(career.category))) return '콘텐츠 제작';
   if (combined) return reviewer ? '위원회·지원단' : '콘텐츠 제작';
   if (['근무·파견', '근무'].includes(career.category)) return '기타';
+  // Classify old catch-all records without mutating their saved data. Unknown
+  // records remain in the full archive, never deleted or guessed into a field.
+  if (career.category === '기타') {
+    if (/자격증|자격\s*취득|컴퓨터활용능력|정보처리기사/.test(primary)) return '자격증';
+    if (/강사|강의|출강|초빙|연수/.test(primary)) return '강의·연수';
+    if (/위원|지원단|서포터즈|선도교사|마스터\s*교원|연구회|컨설팅/.test(primary)) return '위원회·지원단';
+  }
   return careerCategoryChoices.includes(career.category) ? career.category : '기타';
 }
 
@@ -41,7 +48,8 @@ export function careerCollections(career, documents = []) {
   return collection ? [collection] : [];
 }
 export function careerCategoryLabel(career, documents = []) {
-  return careerSection(career, documents).replaceAll('·', ', ');
+  const section = careerSection(career, documents);
+  return section === '기타' ? '' : section.replaceAll('·', ', ');
 }
 export function matchesCareerCategory(career, category, documents = []) {
   if (category === '전체') return true;

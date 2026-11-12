@@ -13,6 +13,8 @@ test('four workspaces contain exclusive career collections, institution views an
     {title:'구성검증 미디어 강의',category:'강의·연수',organization:'가상 교육연수원',role:'강사'},
     {title:'구성검증 수업 연수',category:'강의·연수',organization:'가상 대학교',role:'강사'},
     {title:'구성검증 기관 미기재 연수',category:'강의·연수'},
+    {title:'구성검증 선도교사',category:'기타'},
+    {title:'구성검증 예전 기록',category:'기타'},
   ];
   const created=[];
   for(const item of fixtures){const response=await page.request.post('/api/careers',{data:{...item,startDate:'2026',datePrecision:'year',verified:false,evidenceStatus:'unneeded'}});expect(response.ok()).toBeTruthy();created.push(await response.json());}
@@ -23,8 +25,11 @@ test('four workspaces contain exclusive career collections, institution views an
   const categories=page.getByRole('navigation',{name:'이력 분류',exact:true});
   await expect(categories.getByRole('button',{name:/^근무/})).toHaveCount(0);
   await expect(categories.getByRole('button',{name:/연구, 수상/})).toHaveCount(0);
+  await expect(categories.getByRole('button',{name:/^기타/})).toHaveCount(0);
   const choose=async(name:string)=>categories.getByRole('button').filter({has:page.locator('strong',{hasText:new RegExp(`^${name}$`)})}).click();
   const row=(index:number)=>page.locator('.career-row').filter({hasText:fixtures[index].title});
+  await choose('전체');await expect(row(10)).toBeVisible();
+  await choose('위원회, 지원단');await expect(row(9)).toBeVisible();await expect(row(10)).toHaveCount(0);
   await choose('연구대회');await expect(row(2)).toBeVisible();await expect(row(4)).toHaveCount(0);
   await choose('표창');await expect(row(4)).toBeVisible();await expect(row(2)).toHaveCount(0);
   await expect(row(4).locator('.award-unknown')).toHaveCount(0);
@@ -74,9 +79,9 @@ test('four workspaces contain exclusive career collections, institution views an
   }
   if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});await page.screenshot({path:'/tmp/career-portfolio-mobile.png',animations:'disabled'});
   await primary.getByRole('button',{name:'수업',exact:true}).click();await expect(page.getByRole('heading',{name:'수업 기록',exact:true})).toBeVisible();
-  await primary.getByRole('button',{name:'강의 자료',exact:true}).click();await expect(page.getByRole('heading',{name:'강의 자료',exact:true})).toBeVisible();
-  await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'강의 자료',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
-  const material=page.getByRole('dialog',{name:'강의 자료 추가',exact:true});
+  await primary.getByRole('button',{name:'자료실',exact:true}).click();await expect(page.getByRole('heading',{name:'자료실',exact:true})).toBeVisible();
+  await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'자료실',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
+  const material=page.getByRole('dialog',{name:'자료 추가',exact:true});
   await expect(material.locator('details.optional-fields')).not.toHaveAttribute('open');await expect(material.getByText('내가 만든 자료',{exact:true})).toHaveCount(0);
   await material.getByRole('button',{name:'취소',exact:true}).click();
   for(const item of created)expect((await page.request.delete(`/api/careers/${item.id}`)).ok()).toBeTruthy();
@@ -100,21 +105,21 @@ test('HTML uploads remain attachments and library favorites persist with links a
   const materialId=(await response.json()).items.find((item:{title:string})=>item.title==='통합검증 HTML 수학 자료').id;
   await page.reload();
   const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-  await primary.getByRole('button',{name:'강의 자료',exact:true}).click();
+  await primary.getByRole('button',{name:'자료실',exact:true}).click();
   await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('HTML');
   const favorite=page.getByRole('button',{name:'통합검증 HTML 수학 자료 즐겨찾기',exact:true});
   await favorite.click();await expect(favorite).toHaveAttribute('aria-pressed','true');
-  await page.reload();await primary.getByRole('button',{name:'강의 자료',exact:true}).click();
+  await page.reload();await primary.getByRole('button',{name:'자료실',exact:true}).click();
   await expect(favorite).toHaveAttribute('aria-pressed','true');
   await page.getByRole('button',{name:'목록 보기',exact:true}).click();
   await page.getByRole('button',{name:'통합검증 HTML 수학 자료 상세보기',exact:true}).click();
   let dialog=page.getByRole('dialog',{name:'통합검증 HTML 수학 자료',exact:true});
   await dialog.getByRole('button',{name:'수정하기',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'강의 자료 수정',exact:true});
+  dialog=page.getByRole('dialog',{name:'자료 수정',exact:true});
   await dialog.locator('details.optional-fields > summary').click();
   await expect(dialog.getByRole('combobox',{name:'자료 형식',exact:true})).toHaveValue('HTML');
   await dialog.getByRole('button',{name:'자료 저장',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'강의 자료 수정',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('dialog',{name:'자료 수정',exact:true})).toHaveCount(0);
   const saved=(await (await page.request.get('/api/workspace')).json());
   expect(saved.items.find((item:{id:string})=>item.id===materialId).favorite).toBe(true);
   if(links.length)expect(saved.links).toContainEqual({from:links[0],to:`material:${materialId}`});

@@ -238,6 +238,7 @@ export function CareerEditor({
                 value={careerSection(draft, documents)}
                 onChange={(e) => change("category", e.target.value as Category)}
               >
+                {careerSection(draft, documents) === "기타" && <option value="기타" disabled>분류 선택</option>}
                 {careerCategoryChoices.map((c) => (
                   <option key={c} value={c}>{displayText(c)}</option>
                 ))}
