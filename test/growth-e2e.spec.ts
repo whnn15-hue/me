@@ -78,7 +78,7 @@ test('desktop growth journey animates real records, supports reduced motion and 
   await main.getByRole('button',{name:'홈',exact:true}).click();
   await expect(page.getByRole('region',{name:'분야별 이력 건수',exact:true})).toHaveCount(0);
   await main.getByRole('button',{name:'경력 아카이브',exact:true}).click();
-  await page.getByRole('combobox',{name:'이력 분류',exact:true}).selectOption('강의·연수');
+  await page.getByRole('navigation',{name:'이력 분류',exact:true}).getByRole('button',{name:/^강의, 연수/}).click();
   await expect(page.locator('.career-row').filter({hasText:'성장검증 오늘 강의'})).toBeVisible();
   const tree=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   await expect(tree.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(0);
