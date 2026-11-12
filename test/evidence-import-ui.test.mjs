@@ -159,7 +159,7 @@ test('evidence review waits for Drive, prevents cancellation while saving, and r
     const confirm=page.getByRole('button',{name:'증빙 추가하고 연결',exact:true});
     await confirm.waitFor();
     assert.equal(await confirm.isDisabled(),true);
-    assert.match(await page.locator('body').innerText(),/구글 드라이브를 연결하면/);
+    assert.match(await page.locator('body').innerText(),/드라이브를 연결하면/);
     assert.deepEqual(await page.evaluate(()=>fixture.calls),[]);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     await page.evaluate(()=>fixture.setDrive(true));

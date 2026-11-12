@@ -24,7 +24,7 @@ function zipFile(bytes: Uint8Array): File {
   )
     throw new Error("백업 코드에 올바른 ZIP 백업 파일이 들어 있지 않습니다.");
 
-  return new File([new Uint8Array(bytes)], "Introduce_Me_코드백업.zip", { type: "application/zip" });
+  return new File([new Uint8Array(bytes)], "C아카이브_코드백업.zip", { type: "application/zip" });
 }
 
 export function backupFileFromCode(code: string): File {

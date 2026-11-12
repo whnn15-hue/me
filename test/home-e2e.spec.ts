@@ -19,7 +19,7 @@ test('desktop record room: home overview, retired sections, independent librarie
       const result=await page.request.post('/api/workspace/items',{data:{item,links:[],expectedRevision:workspace.revision}});expect(result.ok()).toBeTruthy();createdItems.push((await result.json()).items.find((row:{title:string})=>row.title===item.title).id);
     }
     await page.emulateMedia({colorScheme:'light'});await page.goto('/');
-    await expect(page).toHaveTitle('나의 기록실');
+    await expect(page).toHaveTitle('C아카이브');
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
     await expect(menu.getByRole('button',{name:'홈',exact:true})).toHaveAttribute('aria-current','page');
     await expect(menu.getByText('대학원', {exact:true})).toHaveCount(0);
@@ -33,7 +33,7 @@ test('desktop record room: home overview, retired sections, independent librarie
     await expect(page.getByRole('link',{name:'네이버 캘린더 열기'})).toHaveCount(0);
     await expect(page.locator('.top-avatar')).toHaveCount(0);
     await expect(page.locator('body')).toHaveCSS('font-size','16px');
-    const icon = await page.locator('link[rel="icon"]').getAttribute('href');
+    const icon = await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href');
     expect((await page.request.get(icon!)).status()).toBe(200);
     await page.evaluate(()=>document.fonts.ready);
     expect(await page.evaluate(()=>document.fonts.check('14px "Pretendard Variable"','이력 수업 강의 자료 대학원'))).toBe(true);

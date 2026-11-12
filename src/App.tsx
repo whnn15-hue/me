@@ -48,6 +48,7 @@ import WorkspaceTree from "./WorkspaceTree";
 import CareerOverview from "./CareerOverview";
 import AiConnection from "./AiConnection";
 import HomeDashboard from "./home/HomeDashboard";
+import { APP_NAME, ArchiveMark } from "./branding";
 import ReuseLibrary from "./reuse/ReuseLibrary";
 import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
@@ -801,16 +802,17 @@ export default function App() {
         <a
           className="brand"
           href="#"
+          aria-label={`${APP_NAME} 홈`}
           onClick={(e) => {
             e.preventDefault();
             changeView("home");
           }}
         >
           <span className="brand-icon">
-            <img src="/icons/record-room-192.png" alt="" width="40" height="40" />
+            <ArchiveMark />
           </span>
           <span>
-            <strong>나의 기록실</strong><small>MY RECORD ROOM</small>
+            <strong>{APP_NAME}</strong><small>C ARCHIVE</small>
           </span>
         </a>
         <div className="nav-section-label">작업 공간</div>
@@ -861,10 +863,8 @@ export default function App() {
             </div>
           ) : !authorized ? (
             <div className="login-state">
-              <span className="brand-icon large">
-                <LockKeyhole size={32} />
-              </span>
-              <h1>나만의 기록을 여는 문</h1>
+              <ArchiveMark />
+              <h1>{APP_NAME}</h1>
               <p>
                 본인 구글 계정으로 로그인해
                 <br />
@@ -1179,7 +1179,7 @@ export default function App() {
                     )}
                     <div className="list-footer">
                       <LockKeyhole size={12} />이 기록은 본인만 볼 수 있어요.
-                      <span>나의 기록실, 개인 경력 아카이브</span>
+                      <span>{APP_NAME}</span>
                     </div>
                   </section>
                 </>

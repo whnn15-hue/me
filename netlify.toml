@@ -1,4 +1,7 @@
 [build]
+  # Retired by the owner on 2026-11-12. Vercel is the active host.
+  # This skips new Git builds; deleting the existing site requires Netlify access.
+  ignore = "exit 0"
   command = "npm run build"
   publish = "dist"
   functions = "netlify/functions"
