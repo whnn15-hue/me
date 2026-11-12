@@ -694,3 +694,43 @@ test('automatic imports reject new or unlinked records without writes', async ()
   await assert.rejects(applyEvidenceImport(input,{requireMatchingCareerDetails:true,approvedLinks:{[document.id]:[]}}),/연결 대상 이력이 변경/);
   assertNoWrites(state);
 });
+
+test('separately approved new records are created once and existing records keep their fields', async () => {
+  const document=original('approved_new_document');
+  const proposed=career('approved_new_career',[document.id],{title:'Reviewed teaching',organization:'Example academy',role:'Assistant',startDate:'2026-04-03',verified:true});
+  const input=await preparedWithNew([proposed],[document],[proposed.id]);
+  const sentinel=career('unrelated',[],{description:'Do not replace me'});
+  const state=runtime([sentinel]);
+  const options={requireMatchingCareerDetails:true,allowAutomaticNewCareers:true,approvedNewCareerIds:[proposed.id]};
+  const first=await applyEvidenceImport(input,options);
+  assert.equal(first.careersAdded,1);assert.equal(first.added,1);assert.deepEqual(state.snapshot.careers.find(c=>c.id===sentinel.id),sentinel);
+  assert.equal(state.snapshot.careers.find(c=>c.id===proposed.id).verified,false);
+  const second=await applyEvidenceImport(input,options);assert.equal(second.added,0);assert.equal(second.careersAdded,undefined);
+  assert.equal(state.uploads.length,1);assert.equal(state.activations.length,1);
+});
+
+test('automatic new proposals reuse an equivalent current ID instead of duplicating the activity', async () => {
+  const document=original('equivalent_document');
+  const proposed=career('proposed_id',[document.id],{title:'Example workshop',organization:'Example academy',startDate:'2026-06-03'});
+  const input=await preparedWithNew([proposed],[document],[proposed.id]);
+  const existing=career('owner_created_id',[],{...proposed,id:'owner_created_id',documentIds:[],description:'Owner notes',role:'Edited by owner'});
+  const state=runtime([existing]);
+  const options={requireMatchingCareerDetails:true,allowAutomaticNewCareers:true,approvedNewCareerIds:[proposed.id]};
+  const result=await applyEvidenceImport(input,options);
+  assert.equal(result.careersAdded,undefined);assert.equal(state.snapshot.careers.length,1);
+  assert.deepEqual(state.snapshot.careers[0].documentIds,[document.id]);
+  assert.equal(state.snapshot.careers[0].id,existing.id);
+  assert.equal(state.snapshot.careers[0].description,'Owner notes');assert.equal(state.snapshot.careers[0].role,'Edited by owner');
+  await applyEvidenceImport(input,options);assert.equal(state.activations.length,1);
+});
+
+test('ambiguous equivalents stop before writes while distinct lecture dates remain separate', async () => {
+  const document=original('dated_document');
+  const proposed=career('new_dated',[document.id],{title:'Annual workshop',organization:'Example academy',startDate:'2026-06-03'});
+  const input=await preparedWithNew([proposed],[document],[proposed.id]);
+  const options={requireMatchingCareerDetails:true,allowAutomaticNewCareers:true,approvedNewCareerIds:[proposed.id]};
+  let state=runtime([career('previous',[],{...proposed,id:'previous',documentIds:[],startDate:'2026-06-01'})]);
+  assert.equal((await applyEvidenceImport(input,options)).careersAdded,1);assert.equal(state.snapshot.careers.length,2);
+  state=runtime(['a','b'].map(id=>career(id,[],{...proposed,id,documentIds:[]})));
+  await assert.rejects(applyEvidenceImport(input,options),/연결 대상 이력이 변경/);assertNoWrites(state);
+});

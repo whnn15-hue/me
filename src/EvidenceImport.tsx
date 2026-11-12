@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { evidenceFileFromImportCode } from "./backup-code";
-import { automaticEvidenceLinks, hasEvidenceImportApproval } from "./free/evidence-approval";
+import { automaticEvidencePlan, evidenceImportApproval } from "./free/evidence-approval";
 import { displayText } from "./display";
 import type { Career } from "./types";
 import type {
@@ -87,6 +87,7 @@ export default function EvidenceImport({
   const [progress, setProgress] = useState<EvidenceImportProgress | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [autoPending, setAutoPending] = useState(false);
+  const [autoAllowNewCareers, setAutoAllowNewCareers] = useState(false);
   const [autoNote, setAutoNote] = useState("");
   const [error, setError] = useState("");
   const [canceled, setCanceled] = useState(false);
@@ -156,25 +157,27 @@ export default function EvidenceImport({
     setCanceled(false);
     setResult(null);
     setAutoPending(false);
+    setAutoAllowNewCareers(false);
     setAutoNote("");
     try {
       const archive = file ?? await evidenceFileFromImportCode(suppliedCode);
       const { readEvidenceImportFile, readEvidenceImportReviewCareers } = await import("./free/evidence-import");
       const content = await readEvidenceImportFile(archive);
       const [latestCareers, approved] = await Promise.all([
-        readEvidenceImportReviewCareers(), hasEvidenceImportApproval(archive),
+        readEvidenceImportReviewCareers(), evidenceImportApproval(archive),
       ]);
-      const automaticLinks = approved ? automaticEvidenceLinks(content, latestCareers) : null;
+      const automatic = approved ? automaticEvidencePlan(content, latestCareers, approved.allowNewCareers) : null;
       const liveIds = new Set(latestCareers.map(career => career.id));
       const newIds = (content.newCareerIds ?? []).filter(id => !liveIds.has(id));
       const availableIds = new Set([...liveIds, ...newIds]);
       const selections = Object.fromEntries(content.documents.map(document => [document.id, document.recordIds.filter(id => availableIds.has(id))]));
       setPrepared(content);
       setReviewCareers(latestCareers);
-      setApprovedLinks(automaticLinks ?? selections);
-      setApprovedNewCareerIds(newIds);
-      setAutoPending(Boolean(automaticLinks));
-      if (approved && !automaticLinks) setAutoNote("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.");
+      setApprovedLinks(automatic?.links ?? selections);
+      setApprovedNewCareerIds(automatic?.newCareerIds ?? newIds);
+      setAutoAllowNewCareers(Boolean(approved?.allowNewCareers));
+      setAutoPending(Boolean(automatic));
+      if (approved && !automatic) setAutoNote("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.");
       setCode("");
       setStep("review");
     } catch (cause) {
@@ -204,6 +207,7 @@ export default function EvidenceImport({
         approvedLinks,
         approvedNewCareerIds,
         requireMatchingCareerDetails: automatic,
+        allowAutomaticNewCareers: automatic && autoAllowNewCareers,
         signal: controller.signal,
         onProgress: setProgress,
       });
