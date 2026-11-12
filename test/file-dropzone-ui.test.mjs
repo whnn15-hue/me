@@ -32,7 +32,7 @@ test('dragging hands files to classroom automatic registration once, locks while
     assert.deepEqual(await page.evaluate(()=>fixture.uploads),[{purpose:'classroom',names:['가상 속담.txt']}]);
     await drop.dispatchEvent('drop',{dataTransfer:transfer});assert.equal(await page.evaluate(()=>fixture.uploads.length),1);
     await page.evaluate(()=>fixture.setBusy(false));
-    await page.getByLabel('자료 파일을 끌어 놓으면 자동 정리',{exact:true}).setInputFiles({name:'가상 읽기.txt',mimeType:'text/plain',buffer:Buffer.from('synthetic')});
+    await page.getByLabel('파일을 끌어 놓거나 선택',{exact:true}).setInputFiles({name:'가상 읽기.txt',mimeType:'text/plain',buffer:Buffer.from('synthetic')});
     await page.waitForFunction(()=>fixture.uploads.length===2);
     await page.getByRole('button',{name:'자료 추가',exact:true}).click();const editor=page.getByRole('dialog');
     assert.equal(await editor.locator('details.optional-fields').getAttribute('open'),null);

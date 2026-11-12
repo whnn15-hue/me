@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import JSZip from 'jszip';
-import {resourceType,libraryStorage,driveQuota,extraFileTypes,validExtraFile} from '../shared/resources.mjs';
+import {resourceType,materialLibrary,videoResourceTypes,libraryStorage,driveQuota,extraFileTypes,validExtraFile} from '../shared/resources.mjs';
 import {materialDraft,recordTags} from '../shared/material-classification.mjs';
 import {normalizeWorkspaceItem,normalizeWorkspace,mutateWorkspace} from '../shared/workspace.mjs';
 import {validateFile} from '../server/cloud/files.mjs';
@@ -15,6 +15,21 @@ const output=await build({stdin:{contents:`export {validateDriveUploadFile,readD
 const client=await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].contents).toString('base64')}`);
 const bytes=text=>new TextEncoder().encode(text);
 const samples={mp3:bytes('ID3\x04\0\0\0\0\0\0'),wav:bytes('RIFF\x24\0\0\0WAVEfmt '),ogg:bytes('OggS\0\0\0\0'),m4a:bytes('\0\0\0\x18ftypM4A \0\0\0\0M4A '),flac:bytes('fLaC\0\0\0\0'),potx:bytes('PK\x03\x04'),dotx:bytes('PK\x03\x04'),xltx:bytes('PK\x03\x04')};
+
+test('library placement separates editing assets while retaining educational video and classroom records',()=>{
+  for(const type of videoResourceTypes)assert.equal(materialLibrary({resourceType:type.id}),'video');
+  assert.equal(materialLibrary({resourceType:'lecture',format:'영상',title:'연수 영상.mp4'}),'learning');
+  assert.equal(materialLibrary({resourceType:'lecture',format:'오디오',title:'국어 듣기 연습'}),'learning');
+  assert.equal(materialLibrary({format:'영상',title:'교사 연수 녹화'}),'learning');
+  assert.equal(materialLibrary({format:'이미지',title:'학습 활동 사진'}),'learning');
+  assert.equal(materialLibrary({format:'영상',title:'풍경 B-roll 편집 소스'}),'video');
+  assert.equal(materialLibrary({sourceFile:{name:'잔잔한 BGM.mp3'}}),'video');
+  assert.equal(materialLibrary({sourceFile:{name:'발표 템플릿.potx'}}),'video');
+  assert.equal(materialLibrary({purpose:'classroom',resourceType:'music'}),'learning');
+  assert.equal(materialLibrary({purpose:'research',resourceType:'template'}),'learning');
+  const unchanged={title:'이전 강의',format:'영상',tags:['미디어']},snapshot=JSON.stringify(unchanged);
+  materialLibrary(unchanged);assert.equal(JSON.stringify(unchanged),snapshot);
+});
 
 test('new audio and template formats have matching browser/server validators and reject renamed HTML',async()=>{
   for(const [extension,content] of Object.entries(samples)) {

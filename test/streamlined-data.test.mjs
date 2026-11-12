@@ -100,6 +100,18 @@ test('contest awards are separate from research and commendations without turnin
   assert.ok(careerNavigationChoices.includes('공모전 수상'));
 });
 
+test('reviewed classroom archive competition entries move out of content without acquiring a grade',()=>{
+  const career=fixtureCareer({category:'콘텐츠 제작',title:'가상 교실수업 실천사례 아카이브 공모, 활동 4단계',role:'공모작 대표자',description:'공모 결과 명단에서 작품을 확인. 개인 수상 등급이나 순위는 기재되지 않음.',documentIds:['existing_result','existing_roster']});
+  const before=structuredClone(career);
+  assert.equal(careerSection(career),'공모전 수상');
+  assert.equal(matchesCareerCategory(career,'콘텐츠 제작'),false);
+  assert.equal(matchesCareerCategory(career,'연구대회'),false);
+  assert.deepEqual(recognitionOutcomes(career),[]);
+  assert.deepEqual(career,before);
+  assert.equal(careerSection({...career,role:'제출 예정',description:''}),'콘텐츠 제작');
+  assert.equal(careerSection({...career,category:'위원회·지원단',role:'공모작 심사위원',description:''}),'위원회·지원단');
+});
+
 test('research outcomes pair each scope with its grade exactly once and retain distinct rounds',()=>{
   const record=fixtureCareer({category:'연구·수상',title:'가상 연구대회',description:'시도 1등급 / 전국 3등급.',tags:['시도 1 등급']});
   assert.deepEqual(recognitionOutcomes(record),[{level:'시도',stage:'',grade:'1등급'},{level:'전국',stage:'',grade:'3등급'}]);

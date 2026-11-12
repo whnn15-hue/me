@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowDownAZ, ArrowUpRight, Code2, Star, CalendarDays, Check, Clapperboard,
-  ExternalLink, FileText, GraduationCap, Link2, LoaderCircle,
-  PencilLine, Plus, Presentation, Search, SlidersHorizontal, Trash2, Users, X, Headphones, Image as ImageIcon,
+  ArrowDownAZ, Code2, Star, Check, Clapperboard, ExternalLink, FileText, LoaderCircle,
+  PencilLine, Plus, Presentation, Search, SlidersHorizontal, Trash2, X, Headphones, Image as ImageIcon,
 } from "lucide-react";
 import { uploadDate } from "./upload-date";
 import HtmlPreview from "./HtmlPreview";
 import AudioPreview from "./AudioPreview";
-import ResourceStorage from "./ResourceStorage";
-import {resourceTypes, resourceType, resourceLabel, audioName, formatBytes, type ResourceType} from "../../shared/resources.mjs";
+import {videoResourceTypes, resourceType, resourceLabel, materialLibrary, audioName, formatBytes, type ResourceType, type MaterialLibrary} from "../../shared/resources.mjs";
 import { FavoriteButton, useFavorites, useLibraryView, ViewSwitch } from "./LibraryControls";
 import FileDropzone from "../FileDropzone";
 import { recordTags, materialClassification, materialSubjects, materialTrainings } from "../../shared/material-classification.mjs";
@@ -21,11 +19,11 @@ const formats: MaterialItem["format"][] = ["PPT", "PDF", "영상", "기타", "HW
 
 
 
-function newMaterial(purpose: "classroom" | "lecture"): MaterialItem {
+function newMaterial(purpose: "classroom" | "lecture", library: MaterialLibrary): MaterialItem {
   return {
     id: "", kind: "material", title: "", tags: [], createdAt: "", updatedAt: "",
     ownership: "created", author: "", eventName: "", date: "", audience: [],
-    format: "PPT", fileUrl: "", summary: "",
+    format: "PPT", fileUrl: "", summary: "", resourceType: library === "video" && purpose !== "classroom" ? "template" : "lecture",
     ...(purpose === "classroom" ? { purpose } : {}),
   };
 }
@@ -53,13 +51,17 @@ function FormatIcon({ format, size = 23 }: { format: MaterialItem["format"]; siz
   return <FileText size={size} />;
 }
 
-function MaterialEditor({ item, workspace, careers, onSave, onError, onClose }: {
+function MaterialEditor({ item, library, workspace, careers, onSave, onError, onClose }: {
   item: MaterialItem;
+  library: MaterialLibrary;
   onClose: () => void;
 } & Pick<WorkspaceSectionProps, "workspace" | "careers" | "onSave" | "onError">) {
   const classroom = item.purpose === "classroom";
+  const video = !classroom && library === "video";
   const materialLabel = classroom ? "학급 자료" : "자료";
-  const [draft, setDraft] = useState<MaterialItem>({ ...item, tags: [...item.tags], audience: [...item.audience] });
+  // An explicit edit can pin a legacy record's placement. Renaming a template
+  // must not silently move it out of the library the person is editing.
+  const [draft, setDraft] = useState<MaterialItem>({ ...item, resourceType: item.resourceType ?? (video ? resourceType(item) : "lecture"), tags: [...item.tags], audience: [...item.audience] });
   const [baseRevision] = useState(workspace.revision);
   const [links, setLinks] = useState(item.id ? linkedRefs(workspace, `material:${item.id}`) : []);
   const [error, setError] = useState("");
@@ -92,12 +94,11 @@ function MaterialEditor({ item, workspace, careers, onSave, onError, onClose }: 
         <fieldset className="modal-body material-editor" disabled={busy}>
           <label className="field"><span>제목 <em className="material-required">필수</em></span><input value={draft.title} maxLength={300} placeholder="다시 찾기 쉬운 자료 제목" onChange={event => change("title", event.target.value)} required /></label>
           <div className="auto-tag-preview" aria-label="자동 태그">{recordTags(draft).map(tag => <span key={tag}>#{displayLabel(tag)}</span>)}</div>
-          <label className="field"><span>자료 분류</span><select value={resourceType(draft)} onChange={event=>change("resourceType",event.target.value as ResourceType)}>{resourceTypes.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}</select></label>
-          <ClassificationPicker draft={draft} onChange={(field,values)=>change(field,values)} />
+          {video ? <label className="field"><span>자료 종류</span><select aria-label="자료 종류" value={resourceType(draft)} onChange={event=>change("resourceType",event.target.value as ResourceType)}>{videoResourceTypes.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}</select></label> : <ClassificationPicker draft={draft} onChange={(field,values)=>change(field,values)} />}
           <label className="field"><span>구글 드라이브 파일 링크</span><input value={draft.fileUrl} type="url" inputMode="url" placeholder="https://drive.google.com/..." autoComplete="off" onChange={event => change("fileUrl", event.target.value)} /><small>드라이브의 링크 복사 기능을 사용하세요. 구글 문서, 프레젠테이션 링크도 등록할 수 있어요.</small></label>
           <details className="optional-fields"><summary>추가 정보와 기록 연결</summary>
           <label className="field"><span>자료 형식</span><select aria-label="자료 형식" value={draft.format} onChange={event => change("format", event.target.value as MaterialItem["format"])}>{formats.map(format => <option key={format}>{format}</option>)}</select></label>
-          <label className="field"><span>핵심 내용과 활용 메모</span><textarea value={draft.summary} rows={5} maxLength={20000} placeholder={classroom ? "활동 방법, 준비물, 다음 수업에서 활용할 아이디어를 남겨주세요." : "어떤 내용인가요? 어느 강의에서 다시 활용하면 좋을까요?"} onChange={event => change("summary", event.target.value)} /></label>
+          <label className="field"><span>핵심 내용과 활용 메모</span><textarea value={draft.summary} rows={5} maxLength={20000} placeholder={video ? "활용 장면, 사용 조건, 편집할 때 기억할 내용을 남겨주세요." : classroom ? "활동 방법, 준비물, 다음 수업에서 활용할 아이디어를 남겨주세요." : "어떤 내용인가요? 어느 강의에서 다시 활용하면 좋을까요?"} onChange={event => change("summary", event.target.value)} /></label>
           <div className="material-editor-block"><TagsInput value={draft.tags} onChange={value => change("tags", value)} /></div>
           <div className="material-editor-block"><LinkPicker workspace={workspace} careers={careers} currentRef={item.id ? `material:${item.id}` : undefined} value={links} onChange={setLinks} /></div>
           </details>
@@ -111,20 +112,22 @@ function MaterialEditor({ item, workspace, careers, onSave, onError, onClose }: 
 
 export interface MaterialsViewProps extends WorkspaceSectionProps {
   purpose?: "classroom" | "lecture";
+  library?: MaterialLibrary;
   importPanel?: ReactNode;
 }
 
-export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", importPanel, onFiles, uploading, loadHtmlPreview, loadAudioPreview, readDriveStorage, initialSection, initialSubject }: MaterialsViewProps) {
+export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", library = "learning", importPanel, onFiles, uploading, loadHtmlPreview, loadAudioPreview, initialSection, initialSubject }: MaterialsViewProps) {
   const classroom = purpose === "classroom";
-  const materialLabel = classroom ? "학급 자료" : "자료실";
-  const [view, setView] = useLibraryView(`materials-${purpose}`);
+  const video = !classroom && library === "video";
+  const materialLabel = classroom ? "학급 자료" : video ? "영상 작업" : "학습 자료";
+  const [view, setView] = useLibraryView(`materials-${purpose}-${library}`);
   const [quick, setQuick] = useState(initialSection === "favorites" ? "favorites" : "all");
   const favorites = useFavorites({ workspace, onSave, onError });
   const [query, setQuery] = useState("");
   const [subject, setSubject] = useState(initialSubject || "");
   const [training, setTraining] = useState("");
   const [format, setFormat] = useState("");
-  const [resource,setResource]=useState(initialSection?.startsWith("resource:") ? initialSection.slice(9) : "");
+  const [resource,setResource]=useState(video && initialSection?.startsWith("resource:") ? initialSection.slice(9) : "");
   const [tag, setTag] = useState("");
   const [sort, setSort] = useState("recent");
   const [selectedId, setSelectedId] = useState("");
@@ -134,7 +137,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const deleteBusyRef = useRef(false);
-  const materials = useMemo(() => workspace.items.filter((item): item is MaterialItem => item.kind === "material" && (item.purpose ?? "lecture") === purpose).map(item => ({ ...item, tags: recordTags(item) })), [workspace.items, purpose]);
+  const materials = useMemo(() => workspace.items.filter((item): item is MaterialItem => item.kind === "material" && (item.purpose ?? "lecture") === purpose && (classroom || materialLibrary(item) === library)).map(item => ({ ...item, tags: recordTags(item) })), [workspace.items, purpose, classroom, library]);
   const selected = materials.find(item => item.id === selectedId);
   const classified = new Map(materials.map(item => [item.id, materialClassification(item)]));
   const allSubjects = [...new Set(materials.flatMap(item => classified.get(item.id)!.subjects))].sort((a,b)=>a.localeCompare(b,"ko"));
@@ -164,22 +167,23 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   }
 
   return (
-    <div className="materials-view">
+    <div className={`materials-view ${video ? "materials-video" : "materials-learning"}`}>
       <div className="materials-heading">
-        <div><span className="library-kicker">{classroom ? "학급 자료 보관" : "강의와 연수 자료"}</span><h1>{materialLabel}<span className="library-total" aria-hidden="true">{materials.length}</span></h1></div>
-        <button className="button primary" onClick={() => setEditing(newMaterial(purpose))}><Plus size={17} /> 자료 추가</button>
+        <h1>{materialLabel}<span className="library-total" aria-hidden="true">{materials.length}</span></h1>
+        <button className="button primary" onClick={() => setEditing(newMaterial(purpose, library))}><Plus size={17} /> 자료 추가</button>
       </div>
-      {onFiles && <FileDropzone onFiles={files=>onFiles(files,purpose)} busy={uploading} label="자료 파일을 끌어 놓으면 자동 정리" accept=".pdf,.ppt,.pptx,.potx,.hwp,.hwpx,.docx,.dotx,.xlsx,.xltx,.cell,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a,.flac" hint="문서, 이미지, 효과음, 음악, 템플릿 / 파일당 25 MB, 큰 파일은 링크로 추가" />}
-      {!classroom && <ResourceStorage workspace={workspace} items={materials} readStorage={readDriveStorage}/>}
-      <nav className="resource-categories" aria-label="자료 분류 필터"><button aria-pressed={!resource} onClick={()=>setResource("")}>전체 <span>{materials.length}</span></button>{resourceTypes.map(type=><button key={type.id} aria-pressed={resource===type.id} onClick={()=>setResource(type.id)}>{type.label}<span>{materials.filter(item=>resourceType(item)===type.id).length}</span></button>)}</nav>
+      {onFiles && <div className="materials-quick-upload"><FileDropzone onFiles={files=>onFiles(files,purpose)} busy={uploading} label="파일을 끌어 놓거나 선택" accept=".pdf,.ppt,.pptx,.potx,.hwp,.hwpx,.docx,.dotx,.xlsx,.xltx,.cell,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a,.flac" hint={video ? "효과음, 음악, 템플릿, 이미지 / 파일당 25 MB" : "문서와 수업 자료 / 파일당 25 MB"} /></div>}
       {importPanel && <details className="materials-import-panel"><summary>준비된 자료 가져오기</summary>{importPanel}</details>}
       {favorites.error && <p role="alert" className="alert error">{displayLabel(favorites.error)}</p>}
       <div className="materials-toolbar">
         <label className="materials-search"><Search size={17} /><input aria-label={`${materialLabel} 검색`} value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 내용, 태그 검색" />{query && <button className="icon-button" aria-label="자료 검색어 지우기" onClick={() => setQuery("")}><X size={14} /></button>}</label>
-        <div className="materials-select-filters"><button className="material-favorites-filter" aria-label="즐겨찾는 자료만" title="즐겨찾는 자료만 보기" aria-pressed={quick === "favorites"} onClick={() => setQuick(quick === "favorites" ? "all" : "favorites")}><Star size={21} strokeWidth={2} fill={quick === "favorites" ? "currentColor" : "none"} aria-hidden="true"/></button><select aria-label="과목 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">모든 과목</option>{allSubjects.map(value => <option key={value}>{value}</option>)}<option value="unclassified">미분류</option></select>
-          <select aria-label="기초훈련 필터" value={training} onChange={event=>setTraining(event.target.value)}><option value="">모든 기초훈련</option>{materialTrainings.map(value=><option key={value}>{value}</option>)}</select>
-          <select aria-label="자료 형식 필터" value={format} onChange={event => setFormat(event.target.value)}><option value="">모든 형식</option>{formats.map(value => <option key={value}>{value}</option>)}</select>
-          <select aria-label="자료 태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">모든 태그</option>{allTags.map(value => <option key={value} value={value}>{displayLabel(value)}</option>)}</select>
+        <div className="materials-select-filters"><button className="material-favorites-filter" aria-label="즐겨찾는 자료만" title="즐겨찾는 자료만 보기" aria-pressed={quick === "favorites"} onClick={() => setQuick(quick === "favorites" ? "all" : "favorites")}><Star size={19} strokeWidth={2} fill={quick === "favorites" ? "currentColor" : "none"} aria-hidden="true"/></button>
+          {video ? <select aria-label="자료 종류 필터" value={resource} onChange={event=>setResource(event.target.value)}><option value="">모든 종류</option>{videoResourceTypes.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}</select> : <select aria-label="과목 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">모든 과목</option>{allSubjects.map(value => <option key={value}>{value}</option>)}<option value="unclassified">미분류</option></select>}
+          <details className="materials-advanced-filters"><summary className={training || format || tag ? "active" : ""}><SlidersHorizontal size={16}/>상세 필터{Boolean(training || format || tag) && <span className="filter-dot" aria-label="필터 적용됨"/>}</summary><div className="materials-filter-popover">
+          {!video && <label>기초훈련<select aria-label="기초훈련 필터" value={training} onChange={event=>setTraining(event.target.value)}><option value="">모든 기초훈련</option>{materialTrainings.map(value=><option key={value}>{value}</option>)}</select></label>}
+          <label>형식<select aria-label="자료 형식 필터" value={format} onChange={event => setFormat(event.target.value)}><option value="">모든 형식</option>{formats.map(value => <option key={value}>{value}</option>)}</select></label>
+          <label>태그<select aria-label="자료 태그 필터" value={tag} onChange={event => setTag(event.target.value)}><option value="">모든 태그</option>{allTags.map(value => <option key={value} value={value}>{displayLabel(value)}</option>)}</select></label>
+          </div></details>
         </div>
       </div>
       <div className="materials-results-header"><p aria-live="polite">{hasFilters ? "찾은 자료" : "전체 자료"} <strong>{filtered.length}</strong>개{hasFilters && <button className="text-button" onClick={resetFilters}>필터 초기화 <X size={12} /></button>}</p><div className="library-result-controls"><label><ArrowDownAZ size={14} /><select aria-label={`${materialLabel} 정렬`} value={sort} onChange={event => setSort(event.target.value)}><option value="recent">업로드 최신순</option><option value="title">제목순</option></select></label><ViewSwitch view={view} onChange={setView}/></div></div>
@@ -195,7 +199,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
           </article>)}
         </div>
       ) : (
-        <div className="materials-empty"><span><Presentation size={31} /></span><h3>{materials.length ? "조건에 맞는 자료가 없어요" : "등록된 자료가 없습니다"}</h3><button className="button secondary" onClick={materials.length ? resetFilters : () => setEditing(newMaterial(purpose))}>{materials.length ? <X size={15} /> : <Plus size={15} />}{materials.length ? "필터 초기화" : "첫 자료 추가하기"}</button></div>
+        <div className="materials-empty"><span>{video ? <Clapperboard size={31}/> : <Presentation size={31} />}</span><h3>{materials.length ? "조건에 맞는 자료가 없어요" : "등록된 자료가 없습니다"}</h3><button className="button secondary" onClick={materials.length ? resetFilters : () => setEditing(newMaterial(purpose, library))}>{materials.length ? <X size={15} /> : <Plus size={15} />}{materials.length ? "필터 초기화" : "첫 자료 추가하기"}</button></div>
       )}
 
 
@@ -214,7 +218,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
           <div className="modal-footer material-detail-actions"><button className="text-button material-delete" onClick={() => { setDeleting(selected); setDeleteRevision(workspace.revision); setDeleteError(""); }}><Trash2 size={14} />삭제</button><button className="button secondary" onClick={() => setSelectedId("")}>닫기</button><button className="button primary" onClick={() => setEditing(selected)}><PencilLine size={15} />수정하기</button></div>
         </Modal>
       )}
-      {editing && <MaterialEditor key={editing.id || "new-material"} item={editing} workspace={workspace} careers={careers} onSave={onSave} onError={onError} onClose={() => setEditing(null)} />}
+      {editing && <MaterialEditor key={editing.id || "new-material"} item={editing} library={library} workspace={workspace} careers={careers} onSave={onSave} onError={onError} onClose={() => setEditing(null)} />}
       {deleting && <Modal title={`${classroom ? "학급 자료" : "자료"}를 삭제할까요?`} subtitle={displayLabel(deleting.title)} onClose={() => !deleteBusyRef.current && setDeleting(null)}><div className="modal-body"><p className="confirm-description">이 자료의 기록과 다른 항목과의 연결을 삭제합니다. 구글 드라이브 원본 파일은 유지됩니다.</p>{deleteError && <div className="alert error" role="alert">{displayLabel(deleteError)}<p>다른 곳에서 기록이 바뀌었다면 취소한 뒤 최신 내용을 확인해 주세요.</p></div>}</div><div className="modal-footer"><button className="button secondary" disabled={deleteBusy} onClick={() => setDeleting(null)}>취소</button><button className="button danger" disabled={deleteBusy} onClick={() => void remove()}>{deleteBusy ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}{deleteBusy ? "삭제 중" : "자료 삭제"}</button></div></Modal>}
     </div>
   );

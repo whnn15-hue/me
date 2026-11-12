@@ -1,0 +1,33 @@
+/* Compact controls stay secondary to the records and growth journey. */
+.app-shell .sidebar .brand { padding-left: 7px; }
+.archive-tools { position: relative; }
+.app-shell .archive-tools-trigger { width: 40px; height: 40px; color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: 50%; background: var(--ui-surface); }
+.archive-tools-trigger[aria-expanded="true"] { color: var(--ui-accent); }
+.archive-tools-menu { position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; width: 224px; padding: 7px; border: 1px solid var(--ui-border); border-radius: 16px; background: var(--ui-surface); box-shadow: 0 12px 36px #0002; }
+.archive-tools-menu button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 11px; border: 0; border-radius: 10px; text-align: left; color: var(--ui-text); background: transparent; font-size: 14px; }
+.archive-tools-menu button:hover, .archive-tools-menu button:focus-visible { background: var(--ui-inset); outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.app-shell .career-view-control { display: flex; justify-content: flex-end; margin: -8px 0 12px; }
+.career-view-control .select-wrap { background: transparent; border-color: transparent; }
+.app-shell .career-section { margin-top: 0; }
+.app-shell .career-section .section-heading { margin-bottom: 16px; }
+.app-shell .career-section .section-heading h2 { font-size: 17px; }
+.career-search-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.career-search-toolbar .search-box { flex: 1; min-width: 160px; }
+.career-search-toolbar .select-wrap { height: 44px; }
+.career-category-select { min-width: 150px; }
+.career-extra-filters { position: relative; }
+.career-extra-filters > summary { cursor: pointer; list-style: none; display: flex; gap: 7px; align-items: center; height: 44px; padding: 0 13px; border: 1px solid var(--ui-border); border-radius: 12px; color: var(--ui-text); font-size: 14px; }
+.career-extra-filters > summary::-webkit-details-marker { display: none; }
+.career-extra-filters[open] > summary { background: var(--ui-inset); }
+.career-extra-filters > summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.career-filter-panel { position: absolute; z-index: 20; right: 0; top: calc(100% + 9px); width: 300px; padding: 18px; display: grid; gap: 14px; border: 1px solid var(--ui-border); border-radius: 16px; background: var(--ui-surface); box-shadow: 0 12px 36px #0002; }
+.career-filter-panel > label { display: grid; gap: 7px; color: var(--ui-muted); font-size: 12px; }
+.career-filter-panel select { width: 100%; min-height: 38px; padding: 8px; border: 1px solid var(--ui-border); border-radius: 8px; color: var(--ui-text); background: var(--ui-inset); font-size: 14px; }
+.career-filter-panel .view-switch { justify-self: end; }
+.app-shell .career-row .career-meta:empty { display: none; }
+.app-shell .career-row .row-tags { margin-top: 5px; }
+.app-shell .detail-fields { grid-template-columns: 1fr 1fr; }
+.app-shell .career-overview .overview-records th:nth-child(5), .app-shell .career-overview .overview-records td:nth-child(5) { min-width: 140px; }
+.app-shell .career-overview .overview-records th:last-child, .app-shell .career-overview .overview-records td:last-child { min-width: 90px; }
+@media (max-width: 900px) { .career-search-toolbar { flex-wrap: wrap; } .career-search-toolbar .search-box { order: 3; flex-basis: 100%; } }
+@media print { .career-view-control { display: none !important; } }
