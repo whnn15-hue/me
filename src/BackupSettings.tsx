@@ -55,6 +55,8 @@ export default function BackupSettings({
   careers,
   documents,
   jsonBackup,
+  initialEvidenceCode,
+  onEvidenceCodeConsumed,
 }: {
   status: Status;
   onRefresh: () => Promise<void>;
@@ -64,6 +66,8 @@ export default function BackupSettings({
   documents: number;
   /** JSON export/import controls, shown inside the merged backup-file card. */
   jsonBackup?: ReactNode;
+  initialEvidenceCode?: string;
+  onEvidenceCodeConsumed?: () => void;
 }) {
   const [busy, setBusy] = useState(""),
     [restore, setRestore] = useState<File | null>(null),
@@ -233,6 +237,8 @@ export default function BackupSettings({
         )}
         {freeMode && status.user && (
           <EvidenceImport
+            initialCode={initialEvidenceCode}
+            onInitialCodeConsumed={onEvidenceCodeConsumed}
             driveConnected={status.driveConnected}
             disabled={!!busy}
             onBusyChange={(active) => setBusy(active ? "증빙 묶음 처리 중" : "")}
