@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import { build } from 'esbuild';
 import JSZip from 'jszip';
-import { careerCollections, careerCategoryChoices, careerSection, careerOrganization, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from '../shared/career-organization.mjs';
+import { careerCollections, careerCategoryChoices, careerNavigationChoices, careerSection, careerOrganization, careerCategoryLabel, matchesCareerCategory, recognitionDetails, recognitionOutcomes, recognitionLabels } from '../shared/career-organization.mjs';
 import { materialDraft, materialClassification } from '../shared/material-classification.mjs';
 import { normalizeWorkspaceItem } from '../shared/workspace.mjs';
 import { normalizeCareer } from '../server/store.mjs';
@@ -78,6 +78,65 @@ test('recognition keeps explicit overrides and preserves multiple stages and gra
   assert.equal(recognitionDetails(fixtureCareer({description:'예선 1등급, 본선 2등급'})).grade,'예선 1등급, 본선 2등급');
   assert.equal(recognitionDetails(fixtureCareer({description:'연구 대상: 학생'})).grade,'');
   assert.throws(()=>normalizeBrowserCareer({...next,awardStages:'본선'}),/단계/);
+});
+
+test('contest awards are separate from research and commendations without turning submissions or judging into awards',()=>{
+  const cases=[
+    [{category:'연구·수상',title:'가상 영상 공모전 대상 수상'},'공모전 수상'],
+    [{category:'연구대회',title:'가상 책쓰기 공모전',role:'최종 선정 교사'},'공모전 수상'],
+    [{category:'연구·수상',title:'가상 콘텐츠 공모전',description:'우수상 수상'},'공모전 수상'],
+    [{category:'연구·수상',title:'가상 연구대회 공모',description:'전국 3등급'},'연구대회'],
+    [{category:'표창',title:'가상 공모전 운영 유공 표창'},'표창'],
+    [{category:'위원회·지원단',title:'가상 공모전 수상작 심사위원'},'위원회·지원단'],
+    [{category:'기타',title:'가상 영상 공모전 제출 예정'},'기타'],
+    [{category:'연구대회',title:'가상 공모전 대상 수상 목표'},'연구대회'],
+    [{category:'연구대회',title:'가상 공모전 운영 계획',description:'최우수상 1명, 우수상 2명'},'연구대회'],
+  ];
+  for(const [fields,expected] of cases){const career=fixtureCareer(fields),before=structuredClone(career);assert.equal(careerSection(career),expected,career.title);assert.deepEqual(career,before);}
+  const stored=fixtureCareer({category:'공모전 수상',title:'직접 분류한 활동'});
+  assert.equal(normalizeBrowserCareer(stored).category,'공모전 수상');
+  assert.equal(careerSection(stored),'공모전 수상');
+  assert.ok(careerCategoryChoices.includes('파견'));assert.ok(!careerNavigationChoices.includes('파견'));
+  assert.ok(careerNavigationChoices.includes('공모전 수상'));
+});
+
+test('research outcomes pair each scope with its grade exactly once and retain distinct rounds',()=>{
+  const record=fixtureCareer({category:'연구·수상',title:'가상 연구대회',description:'시도 1등급 / 전국 3등급.',tags:['시도 1 등급']});
+  assert.deepEqual(recognitionOutcomes(record),[{level:'시도',stage:'',grade:'1등급'},{level:'전국',stage:'',grade:'3등급'}]);
+  assert.deepEqual(recognitionLabels(record),['시도 1등급','전국 3등급']);
+  assert.deepEqual(recognitionLabels({...record,description:'시도 예선 1등급, 전국 본선 3등급',tags:[]}),['시도 예선 1등급','전국 본선 3등급']);
+  assert.deepEqual(recognitionLabels(fixtureCareer({description:'예선 1등급, 본선 2등급'})),['예선 1등급','본선 2등급']);
+  assert.deepEqual(recognitionLabels(fixtureCareer({description:'대구광역시 1등급, 전국 3등급'})),['시도 1등급','전국 3등급']);
+});
+
+test('explicit grade corrections and cleared fields override stale inferred outcomes',()=>{
+  const old=fixtureCareer({title:'가상 연구대회',description:'시도 1등급, 전국 3등급'});
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'전국',awardGrade:'최우수상',awardStages:[]}),['전국 최우수상']);
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'',awardGrade:'',awardStages:[]}),[]);
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'전국',awardGrade:'',awardStages:[]}),['전국']);
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'시도, 전국',awardGrade:'시도 1등급, 전국 3등급',awardStages:[]}),['시도 1등급','전국 3등급']);
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'시도',awardStages:[]}),['시도 1등급']);
+});
+
+test('unassociated stages and ordinary target descriptions never invent additional award results',()=>{
+  const record=fixtureCareer({title:'가상 연구대회',awardLevel:'전국',awardGrade:'우수상',awardStages:['예선','본선']});
+  assert.deepEqual(recognitionOutcomes(record),[{level:'전국',stage:'',grade:'우수상'},{level:'',stage:'예선',grade:''},{level:'',stage:'본선',grade:''}]);
+  assert.deepEqual(recognitionLabels(fixtureCareer({description:'연구 대상: 학생'})),[]);
+  assert.deepEqual(recognitionLabels(fixtureCareer({description:'대상: 교사, 신청 안내'})),[]);
+  const before=structuredClone(record);recognitionOutcomes(record);assert.deepEqual(record,before);
+});
+
+test('selected regional or national scopes filter old compound results without reassigning another scopes grade',()=>{
+  const old=fixtureCareer({title:'가상 연구대회',description:'시도 예선 1등급, 전국 본선 3등급'});
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'대구'}),['시도 예선 1등급']);
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'서울특별시'}),['시도 예선 1등급']);
+  assert.deepEqual(recognitionLabels({...old,awardLevel:'시, 도'}),['시도 예선 1등급']);
+  const saved={...old,awardGrade:'시도 예선 1등급, 전국 본선 3등급'};
+  assert.deepEqual(recognitionLabels({...saved,awardLevel:'전국'}),['전국 본선 3등급']);
+  assert.deepEqual(recognitionLabels({...saved,awardLevel:'국제'}),['국제']);
+  assert.deepEqual(recognitionLabels({...saved,awardLevel:'시도, 전국'}),['시도 예선 1등급','전국 본선 3등급']);
+  const single=fixtureCareer({title:'가상 연구대회',description:'시도 1등급',awardLevel:'전국'});
+  assert.deepEqual(recognitionLabels(single),['전국']);
 });
 
 test('classification auto-fills facts and does not copy student roster names into summaries',()=>{

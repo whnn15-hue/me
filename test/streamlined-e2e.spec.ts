@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('four workspaces contain exclusive career collections, institution views and compatible records',async({page})=>{
+test('career collections separate awards, default lectures to years and retain qualifications and secondments',async({page})=>{
   await page.goto('/#careers');
   const before=(await (await page.request.get('/api/data')).json()).careers;
   const fixtures=[
@@ -11,13 +11,17 @@ test('four workspaces contain exclusive career collections, institution views an
     {title:'구성검증 교육 유공 표창',category:'연구·수상',organization:'가상 수여기관'},
     {title:'구성검증 수학탐험대 디지털 교구 활용사례집 제작 계획',category:'집필·콘텐츠'},
     {title:'구성검증 미디어 강의',category:'강의·연수',organization:'가상 교육연수원',role:'강사'},
-    {title:'구성검증 수업 연수',category:'강의·연수',organization:'가상 대학교',role:'강사'},
+    {title:'구성검증 수업 연수',category:'강의·연수',organization:'가상 대학교',role:'강사',startDate:'2025'},
     {title:'구성검증 기관 미기재 연수',category:'강의·연수'},
     {title:'구성검증 선도교사',category:'기타'},
     {title:'구성검증 예전 기록',category:'기타'},
+    {title:'구성검증 교육영상 공모전 수상',category:'연구·수상',awardGrade:'최우수상'},
+    {title:'구성검증 그래픽 자격증',category:'자격증',organization:'가상 자격기관',startDate:'2023-07-14',datePrecision:'day'},
+    {title:'구성검증 수업실천 연구대회',category:'연구·수상',description:'시도 1등급, 전국 3등급'},
   ];
   const created=[];
-  for(const item of fixtures){const response=await page.request.post('/api/careers',{data:{...item,startDate:'2026',datePrecision:'year',verified:false,evidenceStatus:'unneeded'}});expect(response.ok()).toBeTruthy();created.push(await response.json());}
+  try {
+  for(const item of fixtures){const response=await page.request.post('/api/careers',{data:{startDate:'2026',datePrecision:'year',verified:false,evidenceStatus:'unneeded',...item}});expect(response.ok()).toBeTruthy();created.push(await response.json());}
   await page.reload();
   const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
@@ -26,22 +30,43 @@ test('four workspaces contain exclusive career collections, institution views an
   await expect(categories.getByRole('button',{name:/^근무/})).toHaveCount(0);
   await expect(categories.getByRole('button',{name:/연구, 수상/})).toHaveCount(0);
   await expect(categories.getByRole('button',{name:/^기타/})).toHaveCount(0);
+  await expect(categories.getByRole('button',{name:/^파견/})).toHaveCount(0);
+  await primary.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true}).click();
+  await expect(primary.getByRole('button',{name:'이력에서 파견 보기',exact:true})).toHaveCount(0);
+  await expect(primary.getByRole('button',{name:'이력에서 공모전 수상 보기',exact:true})).toBeVisible();
   const choose=async(name:string)=>categories.getByRole('button').filter({has:page.locator('strong',{hasText:new RegExp(`^${name}$`)})}).click();
   const row=(index:number)=>page.locator('.career-row').filter({hasText:fixtures[index].title});
   await choose('전체');await expect(row(10)).toBeVisible();
   await choose('위원회, 지원단');await expect(row(9)).toBeVisible();await expect(row(10)).toHaveCount(0);
-  await choose('연구대회');await expect(row(2)).toBeVisible();await expect(row(4)).toHaveCount(0);
+  await choose('연구대회');await expect(row(2)).toBeVisible();await expect(row(4)).toHaveCount(0);await expect(row(11)).toHaveCount(0);
+  await expect(row(13).locator('.recognition-outcome')).toHaveCount(2);
+  await expect(row(13).locator('.recognition-outcome').nth(0)).toHaveText(/^시도\s*1등급$/);
+  await expect(row(13).locator('.recognition-outcome').nth(1)).toHaveText(/^전국\s*3등급$/);
+  await choose('공모전 수상');await expect(row(11)).toBeVisible();await expect(row(2)).toHaveCount(0);await expect(row(4)).toHaveCount(0);
   await choose('표창');await expect(row(4)).toBeVisible();await expect(row(2)).toHaveCount(0);
   await expect(row(4).locator('.award-unknown')).toHaveCount(0);
-  await choose('파견');await expect(row(0)).toBeVisible();await expect(row(5)).toBeVisible();await expect(row(1)).toHaveCount(0);
+  await choose('전체');
+  await page.getByRole('combobox',{name:'활동 맥락',exact:true}).selectOption({label:'파견 업무'});
+  await expect(row(0)).toBeVisible();await expect(row(5)).toBeVisible();await expect(row(1)).toHaveCount(0);
   await choose('집필');await expect(row(3)).toBeVisible();await expect(row(1)).toHaveCount(0);await expect(row(5)).toHaveCount(0);
   await choose('콘텐츠 제작');await expect(row(1)).toBeVisible();await expect(row(3)).toHaveCount(0);await expect(row(5)).toHaveCount(0);
   await choose('강의, 연수');
-  await expect(page.getByRole('combobox',{name:'이력 묶어보기',exact:true})).toHaveValue('organization');
+  await expect(page.getByRole('combobox',{name:'이력 묶어보기',exact:true})).toHaveValue('year');
+  await page.getByRole('textbox',{name:'경력 검색',exact:true}).fill('구성검증');
+  await expect(page.locator('.year-heading h3').first()).toHaveText('2026년');
+  await expect(page.locator('.year-heading h3').nth(1)).toHaveText('2025년');
   await expect(row(6).locator('.lecture-institution')).toHaveText('가상 교육연수원');
   await page.getByRole('combobox',{name:'기관 필터',exact:true}).selectOption('가상 교육연수원');
   await expect(page.locator('.career-row')).toHaveCount(1);await expect(row(6)).toBeVisible();
   await page.getByRole('combobox',{name:'기관 필터',exact:true}).selectOption('기관 미입력');await expect(row(8)).toBeVisible();
+  await choose('자격증');
+  await expect(row(12)).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'연도 필터',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('combobox',{name:'이력 묶어보기',exact:true})).toHaveCount(0);
+  await expect(page.locator('.year-heading')).toHaveCount(0);
+  await row(12).click();
+  await expect(page.getByRole('dialog',{name:'경력 상세',exact:true}).locator('.detail-fields')).toContainText('2023.07.14');
+  await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
   await choose('연구대회');await expect(page.getByRole('combobox',{name:'기관 필터',exact:true})).toHaveValue('전체 기관');
   await page.getByRole('textbox',{name:'경력 검색',exact:true}).fill(fixtures[2].title);
   const award=row(2);
@@ -53,7 +78,7 @@ test('four workspaces contain exclusive career collections, institution views an
   await editor.getByLabel('등급 또는 수상 결과',{exact:true}).fill('최우수상');
   await editor.getByRole('checkbox',{name:'최종',exact:true}).check();
   await editor.getByRole('button',{name:'확인하고 저장',exact:true}).click();await expect(editor).toHaveCount(0);
-  await expect(page.locator('.recognition-badges').first()).toContainText('최우수상');
+  await expect(row(2).locator('.recognition-badges')).toContainText('최우수상');
   await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
   // Browsing and editing unrelated fields must not rewrite legacy category values.
   const after=(await (await page.request.get('/api/data')).json()).careers;
@@ -72,19 +97,20 @@ test('four workspaces contain exclusive career collections, institution views an
   await expect(page.getByText('하나씩 쌓아온 경험을, 한눈에 정리하세요.',{exact:true})).toHaveCount(0);
   await choose('강의, 연수');
   await page.screenshot({path:'/tmp/career-portfolio-desktop.png',animations:'disabled'});
-  for(const width of (process.env.TEST_DESKTOP_ONLY ? [1440,1280] : [375,768])){
+  for(const width of [1440,1280]){
     await page.setViewportSize({width,height:900});
     await page.locator('.sidebar').evaluate(element=>Promise.all(element.getAnimations().map(animation=>animation.finished)));
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   }
-  if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});await page.screenshot({path:'/tmp/career-portfolio-mobile.png',animations:'disabled'});
   await primary.getByRole('button',{name:'수업',exact:true}).click();await expect(page.getByRole('heading',{name:'수업 기록',exact:true})).toBeVisible();
   await primary.getByRole('button',{name:'자료실',exact:true}).click();await expect(page.getByRole('heading',{name:'자료실',exact:true})).toBeVisible();
   await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'자료실',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   const material=page.getByRole('dialog',{name:'자료 추가',exact:true});
   await expect(material.locator('details.optional-fields')).not.toHaveAttribute('open');await expect(material.getByText('내가 만든 자료',{exact:true})).toHaveCount(0);
   await material.getByRole('button',{name:'취소',exact:true}).click();
-  for(const item of created)expect((await page.request.delete(`/api/careers/${item.id}`)).ok()).toBeTruthy();
+  } finally {
+    for(const item of created)expect((await page.request.delete(`/api/careers/${item.id}`)).ok()).toBeTruthy();
+  }
   expect((await (await page.request.get('/api/data')).json()).careers).toEqual(before);
 });
 

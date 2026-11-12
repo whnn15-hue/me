@@ -1,10 +1,9 @@
-import { Layers3, ArrowUpRight, CalendarDays, Cloud, CloudUpload, FileText, Plus, Star, FileCheck2, Link2, ArrowDownToLine } from "lucide-react";
+import { Layers3, ArrowUpRight, CloudUpload, Plus, Star, FileCheck2, Check } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { Career, DocumentRecord, Status, View } from "../types";
 import type { WorkspaceData } from "../workspace/types";
 import { displayLabel } from "../workspace/WorkspaceUI";
 import { archiveAttention } from "../archive-tools";
-import { APP_NAME, ArchiveMark } from "../branding";
 
 interface Props {
   careers: Career[]; documents: DocumentRecord[]; workspace: WorkspaceData; status: Status;
@@ -12,29 +11,25 @@ interface Props {
   onAttention: (filter: "missing" | "undated" | "unlinked") => void;
   onOverview: () => void; overview: ReactNode; onUpload: () => void; onCreate: () => void; busy: boolean;
 }
-export default function HomeDashboard({ careers, documents, workspace, status, onOpen, onView, onUpload, onCreate, onAttention, busy, overview, onOverview }: Props) {
+export default function HomeDashboard({ careers, documents, workspace, onOpen, onUpload, onCreate, onAttention, busy, overview, onOverview }: Props) {
   const attention = useMemo(() => archiveAttention(careers, documents), [careers, documents]);
   const favorites = useMemo(() => workspace.items.filter(item => item.favorite && !["course", "assignment", "paper", "idea"].includes(item.kind)).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [workspace]);
-  const tasks = [
-    { id: "missing", label: "증빙 보완", detail: "원본 공문 연결", count: attention.missing.length, icon: FileCheck2 },
-    { id: "undated", label: "날짜 입력", detail: "활동 기간 정리", count: attention.undated.length, icon: CalendarDays },
-    { id: "unlinked", label: "공문 연결", detail: "경력 미연결 원본", count: attention.unlinked.length, icon: Link2 },
-  ] as const;
-  const dayLabel = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" }).format(new Date());
-  const storageName = status.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
-  const backupDate = status.lastBackup ? new Date(status.lastBackup) : null;
-  const backupLabel = backupDate && !Number.isNaN(backupDate.getTime())
-    ? `마지막 백업 ${new Intl.DateTimeFormat("ko-KR", { timeZone:"Asia/Seoul", dateStyle:"medium", timeStyle:"short" }).format(backupDate)}`
-    : status.driveConnected ? `${storageName} 연결됨, 백업 상태 확인` : `${storageName} 백업 설정`;
-  return <div className="home-dashboard">
-    <header className="home-heading"><div className="home-identity"><ArchiveMark /><div><span className="home-date">{dayLabel}</span><h1>{APP_NAME}</h1></div></div><div className="home-actions"><button className="button secondary" onClick={onOverview}><Layers3 size={17}/>이력 한눈에 보기</button><button className="button secondary" onClick={onUpload} disabled={busy}><CloudUpload size={17}/>공문 업로드</button><button className="button primary" onClick={onCreate} disabled={busy}><Plus size={17}/>경력 추가</button></div></header>
-    {overview}
-    <section className="home-attention home-card" aria-label="정리할 기록">
-      <header><h2><FileCheck2 size={18}/>정리할 기록</h2><span>누르면 해당 목록으로 이동</span></header>
-      <div className="attention-grid">{tasks.map(({id,label,detail,count,icon:Icon}) => <button key={id} onClick={() => onAttention(id)} disabled={!count} aria-label={`${label} ${count}개`}><span className="attention-icon"><Icon size={18}/></span><span><strong>{label}</strong><small>{detail}</small></span><b>{count}</b><ArrowUpRight size={14}/></button>)}</div>
+  const missing = attention.missing.length;
+  return <div className="home-dashboard home-focus">
+    <header className="home-focus-toolbar">
+      <h1 className="visually-hidden">홈</h1>
+      <button className="home-overview-link" onClick={onOverview}><Layers3 size={17}/>이력 한눈에 보기<ArrowUpRight size={14}/></button>
+      <div className="home-actions"><button className="button secondary" onClick={onUpload} disabled={busy}><CloudUpload size={17}/>공문 업로드</button><button className="button primary" onClick={onCreate} disabled={busy}><Plus size={17}/>경력 추가</button></div>
+    </header>
+    <section className="home-evidence-focus" aria-label="증빙 보완할 경력">
+      <button className={missing ? "evidence-focus-button" : "evidence-focus-button complete"} onClick={() => onAttention("missing")} disabled={!missing} aria-label={`증빙 보완할 경력 ${missing}건`}>
+        <span className="evidence-focus-icon">{missing ? <FileCheck2 size={25} strokeWidth={1.6}/> : <Check size={25}/>}</span>
+        <span className="evidence-focus-copy"><strong>증빙 보완할 경력</strong><small>{missing ? "공문을 연결하면 기록이 완성됩니다" : "보완할 증빙이 없습니다"}</small></span>
+        <span className="evidence-focus-total"><b>{missing.toLocaleString("ko-KR")}</b><span>건</span></span>
+        {missing > 0 && <span className="evidence-focus-next"><span>보완하기</span><ArrowUpRight size={20}/></span>}
+      </button>
     </section>
+    {overview}
     {favorites.length > 0 && <section className="home-favorites" aria-label="즐겨찾는 기록"><h2><Star size={18} aria-hidden="true"/>즐겨찾기</h2><div>{favorites.map(item => <button key={item.id} onClick={() => onOpen(`${item.kind}:${item.id}`)}><Star size={17} aria-hidden="true"/><span>{displayLabel(item.title)}</span><ArrowUpRight size={13}/></button>)}</div></section>}
-    <div className="home-bottom-actions"><button onClick={() => onView("resume")}><FileText size={16}/>이력서와 제출용 증빙 만들기<ArrowUpRight size={14}/></button><button onClick={() => onView("settings")}><ArrowDownToLine size={16}/>전체 기록 백업<ArrowUpRight size={14}/></button></div>
-    <button className="home-backup" onClick={() => onView("settings")}><Cloud size={16}/><span>{backupLabel}</span><ArrowUpRight size={14}/></button>
   </div>;
 }

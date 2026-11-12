@@ -1,16 +1,26 @@
 import {test,expect} from '@playwright/test';
 
-test('growth map, real-data charts and nested workspace routes preserve the archive',async({page})=>{
+test('desktop growth journey animates real records, supports reduced motion and opens the selected year',async({page})=>{
+  await page.setViewportSize({width:1600,height:1100});
+  await page.emulateMedia({reducedMotion:'no-preference'});
   await page.goto('/#home');
   const original=(await (await page.request.get('/api/data')).json());
   const originalWorkspace=(await (await page.request.get('/api/workspace')).json());
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const currentYear=Number(today.slice(0,4));
+  const tomorrow=new Date(Date.parse(today+'T00:00:00Z')+24*60*60*1000).toISOString().slice(0,10);
   const created=[];
   const createdItems:string[]=[];
   try {
-  for(const [title,startDate] of [['성장검증 과거 강의',`${currentYear-2}-03-02`],['성장검증 오늘 강의',today]]){
-    const result=await page.request.post('/api/careers',{data:{title,startDate,category:'강의·연수',organization:'성장검증 기관',role:'강사',evidenceStatus:'unneeded',datePrecision:'day',verified:true}});
+  const careerFixtures=[
+    {title:'성장검증 과거 강의',startDate:`${currentYear-2}-03-02`},
+    {title:'성장검증 오늘 강의',startDate:today},
+    {title:'성장검증 예정 강의',startDate:`${currentYear+1}-03-02`},
+    {title:'성장검증 여러 해 활동',startDate:`${currentYear-3}-03-02`,endDate:today},
+    ...(tomorrow.startsWith(String(currentYear))?[{title:'성장검증 올해 예정 강의',startDate:tomorrow}]:[]),
+  ];
+  for(const item of careerFixtures){
+    const result=await page.request.post('/api/careers',{data:{...item,category:'강의·연수',organization:'성장검증 기관',role:'강사',evidenceStatus:'unneeded',datePrecision:'day',verified:true}});
     expect(result.ok()).toBeTruthy();created.push(await result.json());
   }
   const items=[
@@ -24,6 +34,28 @@ test('growth map, real-data charts and nested workspace routes preserve the arch
   await page.reload();
   await expect(page.getByRole('region',{name:'나의 성장',exact:true})).toBeVisible();
   const map=page.getByRole('region',{name:'연도별 성장 지도',exact:true});
+  const actual=(await (await page.request.get('/api/data')).json()).careers;
+  const count=actual.filter((career:{startDate:string})=>career.startDate.startsWith(String(currentYear))&&career.startDate<=today).length;
+  await expect(map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true})).toBeVisible();
+  await expect(map.getByRole('button',{name:new RegExp(`^${currentYear+1}년 이력 보기`)})).toHaveCount(0);
+  const trail=map.locator('.atlas-trail');
+  await expect(trail).toHaveCSS('animation-name','atlas-trace');
+  await expect(trail).toHaveCSS('animation-iteration-count','1');
+  await page.getByRole('button',{name:'성장 지도 모션 다시 보기',exact:true}).click();
+  await expect.poll(()=>trail.evaluate(element=>element.getAnimations().some(animation=>animation.playState==='running'))).toBe(true);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await expect(trail).toHaveCSS('animation-name','none');
+  await expect(map.locator('.atlas-pin').first()).toHaveCSS('animation-name','none');
+  await expect(page.getByRole('button',{name:'성장 지도 모션 다시 보기',exact:true})).toBeHidden();
+  await expect(trail).toHaveCSS('stroke-dashoffset','0px');
+  await map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true}).click();
+  await expect(page.locator('.career-row')).toHaveCount(count);
+  await expect(page.locator('.career-row').filter({hasText:'성장검증 여러 해 활동'})).toHaveCount(0);
+  await expect(page.locator('.career-row').filter({hasText:'성장검증 올해 예정 강의'})).toHaveCount(0);
+  // The ordinary year filter still includes an activity spanning this year.
+  await page.getByRole('combobox',{name:'연도 필터',exact:true}).selectOption(String(currentYear));
+  await expect(page.locator('.career-row').filter({hasText:'성장검증 여러 해 활동'})).toBeVisible();
+  await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'홈',exact:true}).click();
   // A map pin opens the career list filtered to that year (the per-year card and charts were removed from home).
   await map.getByRole('button',{name:new RegExp(`${currentYear-2}년 이력 보기`)}).click();
   await expect(page.getByRole('combobox',{name:'연도 필터',exact:true})).toHaveValue(String(currentYear-2));
@@ -37,23 +69,23 @@ test('growth map, real-data charts and nested workspace routes preserve the arch
   const main=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   await main.getByRole('button',{name:'홈',exact:true}).click();
   await expect(page.getByRole('region',{name:'분야별 이력 건수',exact:true})).toHaveCount(0);
+  await main.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true}).click();
   await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'이력에서 강의, 연수 보기',exact:true}).click();
   await expect(page.locator('.career-row').filter({hasText:'성장검증 오늘 강의'})).toBeVisible();
   const tree=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-  await tree.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'이력 하위 메뉴 접기',exact:true}).click();
+  await tree.getByRole('button',{name:'이력 하위 메뉴 접기',exact:true}).click();
   await page.reload();await expect(tree.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true})).toHaveAttribute('aria-expanded','false');
   await tree.getByRole('button',{name:'수업 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'수업에서 학급 자료 보기',exact:true}).click();
   await expect(page.getByRole('tab',{name:/학급 자료/})).toHaveAttribute('aria-selected','true');
   await tree.getByRole('button',{name:'수업에서 수업 기록 보기',exact:true}).click();await expect(page.getByRole('tab',{name:/수업 기록/})).toHaveAttribute('aria-selected','true');
-  await tree.getByRole('button',{name:'강의 자료 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'강의 자료에서 수학 보기',exact:true}).click();
+  await tree.getByRole('button',{name:'자료실 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'자료실에서 수학 보기',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'과목 필터',exact:true})).toHaveValue('수학');
-  await tree.getByRole('button',{name:'강의 자료에서 즐겨찾기 보기',exact:true}).click();
+  await tree.getByRole('button',{name:'자료실에서 즐겨찾기 보기',exact:true}).click();
   await expect(page.getByRole('button',{name:'즐겨찾는 자료만',exact:true})).toHaveAttribute('aria-pressed','true');
   await main.getByRole('button',{name:'홈',exact:true}).click();
   const growth=page.getByRole('region',{name:'나의 성장',exact:true});
   await growth.getByRole('button',{name:'접기',exact:true}).click();await expect(map).toHaveCount(0);await page.reload();await expect(map).toHaveCount(0);await growth.getByRole('button',{name:'펼치기',exact:true}).click();
-  expect((await page.request.get('/art/growth-landscape.webp')).ok()).toBeTruthy();expect((await page.request.get('/art/workspace-symbols.webp')).ok()).toBeTruthy();
-  await page.setViewportSize({width:1600,height:1200});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/growth-e2e-desktop.png',animations:'disabled'});
+  await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/growth-e2e-desktop.png',animations:'disabled'});
   } finally {
     for(const item of created)expect((await page.request.delete(`/api/careers/${item.id}`)).ok()).toBeTruthy();
     for(const id of createdItems){const workspace=(await (await page.request.get('/api/workspace')).json());expect((await page.request.delete(`/api/workspace/items/${id}`,{data:{expectedRevision:workspace.revision}})).ok()).toBeTruthy();}
