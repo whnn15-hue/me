@@ -9,7 +9,7 @@ type Preview = { archive: unknown; filename: string; careers: number; documents:
 function previewArchive(archive: unknown, filename: string): Preview {
   if (!archive || typeof archive !== "object" || Array.isArray(archive)) throw new Error("기록 목록이 담긴 JSON 파일을 선택해 주세요.");
   const record = archive as Record<string, unknown>;
-  if (record.version !== 1 || !["introduce-me-workspace", "career-archive", "career-drive-snapshot"].includes(String(record.format)) || !Array.isArray(record.careers) || !Array.isArray(record.documents)) throw new Error("지원하는 Introduce Me JSON 백업 형식이 아닙니다.");
+  if (record.version !== 1 || !["introduce-me-workspace", "career-archive", "career-drive-snapshot"].includes(String(record.format)) || !Array.isArray(record.careers) || !Array.isArray(record.documents)) throw new Error("지원하는 C아카이브 JSON 백업 형식이 아닙니다.");
   let items = 0, links = 0;
   const labels: Record<string, string> = {};
   const addLabels = (entries: unknown[], prefix?: string) => entries.forEach(entry => {
@@ -42,7 +42,7 @@ export default function WorkspaceBackup({ onImport, onError, onToast, embedded =
     setBusy(true);
     try {
       const archive = await api<WorkspaceArchive>("/workspace/export");
-      saveBlob(new Blob([JSON.stringify(archive)], { type: "application/json;charset=utf-8" }), `Introduce_Me_전체기록_${new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })}.json`);
+      saveBlob(new Blob([JSON.stringify(archive)], { type: "application/json;charset=utf-8" }), `C아카이브_전체기록_${new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })}.json`);
       onToast("전체 기록과 연결 정보를 JSON으로 저장했습니다.");
     } catch (error) { onError(error); } finally { setBusy(false); }
   }

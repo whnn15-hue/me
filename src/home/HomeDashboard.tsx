@@ -4,6 +4,7 @@ import type { Career, DocumentRecord, Status, View } from "../types";
 import type { WorkspaceData } from "../workspace/types";
 import { displayLabel } from "../workspace/WorkspaceUI";
 import { archiveAttention } from "../archive-tools";
+import { APP_NAME, ArchiveMark } from "../branding";
 
 interface Props {
   careers: Career[]; documents: DocumentRecord[]; workspace: WorkspaceData; status: Status;
@@ -27,7 +28,7 @@ export default function HomeDashboard({ careers, documents, workspace, status, o
     ? `마지막 백업 ${new Intl.DateTimeFormat("ko-KR", { timeZone:"Asia/Seoul", dateStyle:"medium", timeStyle:"short" }).format(backupDate)}`
     : status.driveConnected ? `${storageName} 연결됨, 백업 상태 확인` : `${storageName} 백업 설정`;
   return <div className="home-dashboard">
-    <header className="home-heading"><div><span className="home-date">{dayLabel}</span><h1>나의 기록실</h1></div><div className="home-actions"><button className="button secondary" onClick={onOverview}><Layers3 size={17}/>이력 한눈에 보기</button><button className="button secondary" onClick={onUpload} disabled={busy}><CloudUpload size={17}/>공문 업로드</button><button className="button primary" onClick={onCreate} disabled={busy}><Plus size={17}/>경력 추가</button></div></header>
+    <header className="home-heading"><div className="home-identity"><ArchiveMark /><div><span className="home-date">{dayLabel}</span><h1>{APP_NAME}</h1></div></div><div className="home-actions"><button className="button secondary" onClick={onOverview}><Layers3 size={17}/>이력 한눈에 보기</button><button className="button secondary" onClick={onUpload} disabled={busy}><CloudUpload size={17}/>공문 업로드</button><button className="button primary" onClick={onCreate} disabled={busy}><Plus size={17}/>경력 추가</button></div></header>
     {overview}
     <section className="home-attention home-card" aria-label="정리할 기록">
       <header><h2><FileCheck2 size={18}/>정리할 기록</h2><span>누르면 해당 목록으로 이동</span></header>

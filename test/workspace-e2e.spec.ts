@@ -111,7 +111,7 @@ test('retired graduate records and relationships remain in JSON backups without 
     const result = await page.request.post('/api/workspace/items',{data:{item:{kind:'course',title:'보존 검증 강좌',semester:'2026-2',professor:'가상 교수'},links:[],expectedRevision:original.revision}});
     expect(result.ok()).toBeTruthy(); const saved = await result.json();
     await page.goto('/#graduate');
-    await expect(page.getByRole('heading',{name:'나의 기록실',exact:true})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'C아카이브',exact:true})).toBeVisible();
     await expect(page.getByRole('navigation',{name:'주 메뉴'}).getByText('대학원',{exact:true})).toHaveCount(0);
     await page.getByRole('button',{name:'모든 기록 검색 열기'}).click();
     await page.getByRole('combobox',{name:'모든 기록 검색어'}).fill('보존 검증 강좌');

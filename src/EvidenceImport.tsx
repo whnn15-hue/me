@@ -120,7 +120,7 @@ export default function EvidenceImport({
       ? "현재 기록과 중복 파일을 확인하고 있어요"
       : progress?.phase === "done"
         ? "증빙 정리를 마쳤어요"
-        : "공문 원본을 구글 드라이브에 보관하고 있어요";
+        : "공문 원본을 연결된 드라이브에 보관하고 있어요";
 
   async function prepare(file?: File) {
     if (operationRef.current || disabled) return;
@@ -394,7 +394,7 @@ export default function EvidenceImport({
           </div>
         </div>
       )}
-      {!driveConnected && <div className="evidence-import-notice"><CloudUpload size={16} /><span>아래에서 구글 드라이브를 연결하면 증빙 원본을 저장할 수 있어요. 목록 확인은 먼저 할 수 있습니다.</span></div>}
+      {!driveConnected && <div className="evidence-import-notice"><CloudUpload size={16} /><span>아래에서 드라이브를 연결하면 증빙 원본을 저장할 수 있어요. 목록 확인은 먼저 할 수 있습니다.</span></div>}
       {canceled && <div className="evidence-import-notice" role="status"><span>증빙 추가를 중단했습니다. 연결을 다시 확인하고 같은 묶음을 가져올 수 있어요.</span></div>}
       {error && <div className="alert error evidence-import-error" role="alert">{error}</div>}
     </section>
