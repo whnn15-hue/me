@@ -63,7 +63,7 @@ const bundle = await build({
         if(!file.size) throw new Error('증빙 파일을 확인해 주세요.');
         const added=globalThis.fixture.newCareers;
         const approved=['approved fixture bytes','new-approved fixture bytes','details-approved fixture bytes'].includes(await file.text());
-        return {format:'career-evidence-import',version:1,careers:[...careers,...added],
+        return {format:'career-evidence-import',version:1,careers:[...careers,...added],careerDetails:globalThis.fixture.careerDetails,
           documents:documents.map(document=>({...document,recordIds:[...(approved&&!document.recordIds.length?['fixture_career_b']:document.recordIds),...added.filter(career=>career.documentIds.includes(document.id)).map(career=>career.id)]})),
           ...(added.length?{newCareerIds:added.map(career=>career.id)}:{})};
       }
@@ -441,8 +441,32 @@ test('separately approved institution and date batches save automatically and sh
     assert.equal(await page.evaluate(()=>fixture.calls[0].allowDetails),true);
     assert.equal(await page.evaluate(()=>fixture.calls[0].allowNew),false);
     await page.evaluate(()=>fixture.release());
-    await page.getByText('공문을 바탕으로 기관과 날짜 기록 1건을 보완했습니다.').waitFor();
+    await page.getByText('증빙을 바탕으로 이력 1건을 보완했습니다.').waitFor();
     assert.equal(await page.evaluate(()=>fixture.calls.length),1);
     assert.equal(new URL(page.url()).hash,'#settings');
+  },'#settings?evidence='+encodeURIComponent('IMEV1:5555666677778888.'+'A'.repeat(43)));
+});
+
+test('approved corrected titles remain eligible for automatic replay, but unrelated renames stop it',browserOptions,async()=>{
+  for(const changed of [false,true])await fixture(async page=>{
+    await page.evaluate(changed=>{
+      fixture.careerDetails=[{careerId:'fixture_career_a',sourceDocumentIds:['fixture_document_a'],title:{before:'가상 학교 강의',after:'가상 학교 영상 강의'}}];
+      fixture.liveCareers=[
+        {id:'fixture_career_a',title:changed?'사용자가 다른 활동으로 바꾼 제목':'가상 학교 영상 강의',startDate:'2025-03',organization:'테스트 기관'},
+        {id:'fixture_career_b',title:'가상 위원회',startDate:'2025-04',organization:'테스트 기관'},
+      ];
+    },changed);
+    await page.getByRole('button',{name:'가상 계정 로그인'}).click();
+    if(changed){
+      await page.getByText('연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.').waitFor();
+      assert.equal(await page.evaluate(()=>fixture.calls.length),0);
+    }else{
+      await page.waitForFunction(()=>fixture.calls.length===1&&fixture.release);
+      assert.equal(await page.evaluate(()=>fixture.calls[0].allowDetails),true);
+      await page.evaluate(()=>fixture.release());
+      await page.getByText('증빙을 바탕으로 이력 1건을 보완했습니다.').waitFor();
+      assert.equal(await page.evaluate(()=>fixture.calls.length),1);
+    }
+    assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
   },'#settings?evidence='+encodeURIComponent('IMEV1:5555666677778888.'+'A'.repeat(43)));
 });
