@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('desktop record room: home overview, retired sections, independent libraries, compact rows and themes',async({page})=>{
+test('desktop home emphasizes missing evidence, keeps libraries accessible and removes repeated summaries',async({page})=>{
   await page.setViewportSize({width:1600,height:1100});
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   const original=await (await page.request.get('/api/data')).json();
@@ -8,7 +8,7 @@ test('desktop record room: home overview, retired sections, independent librarie
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const createdItems:string[]=[];let careerId='';
   try{
-    const response=await page.request.post('/api/careers',{data:{title:'홈검증 오늘 특강',startDate:today,category:'강의·연수',organization:'홈검증 연수원',role:'강사',datePrecision:'day',verified:true,evidenceStatus:'unneeded'}});
+    const response=await page.request.post('/api/careers',{data:{title:'홈검증 오늘 특강',startDate:today,category:'강의·연수',organization:'홈검증 연수원',role:'강사',datePrecision:'day',verified:true,evidenceStatus:'later'}});
     expect(response.ok()).toBeTruthy();careerId=(await response.json()).id;
     for(const item of [
       {kind:'assignment',title:'홈검증 오늘 과제',dueDate:today,status:'in-progress'},
@@ -25,8 +25,21 @@ test('desktop record room: home overview, retired sections, independent librarie
     await expect(menu.getByText('대학원', {exact:true})).toHaveCount(0);
     await expect(menu.locator(':scope > button').filter({hasText:'사진 보관함'})).toHaveCount(1);
     await expect(menu.locator(':scope > button').filter({hasText:'공모전 제출본'})).toHaveCount(1);
-    await expect(page.getByRole('region',{name:'경력 요약'})).toBeVisible();
+    const home=page.locator('.home-dashboard');
+    await expect(home).toBeVisible();
+    await expect(home.locator('.home-identity,.home-date,.stats-grid,.attention-grid,.home-bottom-actions,.home-backup')).toHaveCount(0);
+    await expect(home.getByRole('heading',{name:'C아카이브',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
+    await expect(home.getByRole('button',{name:/이력서와 제출용 증빙 만들기|전체 기록 백업|날짜 입력|공문 연결/})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'연도별 성장 지도'})).toBeVisible();
+    const missing=home.getByRole('button',{name:/증빙 보완할 경력/});
+    await expect(missing).toBeVisible();
+    const totalMissing=original.careers.filter((career:{documentIds:string[];evidenceStatus:string})=>career.evidenceStatus!=='unneeded'&&!career.documentIds.some(id=>original.documents.some((document:{id:string})=>document.id===id))).length+1;
+    await expect(missing).toContainText(String(totalMissing));
+    await missing.click();
+    await expect(page.getByRole('combobox',{name:'증빙 필터',exact:true})).toHaveValue('증빙 미첨부');
+    await expect(page.locator('.career-row').filter({hasText:'홈검증 오늘 특강'})).toBeVisible();
+    await menu.getByRole('button',{name:'홈',exact:true}).click();
     await expect(page.getByText('최근 작업',{exact:true})).toHaveCount(0);
     await expect(page.getByText('최근 활동',{exact:true})).toHaveCount(0);
     await expect(page.getByText('일정과 마감',{exact:true})).toHaveCount(0);
@@ -67,7 +80,8 @@ test('desktop record room: home overview, retired sections, independent librarie
     await expect(settingsModes.getByRole('button',{name:'다크',exact:true})).toHaveAttribute('aria-pressed','true');
     await expect(page.locator('.app-build')).toContainText('화면 버전');
     await menu.getByRole('button',{name:'홈',exact:true}).click();await page.reload();
-    await expect(page.locator('.home-card').first()).toHaveCSS('background-color','rgb(32, 32, 32)');
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    await expect(page.getByRole('region',{name:'연도별 성장 지도'})).toBeVisible();
     await page.screenshot({path:'/tmp/record-room-home-dark.png',animations:'disabled'});
     await page.setViewportSize({width:1280,height:900});
     await expect(page.getByRole('button',{name:'모든 기록 검색 열기'})).toBeInViewport();

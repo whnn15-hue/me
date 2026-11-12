@@ -1,5 +1,7 @@
 // Presentation categories are exclusive. Legacy stored values remain valid for backups.
-export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '표창', '파견', '집필', '콘텐츠 제작', '자격증'];
+export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '공모전 수상', '표창', '파견', '집필', '콘텐츠 제작', '자격증'];
+// Secondment remains a valid stored category and contextual filter, not a primary tab.
+export const careerNavigationChoices = careerCategoryChoices.filter(category => category !== '파견');
 const fold = value => String(value || '').normalize('NFC').replaceAll('_', ' ');
 const isKeris = text => /KERIS|한국교육학술정보원/i.test(text);
 const internalProgramme = /수학탐험대.*디지털\s*교구.*활용사례집.*제작|연구학교.*성과보고회.*시도.*운영\s*용역|인공지능.*초등수학.*온라인\s*연수.*운영\s*계획|AI\s*디지털교과서.*수정\s*보완.*검토위원회.*운영\s*계획/i;
@@ -21,6 +23,13 @@ export function careerSection(career, documents = []) {
   if (secondmentWork(career, originals)) return '파견';
   const title = fold(career.title), role = fold(career.role), primary = `${title} ${role}`;
   if (career.category === '표창' || /표창|감사장|공로상|훈장|포장\s*수여/.test(primary)) return '표창';
+  if (career.category === '공모전 수상') return '공모전 수상';
+  const competition = /공모(?:전)?/.test(title) && !/연구\s*대회|교육\s*연구|교육자료전/.test(title);
+  const judging = /심사\s*위원|평가\s*위원|선정\s*위원|심사\s*협의|공모\s*운영|운영\s*계획|공모\s*안내|참가\s*안내|수상\s*(?:목표|예정|계획)|선정\s*(?:기준|계획)/.test(primary);
+  const awarded = /수상|입상|최종\s*선정|선정작|우수작품.*선정|선정.*우수작품|최우수상|우수상|장려상|금상|은상|동상|입선|대상\s*$/.test(primary)
+    || /선정/.test(role) || Boolean(career.awardGrade?.trim())
+    || ['연구·수상','연구대회'].includes(career.category) && /수상|입상|최우수상|우수상|장려상|금상|은상|동상|입선/.test(fold(career.description));
+  if (competition && awarded && !judging) return '공모전 수상';
   if (career.category === '연구대회' || career.category === '연구·수상') return '연구대회';
   const combined = ['집필·콘텐츠', '집필'].includes(career.category);
   const author = /집필|저술|저서|저자|출판/.test(primary);
@@ -74,4 +83,58 @@ export function recognitionDetails(career) {
   const grade = career.awardGrade ?? (distinct.length > 1 ? distinct.map(pair=>[pair.level,pair.stage,pair.grade].filter(Boolean).join(' ')).join(', ') : distinct[0]?.grade || fallbackGrade);
   const stages = career.awardStages ?? ['예선', '본선', '최종'].filter(stage => text.includes(stage));
   return { level, grade, stages };
+}
+
+const scopePattern = '(전국|시도|시[·ㆍ, ]도|지역|(?:대구|서울|부산|인천|광주|대전|울산|세종)(?:광역시|특별시|특별자치시)?|(?:경기|경상북|경상남|충청북|충청남|전라북|전라남|강원|제주)(?:도|특별자치도)?|경북|경남|충북|충남|전북|전남)';
+const gradePattern = '([1-5]\\s*등급|[1-5]\\s*등|최우수상|우수상|장려상|금상|은상|동상|대상(?!\\s*[:：])|입선)';
+const normalizeScope = value => value === '전국' ? '전국' : value === '지역' ? '지역' : '시도';
+const comparisonScope = value => new RegExp(`^${scopePattern}$`).test(value) ? normalizeScope(value) : value;
+const normalizeGrade = value => value.replace(/([1-5])\s+(등급|등)/g, '$1$2');
+const cleanLabel = value => String(value || '').replace(/[·ㆍ·⋅]/g, ', ').trim();
+
+function pairedOutcomes(text) {
+  const scoped = [...text.matchAll(new RegExp(`${scopePattern}\\s*(?:(예선|본선|최종)\\s*)?(?:연구대회|대회)?\\s*${gradePattern}`, 'g'))];
+  const pairs = scoped.map(match => ({level:normalizeScope(match[1]),stage:match[2] || '',grade:normalizeGrade(match[3])}));
+  for (const match of text.matchAll(new RegExp(`(예선|본선|최종)\\s*${gradePattern}`, 'g'))) {
+    if (!scoped.some(source => match.index >= source.index && match.index < source.index + source[0].length))
+      pairs.push({level:'',stage:match[1],grade:normalizeGrade(match[2])});
+  }
+  return pairs;
+}
+
+/** Display complete scope/grade pairs once. Keep the old aggregate fields for
+ * editor/search compatibility, but do not concatenate them into award badges.
+ * Stages without an explicit associated grade remain independent stage labels. */
+export function recognitionOutcomes(career) {
+  const details = recognitionDetails(career);
+  const explicitGrade = typeof career.awardGrade === 'string';
+  const explicitLevel = typeof career.awardLevel === 'string';
+  const explicitStages = Array.isArray(career.awardStages);
+  const text = explicitGrade ? career.awardGrade : [career.title, career.description, ...(career.tags || [])].join(' ');
+  const level = cleanLabel(details.level), grade = cleanLabel(details.grade);
+  const levels = level.replace(/시\s*[,/]\s*도/g, '시도').split(/[,/]+/).map(value => comparisonScope(value.trim())).filter(Boolean);
+  let stages = details.stages.map(cleanLabel).filter(Boolean);
+  let outcomes = pairedOutcomes(text);
+  if (outcomes.length) {
+    if (explicitLevel && !level) outcomes = outcomes.map(pair => ({...pair,level:''}));
+    else if (explicitLevel && levels.length === 1) {
+      // An explicit scope also governs a previously saved compound grade. A
+      // different scope cannot acquire a grade by removing its original label.
+      const previous = outcomes;
+      outcomes = outcomes.filter(pair => !pair.level || pair.level === levels[0]);
+      if (!explicitStages) stages = stages.filter(stage => outcomes.some(pair => pair.stage === stage)
+        || !previous.some(pair => pair.level && pair.stage === stage));
+    }
+    if (outcomes.length === 1 && !outcomes[0].level && levels.length === 1)
+      outcomes[0] = {...outcomes[0],level};
+  } else if (grade) outcomes.push({level,stage:'',grade:normalizeGrade(grade)});
+  if (explicitStages) outcomes = outcomes.map(pair => ({...pair,stage:stages.includes(pair.stage) ? pair.stage : ''}));
+  if (level && !outcomes.some(pair => pair.level)) outcomes.unshift({level,stage:'',grade:''});
+  for (const stage of stages) if (!outcomes.some(pair => pair.stage === stage)) outcomes.push({level:'',stage,grade:''});
+  return [...new Map(outcomes.filter(pair => pair.level || pair.stage || pair.grade)
+    .map(pair => [`${pair.level}:${pair.stage}:${pair.grade}`,pair])).values()];
+}
+
+export function recognitionLabels(career) {
+  return [...new Set(recognitionOutcomes(career).map(pair => [pair.level,pair.stage,pair.grade].filter(Boolean).join(' ')))];
 }

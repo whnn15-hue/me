@@ -254,7 +254,7 @@ export function CareerEditor({
               />
             </label>
           </div>
-          {careerSection(draft, documents) === "연구대회" && <div className="recognition-editor">
+          {["연구대회", "공모전 수상"].includes(careerSection(draft, documents)) && <div className="recognition-editor">
             <div className="field-grid">
               <label className="field"><span>대회 범위</span><input value={draft.awardLevel ?? recognitionDetails(draft).level} placeholder="전국, 시도, 지역" maxLength={100} onChange={e => change("awardLevel", e.target.value)} /></label>
               <label className="field"><span>등급 또는 수상 결과</span><input value={draft.awardGrade ?? recognitionDetails(draft).grade} placeholder="1등급, 최우수상 등" maxLength={100} onChange={e => change("awardGrade", e.target.value)} /></label>

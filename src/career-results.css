@@ -1,0 +1,84 @@
+/* Scope-specific results and a timeless certificate shelf. Stored dates and
+   legacy categories remain available in details, search and backups. */
+.app-shell .recognition-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+  margin: 10px 0;
+  vertical-align: middle;
+}
+.app-shell .recognition-badges .recognition-outcome {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  min-width: 68px;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-inset);
+  color: var(--ui-text);
+  line-height: 1.35;
+}
+.app-shell .recognition-badges .recognition-outcome.national {
+  border-color: var(--ui-accent-line);
+  background: var(--ui-accent-soft);
+}
+.app-shell .recognition-badges .recognition-scope {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--ui-muted);
+  background: transparent;
+  white-space: normal;
+}
+.app-shell .recognition-badges .recognition-outcome strong {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: normal;
+}
+.app-shell .career-list .recognition-row:not(.as-card) {
+  grid-template-columns: 30px minmax(0,1fr) 116px 104px 18px;
+  padding-block: 12px;
+}
+.app-shell .career-list .recognition-row:not(.as-card) .career-info {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 5px 16px;
+  align-items: center;
+}
+.app-shell .career-list .recognition-row:not(.as-card) .career-category { grid-column: 1; justify-self: start; }
+.app-shell .career-list .recognition-row:not(.as-card) h4 { grid-column: 1; white-space: normal; }
+.app-shell .career-list .recognition-row:not(.as-card) .career-meta { grid-column: 1; max-width: none; }
+.app-shell .career-list .recognition-row:not(.as-card) .recognition-badges {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  margin: 0;
+  max-width: 240px;
+  flex-wrap: wrap;
+}
+.app-shell .career-list .qualification-row:not(.as-card) {
+  grid-template-columns: 30px minmax(0,1fr) 104px 18px;
+  min-height: 66px;
+}
+.qualification-group { margin-top: 12px; }
+.context-select { max-width: 190px; }
+.app-shell .overview-records .recognition-badges { margin: 0; min-width: 144px; }
+.app-shell .overview-records .recognition-outcome { min-width: 60px; padding: 6px 9px; }
+@media (max-width: 1000px) {
+  .app-shell .career-list .recognition-row:not(.as-card) { grid-template-columns: 30px minmax(0,1fr) 18px; }
+  .app-shell .career-list .recognition-row:not(.as-card) .career-row-date,
+  .app-shell .career-list .recognition-row:not(.as-card) .career-row-evidence { grid-column: 2; justify-self: start; text-align: left; }
+  .app-shell .career-list .recognition-row:not(.as-card) .career-row-arrow { grid-column: 3; grid-row: 1; }
+}
+@media print {
+  .app-shell .recognition-badges .recognition-outcome { background: transparent; color: #000; border-color: #bbb; break-inside: avoid; }
+}
