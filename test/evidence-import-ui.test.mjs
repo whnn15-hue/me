@@ -40,9 +40,10 @@ const bundle = await build({
     builder.onResolve({filter:/^\.\/backup-code$/}, ({importer}) => importer.endsWith('/EvidenceImport.tsx') ? {path:'code',namespace:'fixture'} : undefined);
     builder.onResolve({filter:/^\.\/free\/evidence-import$/}, ({importer}) => importer.endsWith('/EvidenceImport.tsx') ? {path:'importer',namespace:'fixture'} : undefined);
     builder.onResolve({filter:/^\.\/evidence-approvals$/}, () => ({path:'approved-fingerprints',namespace:'approvals-fixture'}));
-    builder.onLoad({filter:/.*/,namespace:'approvals-fixture'}, () => ({loader:'js',contents:`export const approvedEvidenceArchives=['${createHash('sha256').update('approved fixture bytes').digest('hex')}'];`}));
+    builder.onLoad({filter:/.*/,namespace:'approvals-fixture'}, () => ({loader:'js',contents:`export const approvedEvidenceArchives=['${createHash('sha256').update('approved fixture bytes').digest('hex')}'];export const approvedEvidenceNewCareerArchives=['${createHash('sha256').update('new-approved fixture bytes').digest('hex')}'];`}));
     builder.onLoad({filter:/.*/,namespace:'fixture'}, ({path})=>({loader:'js',resolveDir:root,contents:path==='code'?`
       export async function evidenceFileFromImportCode(code){
+        if(code==='IMEV1:1111222233334444.'+'A'.repeat(43))return new File(['new-approved fixture bytes'],'fixture.zip',{type:'application/zip'});
         const approved=code==='IMEV1:fedcba9876543210.'+'A'.repeat(43);
         if(!approved && code!=='IMEV1:SYNTHETIC_FIXTURE' && code!=='IMEV1:0123456789abcdef.'+'A'.repeat(43)) throw new Error('증빙 코드를 다시 확인해 주세요.');
         return new File([approved?'approved fixture bytes':'fixture bytes'],'fixture.zip',{type:'application/zip'});
@@ -60,7 +61,7 @@ const bundle = await build({
         globalThis.fixture.reads++;
         if(!file.size) throw new Error('증빙 파일을 확인해 주세요.');
         const added=globalThis.fixture.newCareers;
-        const approved=await file.text()==='approved fixture bytes';
+        const approved=['approved fixture bytes','new-approved fixture bytes'].includes(await file.text());
         return {format:'career-evidence-import',version:1,careers:[...careers,...added],
           documents:documents.map(document=>({...document,recordIds:[...(approved&&!document.recordIds.length?['fixture_career_b']:document.recordIds),...added.filter(career=>career.documentIds.includes(document.id)).map(career=>career.id)]})),
           ...(added.length?{newCareerIds:added.map(career=>career.id)}:{})};
@@ -70,7 +71,7 @@ const bundle = await build({
         return globalThis.fixture.liveCareers ?? careers;
       }
       export async function applyEvidenceImport(prepared,options){
-        globalThis.fixture.calls.push({links:JSON.parse(JSON.stringify(options.approvedLinks)),documents:prepared.documents.length,newCareerIds:options.approvedNewCareerIds,automatic:options.requireMatchingCareerDetails});
+        globalThis.fixture.calls.push({links:JSON.parse(JSON.stringify(options.approvedLinks)),documents:prepared.documents.length,newCareerIds:options.approvedNewCareerIds,automatic:options.requireMatchingCareerDetails,allowNew:options.allowAutomaticNewCareers});
         if(globalThis.fixture.failCall)throw new Error('가상 업로드 실패');
         globalThis.fixture.progress=options.onProgress;
         options.onProgress({phase:'uploading',completed:0,total:2,fileName:documents[0].name});
@@ -417,4 +418,17 @@ test('a modified archive cannot grant itself automatic approval',browserOptions,
     assert.equal(await page.evaluate(()=>fixture.calls.length),0);
     assert.equal(await page.getByRole('button',{name:'자동 저장 취소'}).count(),0);
   });
+});
+
+test('separately approved new-career batches create their reviewed suggestions without another click',browserOptions,async()=>{
+  await fixture(async page=>{
+    await page.evaluate(()=>{fixture.newCareers=[{id:'new_career',title:'추가할 연수',category:'강의·연수',tags:[],startDate:'2026-06-01',organization:'가상 기관',description:'강사 위촉',documentIds:['fixture_document_b']}];});
+    await page.getByRole('button',{name:'가상 계정 로그인'}).click();
+    await page.waitForFunction(()=>fixture.calls.length===1&&fixture.release);
+    assert.equal(await page.evaluate(()=>fixture.calls[0].allowNew),true);
+    assert.deepEqual(await page.evaluate(()=>fixture.calls[0].newCareerIds),['new_career']);
+    await page.evaluate(()=>fixture.release());
+    await page.getByText('새 경력 1건을 추가했습니다.',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>fixture.calls.length),1);
+  },'#settings?evidence='+encodeURIComponent('IMEV1:1111222233334444.'+'A'.repeat(43)));
 });
