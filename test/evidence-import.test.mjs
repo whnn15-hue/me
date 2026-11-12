@@ -662,3 +662,35 @@ test('actual Firestore activation stages normalized metadata and signals commit 
   assert.equal(live.documents[0].driveFileId, document.driveFileId);
   assert.equal(live.documents[0].sha256, document.sha256);
 });
+
+test('automatic imports recheck live career identity before uploads and remain idempotent', async () => {
+  const document=original('auto_original');
+  const carrier=career('auto_career',[document.id],{title:'Existing activity',startDate:'2022'});
+  const input=await prepared([carrier],[document]);
+  for(const fields of [{title:'Another activity'},{startDate:'2023'},null]){
+    const state=runtime(fields===null?[]:[career(carrier.id,[],{...carrier,...fields,documentIds:[]})]);
+    await assert.rejects(applyEvidenceImport(input,{requireMatchingCareerDetails:true}),/연결 대상 이력이 변경/);
+    assertNoWrites(state);
+  }
+  const live=career(carrier.id,[],{...carrier,documentIds:[],startDate:'2022-04-13',description:'Preserve this',verified:false});
+  const state=runtime([live]);
+  const first=await applyEvidenceImport(input,{requireMatchingCareerDetails:true});
+  assert.equal(first.added,1);assert.equal(first.linked,1);
+  const saved=state.snapshot.careers[0];
+  assert.equal(saved.description,live.description);assert.equal(saved.verified,false);assert.equal(saved.startDate,live.startDate);
+  const second=await applyEvidenceImport(input,{requireMatchingCareerDetails:true});
+  assert.equal(second.added,0);assert.equal(second.duplicates,1);
+  assert.equal(state.uploads.length,1);assert.equal(state.activations.length,1);
+});
+
+test('automatic imports reject new or unlinked records without writes', async () => {
+  const document=original('automatic_new');
+  const carrier=career('auto_new',[document.id]);
+  const input=await preparedWithNew([carrier],[document],[carrier.id]);
+  const state=runtime([]);
+  await assert.rejects(applyEvidenceImport(input,{requireMatchingCareerDetails:true,approvedNewCareerIds:[carrier.id]}),/새 이력/);
+  assertNoWrites(state);
+  state.snapshot.careers=[carrier];
+  await assert.rejects(applyEvidenceImport(input,{requireMatchingCareerDetails:true,approvedLinks:{[document.id]:[]}}),/연결 대상 이력이 변경/);
+  assertNoWrites(state);
+});

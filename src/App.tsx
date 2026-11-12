@@ -14,7 +14,6 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
-  CircleHelp,
   Cloud,
   CloudUpload,
   Download,
@@ -156,7 +155,7 @@ export function CategoryIcon({
   );
 }
 export function formatPeriod(c: Career) {
-  if (!c.startDate) return "날짜 확인 필요";
+  if (!c.startDate) return "날짜 미입력";
   const f = (s: string) => s.replaceAll("-", ".");
   return c.endDate && c.endDate !== c.startDate
     ? `${f(c.startDate)} – ${f(c.endDate)}`
@@ -211,7 +210,6 @@ export default function App() {
     [undatedOnly, setUndatedOnly] = useState(false),
     [documentFilter, setDocumentFilter] = useState("전체 파일"),
     [resumeSelection, setResumeSelection] = useState<string[]>([]),
-    [reviewOnly, setReviewOnly] = useState(false),
     [layout, setLayout] = useState<"list" | "grid">("list");
   const [careerMode,setCareerMode] = useState<"manage"|"overview">("manage");
   useEffect(() => {
@@ -399,7 +397,6 @@ export default function App() {
           const match = matchesWords(`${recognitionDetails(c).level} ${recognitionDetails(c).grade} ${recognitionDetails(c).stages.join(" ")} ${careerCategoryLabel(c, documents)} ${displayLabel(c.title)} ${careerOrganization(c, documents)} ${displayLabel(c.role)} ${c.description} ${c.tags.join(" ")} ${c.startDate} ${c.endDate}`, query);
           return (
             match &&
-            (!reviewOnly || !c.verified) &&
             (!undatedOnly || !c.startDate) &&
             matchesCareerCategory(c, category, documents) &&
             (institution === "전체 기관" || careerOrganization(c, documents) === institution) &&
@@ -418,34 +415,33 @@ export default function App() {
             (b.startDate || "").localeCompare(a.startDate || "") ||
             a.title.localeCompare(b.title, "ko"),
         ),
-    [careers, documents, query, category, year, institution, evidenceFilter, reviewOnly, undatedOnly],
+    [careers, documents, query, category, year, institution, evidenceFilter, undatedOnly],
   );
   const groups = useMemo(() => Object.entries(Object.groupBy(filtered, c => groupBy === "organization"
-    ? careerOrganization(c, documents) : c.startDate.slice(0, 4) || "확인 필요"))
+    ? careerOrganization(c, documents) : c.startDate.slice(0, 4) || "날짜 미입력"))
     .sort(([a], [b]) => groupBy === "organization" ? a === "기관 미입력" ? 1 : b === "기관 미입력" ? -1 : a.localeCompare(b,"ko")
-      : a === "확인 필요" ? 1 : b === "확인 필요" ? -1 : b.localeCompare(a)), [filtered, groupBy, documents]);
+      : a === "날짜 미입력" ? 1 : b === "날짜 미입력" ? -1 : b.localeCompare(a)), [filtered, groupBy, documents]);
   const linkedCareers = careers.filter((c) => c.documentIds.length > 0).length;
   const missingEvidence = archiveAttention(careers, documents).missing.length;
-  const unreviewed = careers.filter((c) => !c.verified).length;
   const evidenceRequired = careers.filter((c) => c.documentIds.length || c.evidenceStatus !== "unneeded").length;
   const coverage = evidenceRequired ? Math.round(linkedCareers / evidenceRequired * 100) : 0;
-  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || institution !== "전체 기관" || evidenceFilter !== "전체 증빙" || reviewOnly || undatedOnly;
+  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || institution !== "전체 기관" || evidenceFilter !== "전체 증빙" || undatedOnly;
   const clearFilters = () => {
     setQuery(""); setCategory("전체"); setYear("전체 연도"); setInstitution("전체 기관"); setGroupBy("year");
-    setEvidenceFilter("전체 증빙"); setReviewOnly(false); setUndatedOnly(false);
+    setEvidenceFilter("전체 증빙"); setUndatedOnly(false);
   };
   const chooseCategory = (next: Category | "전체") => {
     setCareerMode("manage");
     setCategory(next); setInstitution("전체 기관"); setQuery(""); setYear("전체 연도");
-    setEvidenceFilter("전체 증빙"); setReviewOnly(false); setUndatedOnly(false);
+    setEvidenceFilter("전체 증빙"); setUndatedOnly(false);
     setGroupBy(next === "강의·연수" ? "organization" : "year");
   };
-  const focusArchive = (filter: "all" | "missing" | "review" | "undated" | "unlinked") => {
+  const focusArchive = (filter: "all" | "missing" | "attached" | "undated" | "unlinked") => {
     setCareerMode("manage");
     if (filter === "unlinked") { changeView("documents"); setDocumentFilter("미연결 파일"); return; }
     clearFilters(); changeView("careers");
     if (filter === "missing") setEvidenceFilter("증빙 미첨부");
-    if (filter === "review") setReviewOnly(true);
+    if (filter === "attached") setEvidenceFilter("증빙 있음");
     if (filter === "undated") setUndatedOnly(true);
     requestAnimationFrame(() => document.getElementById("career-records")?.scrollIntoView({ block: "start" }));
   };
@@ -927,7 +923,7 @@ export default function App() {
                     <Stat label="전체 경력" value={careers.length} unit="건" icon={<BriefcaseBusiness size={19} />} foot="나의 모든 경험 모아보기" onClick={() => focusArchive("all")} />
                     <Stat label="보관 중인 공문" value={documents.length} unit="개" icon={<FolderOpen size={19} />} foot={`${linkedCareers}개 경력에 원본 연결`} onClick={() => changeView("documents")} />
                     <Stat label="증빙 보완할 경력" value={missingEvidence} unit="건" icon={<FileCheck2 size={19} />} foot="경력에 맞는 원본 연결하기" accent onClick={() => focusArchive("missing")} />
-                    <Stat label="확인 전 경력" value={unreviewed} unit="건" icon={<CircleHelp size={19} />} foot={unreviewed ? "날짜와 역할을 확인해 주세요" : "모든 경력을 확인했어요"} onClick={() => focusArchive("review")} />
+                    <Stat label="증빙 연결된 경력" value={linkedCareers} unit="건" icon={<Link2 size={19} />} foot="원본과 함께 보관한 기록" onClick={() => focusArchive("attached")} />
                   </section>
                   <GrowthOverview careers={careers} documents={documents} onShowCareers={() => changeView("careers")} onYear={next=>{changeView("careers");chooseCategory("전체");setYear(String(next));requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
 </>} careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
@@ -1090,14 +1086,12 @@ export default function App() {
                       {year !== "전체 연도" && <button onClick={() => setYear("전체 연도")}>{year}년<X size={12}/></button>}
                       {institution !== "전체 기관" && <button onClick={() => setInstitution("전체 기관")}>{institution}<X size={12}/></button>}
                       {evidenceFilter !== "전체 증빙" && <button onClick={() => setEvidenceFilter("전체 증빙")}>{evidenceFilter}<X size={12}/></button>}
-                      {reviewOnly && <button onClick={() => setReviewOnly(false)}>확인 전<X size={12}/></button>}
                       {undatedOnly && <button onClick={() => setUndatedOnly(false)}>날짜 미입력<X size={12}/></button>}
                     </div>}
                     <div className="archive-result-bar">
                       <span aria-live="polite">{filtered.length}건{groupBy === "organization" ? `, ${groups.length}개 기관` : ", 최근 활동순"}</span>
                       <div>
                         <label className="group-select"><select aria-label="이력 묶어보기" value={groupBy} onChange={e=>setGroupBy(e.target.value as "year" | "organization")}><option value="year">연도별 보기</option><option value="organization">기관별 보기</option></select><ChevronDown size={12}/></label>
-                        <button className={`review-filter ${reviewOnly ? "active" : ""}`} aria-pressed={reviewOnly} onClick={() => setReviewOnly(!reviewOnly)}><CircleHelp size={14} />확인 전만 보기</button>
                         {hasFilters && <button className="reset-filters" onClick={clearFilters}><X size={13} />필터 초기화</button>}
                       </div>
                     </div>
@@ -1122,7 +1116,7 @@ export default function App() {
                             {groupBy === "organization" ? <Building2 className="institution-marker" size={19}/> : <span className="year-marker" />}
                             <h3>
                               {y}
-                              {groupBy === "year" && y !== "확인 필요" && <span>년</span>}
+                              {groupBy === "year" && y !== "날짜 미입력" && <span>년</span>}
                             </h3>
                             <span className="year-count">
                               {records?.length}개의 기록
@@ -1144,11 +1138,6 @@ export default function App() {
                                 <div className="career-info">
                                   <div className="career-category">
                                     {careerCategoryLabel(c, documents)}
-                                    {!c.verified && (
-                                      <span className="unverified-label">
-                                        확인 전
-                                      </span>
-                                    )}
                                   </div>
                                   {careerSection(c, documents) === "강의·연수" && <div className="lecture-institution"><Building2 size={14}/><span>{careerOrganization(c, documents)}</span></div>}
                                   <h4>{displayLabel(c.title)}</h4><Recognition career={c} />
@@ -1378,11 +1367,6 @@ export default function App() {
             <div className="detail-category">{careerCategoryLabel(detail, documents)}</div>
             <h2>{displayLabel(detail.title)}</h2><Recognition career={detail} />
             <Evidence career={detail} />
-            {!detail.verified && (
-              <div className="notice detail-notice">
-                아직 확인하지 않은 기록입니다. 증빙의 날짜와 역할을 확인한 뒤 저장해 주세요.
-              </div>
-            )}
             <dl className="detail-fields">
               <div>
                 <dt>

@@ -23,7 +23,6 @@ export function archiveAttention(careers: Career[], documents: DocumentRecord[])
   const linked = new Set(careers.flatMap(item => item.documentIds));
   return {
     missing: careers.filter(item => !item.documentIds.some(id => available.has(id)) && item.evidenceStatus !== "unneeded"),
-    review: careers.filter(item => !item.verified),
     undated: careers.filter(item => !item.startDate),
     unlinked: documents.filter(item => !linked.has(item.id)),
   };

@@ -1,4 +1,4 @@
-import { Layers3, ArrowUpRight, CalendarDays, Cloud, CloudUpload, FileText, Plus, Star, FileCheck2, CircleHelp, Link2, ArrowDownToLine } from "lucide-react";
+import { Layers3, ArrowUpRight, CalendarDays, Cloud, CloudUpload, FileText, Plus, Star, FileCheck2, Link2, ArrowDownToLine } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { Career, DocumentRecord, Status, View } from "../types";
 import type { WorkspaceData } from "../workspace/types";
@@ -9,7 +9,7 @@ import { APP_NAME, ArchiveMark } from "../branding";
 interface Props {
   careers: Career[]; documents: DocumentRecord[]; workspace: WorkspaceData; status: Status;
   onOpen: (ref: string) => void; onView: (view: View) => void;
-  onAttention: (filter: "missing" | "review" | "undated" | "unlinked") => void;
+  onAttention: (filter: "missing" | "undated" | "unlinked") => void;
   onOverview: () => void; overview: ReactNode; onUpload: () => void; onCreate: () => void; busy: boolean;
 }
 export default function HomeDashboard({ careers, documents, workspace, status, onOpen, onView, onUpload, onCreate, onAttention, busy, overview, onOverview }: Props) {
@@ -17,7 +17,6 @@ export default function HomeDashboard({ careers, documents, workspace, status, o
   const favorites = useMemo(() => workspace.items.filter(item => item.favorite && !["course", "assignment", "paper", "idea"].includes(item.kind)).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [workspace]);
   const tasks = [
     { id: "missing", label: "증빙 보완", detail: "원본 공문 연결", count: attention.missing.length, icon: FileCheck2 },
-    { id: "review", label: "내용 확인", detail: "날짜와 역할 검토", count: attention.review.length, icon: CircleHelp },
     { id: "undated", label: "날짜 입력", detail: "활동 기간 정리", count: attention.undated.length, icon: CalendarDays },
     { id: "unlinked", label: "공문 연결", detail: "경력 미연결 원본", count: attention.unlinked.length, icon: Link2 },
   ] as const;

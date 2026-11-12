@@ -35,10 +35,10 @@ test('attention uses real files, respects evidence exemptions and canonical care
   const documents = [{id:'present',recordIds:[]},{id:'unlinked',recordIds:['a']}];
   const before = structuredClone({careers,documents});
   const result = archiveAttention(careers,documents);
-  for(const key of ['missing','review','undated']) assert.deepEqual(result[key].map(item=>item.id),['b']);
+  for(const key of ['missing','undated']) assert.deepEqual(result[key].map(item=>item.id),['b']);
   assert.deepEqual(result.unlinked.map(item=>item.id),['unlinked']);
   assert.deepEqual({careers,documents},before);
-  assert.deepEqual(archiveAttention([],[]),{missing:[],review:[],undated:[],unlinked:[]});
+  assert.deepEqual(archiveAttention([],[]),{missing:[],undated:[],unlinked:[]});
 });
 
 test('file grouping and sorting cover legacy originals and preserve source order', () => {

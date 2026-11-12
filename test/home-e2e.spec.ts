@@ -41,6 +41,10 @@ test('desktop record room: home overview, retired sections, independent librarie
     await page.screenshot({path:'/tmp/record-room-home-light.png',animations:'disabled'});
     // The per-year card was removed; the growth map opens the year in the career list instead.
     await expect(page.getByRole('region',{name:'선택한 연도 기록'})).toHaveCount(0);
+    const growthToggle=page.getByRole('button',{name:'펼치기',exact:true});
+    if(await growthToggle.isVisible())await growthToggle.click();
+    await page.getByRole('button',{name:new RegExp(`^${today.slice(0,4)}년 이력 보기`)}).click();
+    await expect(page.locator('.career-row').filter({hasText:'홈검증 오늘 특강'})).toBeVisible();
     await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
     await menu.getByRole('button',{name:'홈',exact:true}).click();
     await page.getByRole('region',{name:'즐겨찾는 기록',exact:true}).getByRole('button',{name:/홈검증 최근 강의안/}).click();
