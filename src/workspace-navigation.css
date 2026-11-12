@@ -1,0 +1,68 @@
+.app-shell .workspace-tree.compact-workspace-tree {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  margin-top: 18px;
+}
+
+.app-shell .compact-workspace-tree .tree-parent {
+  gap: 3px;
+}
+
+.app-shell .compact-workspace-tree .nav-item {
+  min-height: 46px;
+  padding: 11px 14px;
+  gap: 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--ui-muted);
+  box-shadow: none;
+  border-left: 0;
+}
+
+.app-shell .compact-workspace-tree .nav-item.active {
+  color: var(--ui-text);
+  background: var(--ui-inset);
+  box-shadow: none;
+  border-left: 0;
+  font-weight: 600;
+}
+
+.app-shell .compact-workspace-tree .nav-item.active::before,
+.app-shell .compact-workspace-tree .nav-item.active::after {
+  display: none;
+}
+
+.app-shell .compact-workspace-tree .nav-item.active > svg {
+  color: var(--ui-accent-ink);
+}
+
+.app-shell .compact-workspace-tree .tree-toggle {
+  width: 27px;
+  height: 38px;
+}
+
+.app-shell .compact-workspace-tree .tree-children {
+  margin: 3px 0 8px 23px;
+  padding-left: 7px;
+  border-left: 0;
+  gap: 3px;
+}
+
+.app-shell .compact-workspace-tree .tree-children > button {
+  min-height: 35px;
+  padding: 7px 10px;
+  gap: 10px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.app-shell .compact-workspace-tree .tree-children > button.selected {
+  background: var(--ui-inset);
+  color: var(--ui-text);
+}
+
+.app-shell .compact-workspace-tree button:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}

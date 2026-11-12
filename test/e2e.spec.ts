@@ -8,7 +8,13 @@ const firstFile = { name: '특강 위촉 공문.txt', mimeType: 'text/plain', bu
 const secondFile = { name: '연구회 위촉 공문.txt', mimeType: 'text/plain', buffer: Buffer.from(`활동명: ${secondTitle}\n기관: 교육청\n2025년 4월 16일 미디어 연구회 위원으로 위촉`, 'utf8') };
 
 async function data(page: Page) { const response = await page.request.get('/api/data'); expect(response.ok()).toBeTruthy(); return response.json(); }
-async function navigate(page: Page, name: string) { await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('button', { name, exact: name !== '경력 아카이브' }).click(); }
+async function navigate(page: Page, name: string) {
+  const label=name==='이력서, 증빙 만들기'?'제출 서류 만들기':name;
+  if(['공문 보관함','제출 서류 만들기','백업 및 설정'].includes(label)){
+    await page.getByRole('button',{name:'보관함과 설정',exact:true}).click();
+    await page.getByRole('menu',{name:'보관함과 설정',exact:true}).getByRole('menuitem',{name:label,exact:true}).click();
+  }else await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('button', { name:label, exact: true }).click();
+}
 async function findCareer(page: Page, title: string) { await navigate(page, '경력 아카이브'); await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill(title); return page.locator('.career-row').filter({ hasText: title }); }
 async function archive(download: Download) { const path = await download.path(); expect(path).toBeTruthy(); return JSZip.loadAsync(await readFile(path!)); }
 async function removeDocument(page: Page, filename: string) {
@@ -22,7 +28,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   await page.goto('/#careers');
   const initial = await data(page); const initialCount = initial.careers.length;
   await expect(page.locator('.career-row')).toHaveCount(initialCount);
-  await expect(page.getByRole('button',{name:'경력 아카이브',exact:true}).locator('.nav-count')).toHaveText(String(initialCount));
+  await expect(page.getByRole('button',{name:'경력 아카이브',exact:true}).locator('.nav-count')).toHaveCount(0);
   if (initial.careers.some((career: { title: string }) => career.title.includes('KERIS'))) {
     await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill('KERIS');
     await expect(page.locator('.career-row').filter({hasText:initial.careers.find((career:{title:string})=>career.title.includes('KERIS')).title})).toBeVisible();
@@ -98,6 +104,8 @@ test('personal career workflow persists records, reviews uploads, exports eviden
 
   // Evidence export contains only the selected career and the originals it references.
   await navigate(page, '이력서, 증빙 만들기');
+  await page.getByRole('button',{name:/^이력으로 만들기/}).click();
+  await page.locator('.resume-selection-filters > summary').click();
   await page.getByRole('textbox', { name: '이력서 경력 검색', exact: true }).fill(firstTitle);
   await page.locator('.resume-career').getByRole('checkbox').check();
   await expect(page.locator('.resume-paper')).toContainText(firstTitle);
@@ -113,7 +121,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   templateZip.file('Contents/header.xml', '<header keep="yes"/>');
   templateZip.file('Contents/section0.xml', '<?xml version="1.0"?><hs:sec xmlns:hs="urn:hs" xmlns:hp="urn:hp"><hp:tbl><hp:tr><hp:tc><hp:p><hp:run><hp:t>활동명</hp:t></hp:run></hp:p></hp:tc><hp:tc><hp:p><hp:run><hp:t/></hp:run></hp:p></hp:tc></hp:tr></hp:tbl></hs:sec>');
   const template = await templateZip.generateAsync({ type: 'nodebuffer' });
-  await page.getByRole('button', { name: '내 양식에 입력', exact: true }).click();
+  await page.getByRole('button', { name: '양식에 넣기', exact: true }).click();
   await page.getByLabel('이력서 양식 선택', { exact: true }).setInputFiles({ name: '검증 이력서.hwpx', mimeType: 'application/zip', buffer: template });
   await expect(page.getByRole('textbox', { name: '칸 2 입력 내용', exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: '칸 2 내용 선택', exact: true }).selectOption('summary');
@@ -155,6 +163,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
 });
 
 test('mobile navigation works at 375px without page overflow', async ({ page }) => {
+  test.skip(Boolean(process.env.TEST_DESKTOP_ONLY),'Desktop-only verification requested.');
   await page.setViewportSize({ width: 375, height: 812 }); await page.goto('/#careers');
   await expect(page.getByRole('heading', { name: '이력', exact:true, level:1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();

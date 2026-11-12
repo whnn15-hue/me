@@ -29,7 +29,11 @@ export function careerSection(career, documents = []) {
   const awarded = /수상|입상|최종\s*선정|선정작|우수작품.*선정|선정.*우수작품|최우수상|우수상|장려상|금상|은상|동상|입선|대상\s*$/.test(primary)
     || /선정/.test(role) || Boolean(career.awardGrade?.trim())
     || ['연구·수상','연구대회'].includes(career.category) && /수상|입상|최우수상|우수상|장려상|금상|은상|동상|입선/.test(fold(career.description));
-  if (competition && awarded && !judging) return '공모전 수상';
+  // The owner confirmed this archive programme's reviewed representative entry
+  // belongs with competitions. Its result list supplies no personal rank/grade.
+  const classroomArchiveEntry = /교실\s*수업\s*실천\s*사례\s*아카이브\s*공모/.test(title)
+    && /공모작\s*대표자/.test(role);
+  if (competition && (awarded || classroomArchiveEntry) && !judging) return '공모전 수상';
   if (career.category === '연구대회' || career.category === '연구·수상') return '연구대회';
   const combined = ['집필·콘텐츠', '집필'].includes(career.category);
   const author = /집필|저술|저서|저자|출판/.test(primary);

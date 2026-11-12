@@ -50,28 +50,22 @@
 .app-build { margin: 18px 0 0; color: var(--ui-muted); font-size: 13px; text-align: right; }
 @media (max-width: 1100px) { .home-shortcuts, .home-career-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.home-career-grid { gap: 20px; }.home-grid { grid-template-columns: minmax(0,1fr); } }
 
-/* A quiet toolbar and one clear next action, without repeated dashboard totals. */
-.home-focus .home-focus-toolbar { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 24px; }
-.home-focus .home-overview-link { display:inline-flex; align-items:center; gap:9px; color:var(--ui-muted); padding:9px 0; font-size:14px; }
+/* The journey leads; supporting actions stay compact below it. */
+.home-focus .home-support-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin:20px 0 28px; }
+.home-focus .home-secondary-actions { display:flex; align-items:center; gap:20px; }
+.home-focus .home-overview-link { display:inline-flex; align-items:center; gap:7px; color:var(--ui-muted); padding:9px 0; font-size:13px; }
 .home-focus .home-overview-link:hover { color:var(--ui-accent-ink); }
-.home-focus .home-evidence-focus { margin:0 0 26px; }
-.home-focus .evidence-focus-button { width:100%; display:flex; align-items:center; gap:20px; padding:24px 28px; text-align:left; border:1px solid var(--ui-accent-line); border-radius:20px; background:var(--ui-surface); transition:background .2s, border-color .2s, transform .2s; }
-.home-focus .evidence-focus-button:not(:disabled):hover { background:color-mix(in srgb,var(--ui-accent-soft) 45%,var(--ui-surface)); border-color:var(--ui-accent); transform:translateY(-2px); }
-.home-focus .evidence-focus-icon { width:52px; height:52px; display:grid; place-items:center; flex-shrink:0; border-radius:15px; color:var(--ui-accent-ink); background:var(--ui-accent-soft); }
-.home-focus .evidence-focus-copy { display:grid; gap:6px; flex:1; }
-.home-focus .evidence-focus-copy strong { font-size:19px; font-weight:650; letter-spacing:-.035em; color:var(--ui-text); }
-.home-focus .evidence-focus-copy small { font-size:14px; color:var(--ui-muted); }
-.home-focus .evidence-focus-total { display:flex; align-items:baseline; gap:7px; color:var(--ui-accent-ink); white-space:nowrap; }
-.home-focus .evidence-focus-total b { font-size:44px; font-weight:550; line-height:1; letter-spacing:-.06em; font-variant-numeric:tabular-nums; }
-.home-focus .evidence-focus-total > span { font-size:14px; }
-.home-focus .evidence-focus-next { display:flex; align-items:center; gap:12px; margin-left:18px; padding-left:26px; border-left:1px solid var(--ui-border); color:var(--ui-muted); font-size:14px; }
+.home-focus .home-evidence-focus { margin:0; width:fit-content; }
+.home-focus .evidence-focus-button { display:flex; align-items:center; gap:11px; min-height:52px; padding:9px 15px 9px 11px; text-align:left; border:1px solid var(--ui-accent-line); border-radius:15px; background:var(--ui-surface); transition:background .2s,border-color .2s; }
+.home-focus .evidence-focus-button:not(:disabled):hover { background:var(--ui-accent-soft); border-color:var(--ui-accent); }
+.home-focus .evidence-focus-icon { width:32px; height:32px; display:grid; place-items:center; flex-shrink:0; border-radius:10px; color:var(--ui-accent-ink); background:var(--ui-accent-soft); }
+.home-focus .evidence-focus-copy strong { font-size:14px; font-weight:550; letter-spacing:-.025em; color:var(--ui-text); }
+.home-focus .evidence-focus-total { display:flex; align-items:baseline; gap:3px; padding:4px 7px; color:var(--ui-accent-ink); white-space:nowrap; }
+.home-focus .evidence-focus-total b { font-size:20px; font-weight:600; line-height:1; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+.home-focus .evidence-focus-total > span { font-size:12px; }
+.home-focus .evidence-focus-button > svg { color:var(--ui-muted); }
 .home-focus .evidence-focus-button.complete { opacity:1; border-color:var(--ui-border); cursor:default; }
 .home-focus .evidence-focus-button.complete .evidence-focus-total { color:var(--ui-muted); }
 .home-focus .home-favorites { margin-top:26px; }
-@media (max-width:900px) {
-  .home-focus .home-focus-toolbar { gap:12px; flex-wrap:wrap; }
-  .home-focus .evidence-focus-button { padding:20px; gap:15px; }
-  .home-focus .evidence-focus-next > span { display:none; }
-  .home-focus .evidence-focus-next { padding-left:15px; margin-left:0; }
-}
-@media (prefers-reduced-motion:reduce) { .home-focus .evidence-focus-button { transition:none; }.home-focus .evidence-focus-button:not(:disabled):hover { transform:none; } }
+@media (max-width:1000px) { .home-focus .home-secondary-actions { gap:15px; }.home-focus .home-support-row { gap:12px; } }
+@media (prefers-reduced-motion:reduce) { .home-focus .evidence-focus-button { transition:none; } }

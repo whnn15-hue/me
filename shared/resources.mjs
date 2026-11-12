@@ -3,6 +3,7 @@ export const resourceTypes = [
   {id:'music',label:'배경음악'}, {id:'template',label:'템플릿'},
   {id:'image',label:'이미지'}, {id:'video',label:'영상'}, {id:'other',label:'기타'},
 ];
+export const videoResourceTypes = resourceTypes.filter(type => ['sound', 'music', 'template', 'image', 'video'].includes(type.id));
 export const extraFileTypes = {
   mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', m4a:'audio/mp4', flac:'audio/flac',
   potx:'application/vnd.openxmlformats-officedocument.presentationml.template',
@@ -30,6 +31,19 @@ export function resourceType(item) {
   return 'lecture';
 }
 export const resourceLabel = item => resourceTypes.find(type=>type.id===resourceType(item)).label;
+// Workspace placement is a view of the existing record, not a data migration.
+// A filmed lesson remains learning material when its explicit type is lecture.
+export function materialLibrary(item) {
+  if (item.purpose === 'classroom' || item.purpose === 'research') return 'learning';
+  if (resourceTypes.some(type => type.id === item.resourceType)) {
+    return videoResourceTypes.some(type => type.id === item.resourceType) ? 'video' : 'learning';
+  }
+  const inferred = resourceType(item);
+  if (['sound', 'music', 'template'].includes(inferred)) return 'video';
+  const text = [item.title, item.sourceFile?.name].join(' ').normalize('NFC');
+  if (['image', 'video'].includes(inferred) && /영상\s*소스|편집\s*소스|스톡|푸티지|b[ -]?roll|footage|stock\s*(?:video|image)/i.test(text)) return 'video';
+  return 'learning';
+}
 export function libraryStorage(items) {
   const known=new Map(),unknown=new Set();
   for (const item of items) {

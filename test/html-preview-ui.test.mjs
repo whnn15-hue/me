@@ -57,6 +57,7 @@ test('HTML preview is click-to-load, styled and isolated under the deployed CSP 
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.getByRole('button',{name:'목록 보기',exact:true}).click();
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.locator('.materials-advanced-filters > summary').click();
     await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('HTML');
     await expect(page.locator('.material-card')).toHaveCount(1);
     await page.getByRole('button',{name:'분수 비교 활동 상세보기',exact:true}).click();

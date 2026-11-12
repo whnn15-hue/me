@@ -35,6 +35,14 @@ test('desktop growth journey animates real records, supports reduced motion and 
   await expect(page.getByRole('region',{name:'나의 성장',exact:true})).toBeVisible();
   const map=page.getByRole('region',{name:'연도별 성장 지도',exact:true});
   const actual=(await (await page.request.get('/api/data')).json()).careers;
+  await expect(map.locator('.atlas-pagination')).toHaveCount(0);
+  await expect(map.locator('.atlas-pin')).toHaveCount(currentYear-2020+1);
+  for(let year=2020;year<=currentYear;year++){
+    const annual=actual.filter((career:{startDate:string})=>career.startDate.startsWith(String(year))&&career.startDate<=today).length;
+    const pin=map.getByRole('button',{name:`${year}년 이력 보기, 이 해에 시작한 기록 ${annual}건`,exact:true});
+    await expect(pin).toBeVisible();
+    if(!annual)await expect(pin).toBeDisabled();else await expect(pin).toBeEnabled();
+  }
   const count=actual.filter((career:{startDate:string})=>career.startDate.startsWith(String(currentYear))&&career.startDate<=today).length;
   await expect(map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true})).toBeVisible();
   await expect(map.getByRole('button',{name:new RegExp(`^${currentYear+1}년 이력 보기`)})).toHaveCount(0);
@@ -69,18 +77,18 @@ test('desktop growth journey animates real records, supports reduced motion and 
   const main=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   await main.getByRole('button',{name:'홈',exact:true}).click();
   await expect(page.getByRole('region',{name:'분야별 이력 건수',exact:true})).toHaveCount(0);
-  await main.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true}).click();
-  await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'이력에서 강의, 연수 보기',exact:true}).click();
+  await main.getByRole('button',{name:'경력 아카이브',exact:true}).click();
+  await page.getByRole('combobox',{name:'이력 분류',exact:true}).selectOption('강의·연수');
   await expect(page.locator('.career-row').filter({hasText:'성장검증 오늘 강의'})).toBeVisible();
   const tree=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-  await tree.getByRole('button',{name:'이력 하위 메뉴 접기',exact:true}).click();
-  await page.reload();await expect(tree.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect(tree.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(0);
   await tree.getByRole('button',{name:'수업 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'수업에서 학급 자료 보기',exact:true}).click();
   await expect(page.getByRole('tab',{name:/학급 자료/})).toHaveAttribute('aria-selected','true');
   await tree.getByRole('button',{name:'수업에서 수업 기록 보기',exact:true}).click();await expect(page.getByRole('tab',{name:/수업 기록/})).toHaveAttribute('aria-selected','true');
-  await tree.getByRole('button',{name:'자료실 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'자료실에서 수학 보기',exact:true}).click();
+  await tree.getByRole('button',{name:'학습 자료',exact:true}).click();
+  await page.getByRole('combobox',{name:'과목 필터',exact:true}).selectOption('수학');
   await expect(page.getByRole('combobox',{name:'과목 필터',exact:true})).toHaveValue('수학');
-  await tree.getByRole('button',{name:'자료실에서 즐겨찾기 보기',exact:true}).click();
+  await page.getByRole('button',{name:'즐겨찾는 자료만',exact:true}).click();
   await expect(page.getByRole('button',{name:'즐겨찾는 자료만',exact:true})).toHaveAttribute('aria-pressed','true');
   await main.getByRole('button',{name:'홈',exact:true}).click();
   const growth=page.getByRole('region',{name:'나의 성장',exact:true});

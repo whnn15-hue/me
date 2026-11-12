@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 
 test('desktop home emphasizes missing evidence, keeps libraries accessible and removes repeated summaries',async({page})=>{
-  await page.setViewportSize({width:1600,height:1100});
+  await page.setViewportSize({width:1800,height:1100});
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   const original=await (await page.request.get('/api/data')).json();
   const originalWorkspace=await (await page.request.get('/api/workspace')).json();
@@ -23,8 +23,10 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
     await expect(menu.getByRole('button',{name:'홈',exact:true})).toHaveAttribute('aria-current','page');
     await expect(menu.getByText('대학원', {exact:true})).toHaveCount(0);
-    await expect(menu.locator(':scope > button').filter({hasText:'사진 보관함'})).toHaveCount(1);
-    await expect(menu.locator(':scope > button').filter({hasText:'공모전 제출본'})).toHaveCount(1);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','학습 자료','영상 작업','연구 자료']);
+    await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
+    await expect(menu.getByRole('button',{name:'백업 및 설정',exact:true})).toHaveCount(0);
+    await expect(menu.getByRole('button',{name:'사진 보관함',exact:true})).toHaveCount(0);
     const home=page.locator('.home-dashboard');
     await expect(home).toBeVisible();
     await expect(home.locator('.home-identity,.home-date,.stats-grid,.attention-grid,.home-bottom-actions,.home-backup')).toHaveCount(0);
@@ -32,11 +34,13 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
     await expect(home.getByRole('button',{name:/이력서와 제출용 증빙 만들기|전체 기록 백업|날짜 입력|공문 연결/})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'연도별 성장 지도'})).toBeVisible();
+    expect(await home.evaluate(element=>Boolean(element.querySelector('.growth-overview')!.compareDocumentPosition(element.querySelector('.home-evidence-focus')!)&Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
     const missing=home.getByRole('button',{name:/증빙 보완할 경력/});
     await expect(missing).toBeVisible();
     const totalMissing=original.careers.filter((career:{documentIds:string[];evidenceStatus:string})=>career.evidenceStatus!=='unneeded'&&!career.documentIds.some(id=>original.documents.some((document:{id:string})=>document.id===id))).length+1;
     await expect(missing).toContainText(String(totalMissing));
     await missing.click();
+    await page.locator('.career-extra-filters > summary').click();
     await expect(page.getByRole('combobox',{name:'증빙 필터',exact:true})).toHaveValue('증빙 미첨부');
     await expect(page.locator('.career-row').filter({hasText:'홈검증 오늘 특강'})).toBeVisible();
     await menu.getByRole('button',{name:'홈',exact:true}).click();
@@ -51,7 +55,7 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await page.evaluate(()=>document.fonts.ready);
     expect(await page.evaluate(()=>document.fonts.check('14px "Pretendard Variable"','이력 수업 강의 자료 대학원'))).toBe(true);
     await expect(page.locator('body')).toHaveCSS('font-family',/Pretendard Variable/);
-    await page.screenshot({path:'/tmp/record-room-home-light.png',animations:'disabled'});
+    await page.screenshot({path:'/workspace/artifacts/workspace-home-light.png',animations:'disabled'});
     // The per-year card was removed; the growth map opens the year in the career list instead.
     await expect(page.getByRole('region',{name:'선택한 연도 기록'})).toHaveCount(0);
     const growthToggle=page.getByRole('button',{name:'펼치기',exact:true});
@@ -72,7 +76,8 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     const actionsBox = await row.locator('.library-card-actions').boundingBox();
     expect(dateBox!.x + dateBox!.width).toBeLessThanOrEqual(actionsBox!.x);
     await page.screenshot({path:'/workspace/artifacts/record-room-compact-materials.png',animations:'disabled'});
-    await menu.getByRole('button',{name:'백업 및 설정',exact:true}).click();
+    await page.getByRole('button',{name:'보관함과 설정',exact:true}).click();
+    await page.getByRole('menu',{name:'보관함과 설정',exact:true}).getByRole('menuitem',{name:'백업 및 설정',exact:true}).click();
     const settingsModes=page.getByRole('group',{name:'설정 화면 모드',exact:true});
     await settingsModes.getByRole('button',{name:'다크',exact:true}).click();
     // The top-bar theme control was removed; settings is the only place to choose it.
@@ -82,7 +87,7 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await menu.getByRole('button',{name:'홈',exact:true}).click();await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await expect(page.getByRole('region',{name:'연도별 성장 지도'})).toBeVisible();
-    await page.screenshot({path:'/tmp/record-room-home-dark.png',animations:'disabled'});
+    await page.screenshot({path:'/workspace/artifacts/workspace-home-dark.png',animations:'disabled'});
     await page.setViewportSize({width:1280,height:900});
     await expect(page.getByRole('button',{name:'모든 기록 검색 열기'})).toBeInViewport();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

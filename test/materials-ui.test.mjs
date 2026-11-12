@@ -88,16 +88,17 @@ test('material library filters subjects, trainings, format, tags and search with
   await fixture(async page => {
     const cards = page.locator('.material-card');
     assert.equal(await cards.count(), 2);
+    await page.locator('.materials-advanced-filters > summary').click();
     await page.getByLabel('자료 태그 필터', {exact:true}).selectOption('참고');
     assert.equal(await cards.count(), 1);
     assert.match(await cards.innerText(), /수집한 참고 자료/);
     await page.getByRole('button', { name: /필터 초기화/ }).click();
     await page.getByLabel('자료 형식 필터', { exact: true }).selectOption('PPT');
     await page.getByLabel('자료 태그 필터', { exact: true }).selectOption('미디어');
-    await page.getByLabel('자료실 검색', { exact: true }).fill('가상 교육 실습');
+    await page.getByLabel('학습 자료 검색', { exact: true }).fill('가상 교육 실습');
     assert.equal(await cards.count(), 1);
     assert.match(await cards.innerText(), /가상 강의 자료/);
-    await page.getByLabel('자료실 검색', { exact: true }).fill('존재하지 않는 자료');
+    await page.getByLabel('학습 자료 검색', { exact: true }).fill('존재하지 않는 자료');
     await page.getByText('조건에 맞는 자료가 없어요', { exact: true }).waitFor();
     await page.getByRole('button', { name: /필터 초기화/ }).first().click();
     assert.equal(await cards.count(), 2);
@@ -137,7 +138,8 @@ test('material editor validates Drive links and saves simplified fields with cho
     assert.equal(saved.item.title, '새로운 가상 자료'); assert.equal(saved.item.author, '');
     assert.equal(saved.item.eventName, ''); assert.equal(saved.item.date, '');
     assert.equal(saved.item.format, '영상'); assert.equal(saved.item.fileUrl, 'https://drive.google.com/file/d/synthetic-new/view');
-    assert.deepEqual(saved.item.audience, []); assert.deepEqual(saved.item.tags, ['수업 설계', '영상']);
+    assert.deepEqual(saved.item.audience, []); assert.deepEqual(saved.item.tags, ['수업 설계']);
+    assert.equal(saved.item.resourceType, 'lecture', 'educational videos remain in the learning library');
     assert.equal(saved.item.summary, '프로젝트에서 다시 활용할 내용');
     assert.equal(await page.locator('input[type=file]').count(), 0);
     await page.getByRole('button', { name: '새로운 가상 자료 상세보기', exact: true }).click();
@@ -225,6 +227,7 @@ test('classroom library excludes lecture rows and filters HWP and TXT without ex
     await page.getByText('가져오기 패널 위치', { exact: true }).waitFor();
     assert.equal(await page.locator('.material-card').count(), 2);
     assert.equal(await page.getByRole('button', { name: '가상 강의 자료 상세보기', exact: true }).count(), 0);
+    await page.locator('.materials-advanced-filters > summary').click();
     await page.getByLabel('자료 형식 필터', { exact: true }).selectOption('TXT');
     await page.getByLabel('학급 자료 검색', { exact: true }).fill('말하기');
     assert.equal(await page.locator('.material-card').count(), 1);

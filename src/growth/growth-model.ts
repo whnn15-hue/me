@@ -25,3 +25,20 @@ export function growthModel(careers: Career[], documents: DocumentRecord[], toda
   const organizations = new Set(dated.map(entry => careerOrganization(entry.career, documents)).filter(name => name !== "기관 미입력"));
   return { dated, future, unknown, series, categories, organizations: organizations.size, total: dated.length };
 }
+
+/** A stable 2020-to-present timeline, including quiet empty years. Older dated
+ * activity stays accessible separately and contributes to actual cumulative totals. */
+export function growthJourney(model: ReturnType<typeof growthModel>, today: string) {
+  const currentYear = Number(today.slice(0, 4));
+  const startYear = Math.min(2020, currentYear);
+  const earlier = model.series.filter(point => point.year < startYear && point.count > 0);
+  let cumulative = earlier.reduce((sum, point) => sum + point.count, 0);
+  const points = Array.from({ length: currentYear - startYear + 1 }, (_, index) => {
+    const year = startYear + index;
+    const records = model.dated.filter(entry => entry.year === year).map(entry => entry.career);
+    cumulative += records.length;
+    return { year, count: records.length, cumulative, records };
+  });
+  return { points, earlier, first: model.dated.length ? Math.min(...model.dated.map(entry => entry.year)) : null,
+    latest: model.dated.length ? Math.max(...model.dated.map(entry => entry.year)) : null };
+}

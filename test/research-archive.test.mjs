@@ -115,11 +115,14 @@ createRoot(document.getElementById('root')).render(<Fixture/>);` }, bundle: true
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByRole('heading', { name: /연구대회 자료/ }).first().waitFor().catch(error => { throw new Error(error.message + ' page errors: ' + errors.join(' | ')); });
-    // Sidebar counts research separately from 자료실.
-    assert.match(await page.locator('#tree').getByRole('button', { name: /연구대회 자료/ }).textContent(), /3/);
+    // The compact sidebar keeps research reports separate from learning materials.
+    const reportLink = page.locator('#tree').getByRole('button', { name: '연구대회 보고서', exact: true });
+    assert.equal(await reportLink.getAttribute('aria-current'), 'page');
+    assert.equal(await page.locator('#tree').getByRole('button', { name: '학습 자료', exact: true }).getAttribute('aria-current'), null);
     // Newest year first, grouped by contest.
     assert.deepEqual(await page.locator('.research-group h2').allTextContents(), ['2026년 현장교육연구대회 2개', '2024년 교육자료전 1개']);
     assert.equal(await page.locator('.research-card').count(), 3);
+    assert.doesNotMatch((await page.locator('.research-card').allTextContents()).join(' '), /일반 강의 자료/);
     assert.match(await page.locator('.research-card').first().textContent(), /원본 보관됨/);
     await page.getByRole('group', { name: '자료 종류로 거르기' }).getByRole('button', { name: /^보고서/ }).click();
     assert.equal(await page.locator('.research-card').count(), 1);

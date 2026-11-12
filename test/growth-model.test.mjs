@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 const bundled = await build({entryPoints:['src/growth/growth-model.ts'],bundle:true,platform:'node',format:'esm',write:false});
-const {growthModel,seoulToday}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
+const {growthModel,growthJourney,seoulToday}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
 const career=(id,startDate,fields={})=>({id,title:id,category:'강의·연수',organization:'가상 연수원',startDate,endDate:'',role:'강사',description:'',tags:[],documentIds:[],...fields});
 
 test('growth counts start years once, keeps gaps, excludes future and undated entries, and never mutates records',()=>{
@@ -23,4 +23,17 @@ test('growth handles empty data and sparse extreme years without thousands of co
 
 test('growth uses the current Korean date across the UTC day boundary',()=>{
   assert.equal(seoulToday(new Date('2026-10-15T15:01:00Z')),'2026-10-16');
+});
+
+
+test('growth journey shows every year from 2020, preserves earlier counts and leaves empty years flat',()=>{
+ const records=[career('earlier','2018'),career('first','2024'),career('future','2027'),career('undated','')];
+ const before=structuredClone(records), journey=growthJourney(growthModel(records,[],'2026-11-12'),'2026-11-12');
+ assert.deepEqual(journey.points.map(point=>point.year),[2020,2021,2022,2023,2024,2025,2026]);
+ assert.deepEqual(journey.points.map(point=>point.count),[0,0,0,0,1,0,0]);
+ assert.deepEqual(journey.points.map(point=>point.cumulative),[1,1,1,1,2,2,2]);
+ assert.deepEqual(journey.earlier.map(point=>point.year),[2018]);
+ assert.equal(journey.latest,2024); assert.deepEqual(records,before);
+ const empty=growthJourney(growthModel([],[],'2026-11-12'),'2026-11-12');
+ assert.equal(empty.points.length,7); assert.ok(empty.points.every(point=>point.count===0&&point.cumulative===0));
 });
