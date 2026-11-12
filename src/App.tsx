@@ -49,6 +49,7 @@ import CareerOverview from "./CareerOverview";
 import AiConnection from "./AiConnection";
 import HomeDashboard from "./home/HomeDashboard";
 import { APP_NAME, ArchiveMark } from "./branding";
+import { evidenceCodeFromHash, useEvidenceLink } from "./evidence-link";
 import ReuseLibrary from "./reuse/ReuseLibrary";
 import { careerSection, careerOrganization, careerCategoryChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
@@ -132,6 +133,7 @@ const navItems: {
   { view: "home", label: "홈", icon: Layers3, description: "" },
 ];
 function initialView(): View {
+  if (evidenceCodeFromHash(window.location.hash)) return "settings";
   const hash = window.location.hash.slice(1);
   if (hash === "career-records") return "careers";
   if (hash === "photos" || hash === "submissions") return hash;
@@ -188,6 +190,7 @@ function Recognition({career}: {career:Career}) {
 }
 
 export default function App() {
+  const [evidenceLinkCode, clearEvidenceLink] = useEvidenceLink();
   const [status, setStatus] = useState<Status | null>(null),
     [careers, setCareers] = useState<Career[]>([]),
     [documents, setDocuments] = useState<DocumentRecord[]>([]),
@@ -211,6 +214,9 @@ export default function App() {
     [reviewOnly, setReviewOnly] = useState(false),
     [layout, setLayout] = useState<"list" | "grid">("list");
   const [careerMode,setCareerMode] = useState<"manage"|"overview">("manage");
+  useEffect(() => {
+    if (evidenceLinkCode) setView("settings");
+  }, [evidenceLinkCode]);
   const [editor, setEditor] = useState<Career | null>(null),
     [queue, setQueue] = useState<Career[]>([]),
     [analysisNote, setAnalysisNote] = useState(""),
@@ -1234,6 +1240,8 @@ export default function App() {
               {view === "settings" && status && (
                 <BackupSettings
                   status={status}
+                  initialEvidenceCode={evidenceLinkCode ?? undefined}
+                  onEvidenceCodeConsumed={clearEvidenceLink}
                   onRefresh={refresh}
                   onError={fail}
                   onToast={setToast}

@@ -59,6 +59,8 @@ function careerContext(career: Career) {
 }
 
 export default function EvidenceImport({
+  initialCode,
+  onInitialCodeConsumed,
   driveConnected,
   disabled = false,
   onBusyChange,
@@ -66,6 +68,8 @@ export default function EvidenceImport({
   onToast,
   onBackup,
 }: {
+  initialCode?: string;
+  onInitialCodeConsumed?: () => void;
   driveConnected: boolean;
   disabled?: boolean;
   onBusyChange: (busy: boolean) => void;
@@ -87,6 +91,7 @@ export default function EvidenceImport({
   const fileRef = useRef<HTMLInputElement>(null);
   const operationRef = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
+  const lastInitialCode = useRef<string | null>(null);
   const callbacks = useRef({ onBusyChange });
   callbacks.current = { onBusyChange };
   useEffect(() => () => {
@@ -122,7 +127,23 @@ export default function EvidenceImport({
         ? "증빙 정리를 마쳤어요"
         : "공문 원본을 연결된 드라이브에 보관하고 있어요";
 
-  async function prepare(file?: File) {
+  // A link only loads the review. Saving still requires the owner's button.
+  // Deferring one microtask avoids duplicate loading in React Strict Mode.
+  useEffect(() => {
+    if (!initialCode) { lastInitialCode.current = null; return; }
+    if (disabled || lastInitialCode.current === initialCode) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active || operationRef.current) return;
+      lastInitialCode.current = initialCode;
+      setCode(initialCode);
+      onInitialCodeConsumed?.();
+      void prepare(undefined, initialCode);
+    });
+    return () => { active = false; };
+  }, [initialCode, disabled]);
+
+  async function prepare(file?: File, suppliedCode = code) {
     if (operationRef.current || disabled) return;
     operationRef.current = true;
     onBusyChange(true);
@@ -131,7 +152,7 @@ export default function EvidenceImport({
     setCanceled(false);
     setResult(null);
     try {
-      const archive = file ?? await evidenceFileFromImportCode(code);
+      const archive = file ?? await evidenceFileFromImportCode(suppliedCode);
       const { readEvidenceImportFile, readEvidenceImportReviewCareers } = await import("./free/evidence-import");
       const content = await readEvidenceImportFile(archive);
       const latestCareers = await readEvidenceImportReviewCareers();
@@ -292,7 +313,7 @@ export default function EvidenceImport({
             <div><span>우선 보관</span><strong>{unlinkedCount}<small>개</small></strong><em>경력 연결은 나중에</em></div>
           </div>
           <div className="evidence-review-intro">
-            <div><h3>경력 연결을 확인해 주세요</h3><p>현재 경력 목록을 불러왔어요. 연결할 경력에 체크하세요. 체크를 해제해도 원본은 보관됩니다.</p></div>
+            <div><h3>연결된 이력을 확인해 주세요</h3><p>기존 이력과 맞는 연결을 미리 선택했어요. 필요한 경우에만 변경하고 저장하세요.</p></div>
             <button type="button" className="text-button" disabled={locked} onClick={reset}><X size={14} /> 취소</button>
           </div>
           {suggestedNewCareers.length > 0 && (

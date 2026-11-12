@@ -14,19 +14,25 @@ const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium';
 const bundle = await build({
   absWorkingDir: root,
   stdin: { resolveDir: root, loader: 'tsx', contents: `
-    import {useState} from 'react';
+    import {StrictMode,useState} from 'react';
     import {createRoot} from 'react-dom/client';
     import EvidenceImport from './src/EvidenceImport';
+    import {evidenceCodeFromHash,useEvidenceLink} from './src/evidence-link';
     globalThis.fixture={reads:0,reviewReads:0,calls:[],errors:[],toasts:[],refreshes:0,release:null,progress:null,liveCareers:null,newCareers:[]};
+    globalThis.fixture.parseEvidenceLink=evidenceCodeFromHash;
     function Fixture(){
       const [busy,setBusy]=useState(false), [drive,setDrive]=useState(true);
+      const [signedIn,setSignedIn]=useState(!location.hash.includes('evidence='));
+      const [initialCode,clearCode]=useEvidenceLink();
       globalThis.fixture.setDrive=setDrive;
+      if(!signedIn)return <button onClick={()=>setSignedIn(true)}>가상 계정 로그인</button>;
       return <EvidenceImport driveConnected={drive} disabled={busy} onBusyChange={setBusy}
+        initialCode={initialCode??undefined} onInitialCodeConsumed={clearCode}
         onRefresh={async()=>{globalThis.fixture.refreshes++;}}
         onToast={message=>{globalThis.fixture.toasts.push(message);}}
         onBackup={async()=>{globalThis.fixture.backup=true;}}/>;
     }
-    createRoot(document.getElementById('root')).render(<Fixture/>);
+    createRoot(document.getElementById('root')).render(<StrictMode><Fixture/></StrictMode>);
   ` },
   bundle: true, platform: 'browser', format: 'iife', write: false, jsx: 'automatic',
   plugins: [{ name: 'isolated-evidence-import-fixture', setup(builder) {
@@ -34,7 +40,7 @@ const bundle = await build({
     builder.onResolve({filter:/^\.\/free\/evidence-import$/}, ({importer}) => importer.endsWith('/EvidenceImport.tsx') ? {path:'importer',namespace:'fixture'} : undefined);
     builder.onLoad({filter:/.*/,namespace:'fixture'}, ({path})=>({loader:'js',resolveDir:root,contents:path==='code'?`
       export async function evidenceFileFromImportCode(code){
-        if(code!=='IMEV1:SYNTHETIC_FIXTURE') throw new Error('증빙 코드를 다시 확인해 주세요.');
+        if(code!=='IMEV1:SYNTHETIC_FIXTURE' && code!=='IMEV1:0123456789abcdef.'+'A'.repeat(43)) throw new Error('증빙 코드를 다시 확인해 주세요.');
         return new File(['fixture bytes'],'fixture.zip',{type:'application/zip'});
       }
     `:`
@@ -73,7 +79,7 @@ const bundle = await build({
   }}],
 });
 
-async function fixture(run) {
+async function fixture(run, hash = '') {
   const styles = readFileSync(new URL('../src/EvidenceImport.css', import.meta.url), 'utf8');
   const server = createServer((request,response)=>{
     if(request.url==='/bundle.js') return response.writeHead(200,{'Content-Type':'application/javascript'}).end(bundle.outputFiles[0].text);
@@ -93,7 +99,7 @@ async function fixture(run) {
       if(new URL(route.request().url()).origin===origin) return route.continue();
       externalRequests.push(route.request().url()); return route.abort();
     });
-    await page.goto(origin+'/fixture');
+    await page.goto(origin+'/fixture'+hash);
     await run(page);
     assert.deepEqual(pageErrors,[]);
     assert.deepEqual(externalRequests,[]);
@@ -266,5 +272,59 @@ test('previously imported suggestions show current career labels and are never o
     assert.deepEqual(await page.evaluate(()=>fixture.calls[0].links),{fixture_document_a:['new_career_one'],fixture_document_b:[]});
     await page.evaluate(()=>fixture.release());
     await page.getByText('증빙이 내 경력에 자리 잡았어요',{exact:true}).waitFor();
+  });
+});
+
+test('private links survive sign-in, load preselected matches once and never save on opening',browserOptions,async()=>{
+  const code='IMEV1:0123456789abcdef.'+'A'.repeat(43);
+  await fixture(async page=>{
+    await page.getByRole('button',{name:'가상 계정 로그인',exact:true}).waitFor();
+    assert.equal(new URL(page.url()).hash,'#settings');
+    assert.equal(await page.evaluate(()=>globalThis.fixture.reads),0);
+    assert.equal(await page.evaluate(()=>globalThis.fixture.calls.length),0);
+    assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+    await page.getByRole('button',{name:'가상 계정 로그인',exact:true}).click();
+    await page.getByRole('heading',{name:'연결된 이력을 확인해 주세요',exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>globalThis.fixture.reads),1);
+    assert.equal(await page.evaluate(()=>globalThis.fixture.reviewReads),1);
+    assert.equal(await page.evaluate(()=>globalThis.fixture.calls.length),0);
+    assert.equal(await page.locator('.evidence-review-list input[type=checkbox]:checked').count(),2);
+    assert.equal(await page.getByLabel('증빙 가져오기 코드',{exact:true}).count(),0);
+    assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+    await page.getByRole('button',{name:'증빙 추가하고 연결',exact:true}).click();
+    await page.waitForFunction(()=>globalThis.fixture.calls.length===1);
+    const sent=await page.evaluate(()=>globalThis.fixture.calls[0]);
+    assert.deepEqual(sent.links.fixture_document_a,['fixture_career_a','fixture_career_b']);
+    assert.deepEqual(sent.links.fixture_document_b,[]);
+    await page.evaluate(()=>globalThis.fixture.release());
+    await page.getByRole('heading',{name:'증빙이 내 경력에 자리 잡았어요',exact:true}).waitFor();
+    // Following the same link again reloads the review, never saves again.
+    await page.evaluate(code=>{location.hash='#settings?evidence='+encodeURIComponent(code);},code);
+    await page.getByRole('heading',{name:'연결된 이력을 확인해 주세요',exact:true}).waitFor();
+    assert.equal(new URL(page.url()).hash,'#settings');
+    assert.equal(await page.evaluate(()=>globalThis.fixture.reads),2);
+    assert.equal(await page.evaluate(()=>globalThis.fixture.calls.length),1);
+  },'#settings?evidence='+encodeURIComponent(code));
+});
+
+test('link parsing rejects other destinations, ambiguous parameters and oversized or malformed codes',browserOptions,async()=>{
+  await fixture(async page=>{
+    const result=await page.evaluate(()=>{
+      const parse=globalThis.fixture.parseEvidenceLink;
+      const code='IMEV1:0123456789abcdef.'+'A'.repeat(43);
+      const invalid=[
+        '#home?evidence='+code,
+        '?evidence='+code,
+        '#settings?evidence='+code+'&evidence='+code,
+        '#settings?evidence='+code+'&save=true',
+        '#settings?evidence=IMEV1:missing',
+        '#settings?evidence='+code+'x',
+        '#settings?evidence='+code+' '.repeat(600),
+      ];
+      return {valid:parse('#settings?evidence='+encodeURIComponent(code))===code,invalid:invalid.map(parse)};
+    });
+    assert.equal(result.valid,true);assert.ok(result.invalid.every(value=>value===null));
+    assert.equal(await page.evaluate(()=>globalThis.fixture.reads),0);
+    assert.equal(await page.evaluate(()=>globalThis.fixture.calls.length),0);
   });
 });
