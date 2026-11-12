@@ -73,7 +73,7 @@ export interface HwpxField {
 export const emptyCareer = (): Career => ({
   id: "",
   title: "",
-  category: "기타",
+  category: "강의·연수",
   organization: "",
   role: "",
   startDate: "",

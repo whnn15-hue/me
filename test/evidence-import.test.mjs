@@ -734,3 +734,86 @@ test('ambiguous equivalents stop before writes while distinct lecture dates rema
   state=runtime(['a','b'].map(id=>career(id,[],{...proposed,id,documentIds:[]})));
   await assert.rejects(applyEvidenceImport(input,options),/연결 대상 이력이 변경/);assertNoWrites(state);
 });
+
+function detailFixture() {
+  const doc = original('proof_details');
+  const carrier = career('career_details', [doc.id], {startDate:'2023',endDate:'2023',datePrecision:'year',description:'Owner notes',role:'Original role',tags:['owner tag'],verified:true});
+  const details = {careerId:carrier.id,sourceDocumentIds:[doc.id],organization:{before:'',after:'Evidence Institute'},dates:{before:{startDate:'2023',endDate:'2023',datePrecision:'year'},after:{startDate:'2023-06-12',endDate:'2023-06-14',datePrecision:'day'}},note:'Activity dates from the invitation, not the issue date.'};
+  return {doc,carrier,details};
+}
+const detailsOptions = {requireMatchingCareerDetails:true,allowAutomaticCareerDetails:true};
+async function withDetails(carrier, doc, details) {
+  return readEvidenceImportFile(await archive([carrier], [doc], {marker:{format:'career-evidence-import',version:1,careerDetails:[details]}}));
+}
+
+test('approved details update duplicate-only archives, preserve unrelated fields, and replay without writes',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,details);
+  const untouched=career('unrelated',[],{description:'Keep this'});
+  const state=runtime([carrier,untouched],[storedDocument(doc)]);
+  const before=structuredClone(state.snapshot);
+  const result=await applyEvidenceImport(input,detailsOptions);
+  assert.equal(result.added,0);assert.equal(result.duplicates,1);assert.equal(result.linked,0);
+  assert.equal(result.detailsUpdated,1);assert.equal(state.activations.length,1);assert.equal(state.uploads.length,0);
+  const updated=state.snapshot.careers[0];
+  assert.equal(updated.organization,'Evidence Institute');assert.equal(updated.startDate,'2023-06-12');assert.equal(updated.endDate,'2023-06-14');assert.equal(updated.datePrecision,'day');
+  assert.equal(updated.description,'Owner notes\n\n[증빙 기록]\n'+details.note);
+  for(const key of ['id','title','role','category','tags','verified','documentIds','source'])assert.deepEqual(updated[key],carrier[key]);
+  assert.deepEqual(state.snapshot.careers[1],untouched);assert.deepEqual(state.snapshot.documents,before.documents);
+  const repeat=await applyEvidenceImport(input,detailsOptions);
+  assert.equal(repeat.detailsUpdated,undefined);assert.equal(state.activations.length,1);
+});
+
+test('a package cannot authorize its own metadata enrichment',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,details);
+  for(const options of [{},{requireMatchingCareerDetails:true},{allowAutomaticCareerDetails:true}]) {
+    const state=runtime([carrier],[storedDocument(doc)]);
+    const result=await applyEvidenceImport(input,options);
+    assert.equal(result.detailsUpdated,undefined);assert.deepEqual(state.snapshot.careers,[carrier]);assertNoWrites(state);
+  }
+});
+
+test('newer institution edits and date ranges are preserved as atomic groups',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,details);
+  const edited={...carrier,organization:'Owner choice',endDate:'2024',description:'Updated owner notes'};
+  const state=runtime([edited],[storedDocument(doc)]);
+  const result=await applyEvidenceImport(input,detailsOptions);
+  assert.equal(result.detailsSkipped,1);
+  const now=state.snapshot.careers[0];
+  assert.equal(now.organization,'Owner choice');assert.equal(now.startDate,'2023');assert.equal(now.endDate,'2024');assert.equal(now.datePrecision,'year');
+  assert.ok(now.description.startsWith('Updated owner notes\n\n'));
+  await applyEvidenceImport(input,detailsOptions);assert.equal(state.activations.length,1);
+});
+
+test('unsupported fields, unrelated sources, invalid dates and mismatched baselines cannot be imported as details',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const cases=[{...details,title:'Overwrite'}, {...details,careerId:'absent'}, {...details,sourceDocumentIds:['missing']},
+    {...details,organization:{before:'forged',after:'Other'}},
+    {...details,dates:{...details.dates,after:{startDate:'2023-02-30',endDate:'2023-03-01',datePrecision:'day'}}},
+    {...details,dates:{...details.dates,before:{startDate:'2022',endDate:'2022',datePrecision:'year'}}},
+    {...details,dates:{...details.dates,after:{startDate:'2023-06-15',endDate:'2023-06-14',datePrecision:'day'}}}];
+  for(const invalid of cases)await assert.rejects(withDetails(carrier,doc,invalid));
+  const other=career('unrelated',[doc.id]);
+  await assert.rejects(readEvidenceImportFile(await archive([{...carrier,documentIds:[]},other],[doc],{marker:{format:'career-evidence-import',version:1,careerDetails:[details]}})));
+});
+
+test('approved details are immutable during upload and do not truncate existing notes',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,details);
+  const state=runtime([{...carrier,documentIds:[],description:'x'.repeat(9990)}]);
+  state.onUpload=()=>{input.careerDetails[0].organization.after='Injected';input.careerDetails[0].dates.after.startDate='2023-01-01';};
+  const result=await applyEvidenceImport(input,detailsOptions);
+  const now=state.snapshot.careers[0];
+  assert.equal(now.organization,'Evidence Institute');assert.equal(now.startDate,'2023-06-12');assert.equal(now.description,'x'.repeat(9990));assert.equal(result.detailsSkipped,1);
+});
+
+test('a changed career identity prevents all automatic detail writes and a staging conflict leaves data intact',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,details);
+  const state=runtime([{...carrier,title:'Different activity'}],[storedDocument(doc)]);
+  await assert.rejects(applyEvidenceImport(input,detailsOptions),/변경/);assertNoWrites(state);
+  const conflict=runtime([carrier],[storedDocument(doc)]);conflict.failure='definite-conflict';
+  await assert.rejects(applyEvidenceImport(input,detailsOptions),/archive changed/);assert.deepEqual(conflict.snapshot.careers,[carrier]);assert.equal(conflict.uploads.length,0);
+});

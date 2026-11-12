@@ -40,9 +40,10 @@ const bundle = await build({
     builder.onResolve({filter:/^\.\/backup-code$/}, ({importer}) => importer.endsWith('/EvidenceImport.tsx') ? {path:'code',namespace:'fixture'} : undefined);
     builder.onResolve({filter:/^\.\/free\/evidence-import$/}, ({importer}) => importer.endsWith('/EvidenceImport.tsx') ? {path:'importer',namespace:'fixture'} : undefined);
     builder.onResolve({filter:/^\.\/evidence-approvals$/}, () => ({path:'approved-fingerprints',namespace:'approvals-fixture'}));
-    builder.onLoad({filter:/.*/,namespace:'approvals-fixture'}, () => ({loader:'js',contents:`export const approvedEvidenceArchives=['${createHash('sha256').update('approved fixture bytes').digest('hex')}'];export const approvedEvidenceNewCareerArchives=['${createHash('sha256').update('new-approved fixture bytes').digest('hex')}'];`}));
+    builder.onLoad({filter:/.*/,namespace:'approvals-fixture'}, () => ({loader:'js',contents:`export const approvedEvidenceDetailArchives=['${createHash('sha256').update('details-approved fixture bytes').digest('hex')}'];export const approvedEvidenceArchives=['${createHash('sha256').update('approved fixture bytes').digest('hex')}'];export const approvedEvidenceNewCareerArchives=['${createHash('sha256').update('new-approved fixture bytes').digest('hex')}'];`}));
     builder.onLoad({filter:/.*/,namespace:'fixture'}, ({path})=>({loader:'js',resolveDir:root,contents:path==='code'?`
       export async function evidenceFileFromImportCode(code){
+        if(code==='IMEV1:5555666677778888.'+'A'.repeat(43))return new File(['details-approved fixture bytes'],'fixture.zip',{type:'application/zip'});
         if(code==='IMEV1:1111222233334444.'+'A'.repeat(43))return new File(['new-approved fixture bytes'],'fixture.zip',{type:'application/zip'});
         const approved=code==='IMEV1:fedcba9876543210.'+'A'.repeat(43);
         if(!approved && code!=='IMEV1:SYNTHETIC_FIXTURE' && code!=='IMEV1:0123456789abcdef.'+'A'.repeat(43)) throw new Error('증빙 코드를 다시 확인해 주세요.');
@@ -61,7 +62,7 @@ const bundle = await build({
         globalThis.fixture.reads++;
         if(!file.size) throw new Error('증빙 파일을 확인해 주세요.');
         const added=globalThis.fixture.newCareers;
-        const approved=['approved fixture bytes','new-approved fixture bytes'].includes(await file.text());
+        const approved=['approved fixture bytes','new-approved fixture bytes','details-approved fixture bytes'].includes(await file.text());
         return {format:'career-evidence-import',version:1,careers:[...careers,...added],
           documents:documents.map(document=>({...document,recordIds:[...(approved&&!document.recordIds.length?['fixture_career_b']:document.recordIds),...added.filter(career=>career.documentIds.includes(document.id)).map(career=>career.id)]})),
           ...(added.length?{newCareerIds:added.map(career=>career.id)}:{})};
@@ -71,7 +72,7 @@ const bundle = await build({
         return globalThis.fixture.liveCareers ?? careers;
       }
       export async function applyEvidenceImport(prepared,options){
-        globalThis.fixture.calls.push({links:JSON.parse(JSON.stringify(options.approvedLinks)),documents:prepared.documents.length,newCareerIds:options.approvedNewCareerIds,automatic:options.requireMatchingCareerDetails,allowNew:options.allowAutomaticNewCareers});
+        globalThis.fixture.calls.push({links:JSON.parse(JSON.stringify(options.approvedLinks)),documents:prepared.documents.length,newCareerIds:options.approvedNewCareerIds,automatic:options.requireMatchingCareerDetails,allowNew:options.allowAutomaticNewCareers,allowDetails:options.allowAutomaticCareerDetails});
         if(globalThis.fixture.failCall)throw new Error('가상 업로드 실패');
         globalThis.fixture.progress=options.onProgress;
         options.onProgress({phase:'uploading',completed:0,total:2,fileName:documents[0].name});
@@ -80,7 +81,7 @@ const bundle = await build({
           options.signal.addEventListener('abort',()=>{globalThis.fixture.release=null;reject(new DOMException('Aborted','AbortError'));},{once:true});
         });
         options.onProgress({phase:'done',completed:2,total:2});
-        return {added:1,duplicates:1,linked:1,careersUpdated:1,unmatched:1,careersAdded:options.approvedNewCareerIds?.length||0};
+        return {added:1,duplicates:1,linked:1,careersUpdated:1,unmatched:1,careersAdded:options.approvedNewCareerIds?.length||0,detailsUpdated:options.allowAutomaticCareerDetails?1:0};
       }
     `}));
   }}],
@@ -431,4 +432,17 @@ test('separately approved new-career batches create their reviewed suggestions w
     await page.getByText('새 경력 1건을 추가했습니다.',{exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>fixture.calls.length),1);
   },'#settings?evidence='+encodeURIComponent('IMEV1:1111222233334444.'+'A'.repeat(43)));
+});
+
+test('separately approved institution and date batches save automatically and show the detail count',browserOptions,async()=>{
+  await fixture(async page=>{
+    await page.getByRole('button',{name:'가상 계정 로그인'}).click();
+    await page.waitForFunction(()=>fixture.calls.length===1&&fixture.release);
+    assert.equal(await page.evaluate(()=>fixture.calls[0].allowDetails),true);
+    assert.equal(await page.evaluate(()=>fixture.calls[0].allowNew),false);
+    await page.evaluate(()=>fixture.release());
+    await page.getByText('공문을 바탕으로 기관과 날짜 기록 1건을 보완했습니다.').waitFor();
+    assert.equal(await page.evaluate(()=>fixture.calls.length),1);
+    assert.equal(new URL(page.url()).hash,'#settings');
+  },'#settings?evidence='+encodeURIComponent('IMEV1:5555666677778888.'+'A'.repeat(43)));
 });

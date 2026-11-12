@@ -26,7 +26,7 @@ test('exclusive collections preserve legacy records and distinguish secondment f
   assert.equal(matchesCareerCategory(combined,'집필'),false);assert.equal(matchesCareerCategory(combined,'콘텐츠 제작'),true);
   assert.equal(careerCategoryLabel(combined),'콘텐츠 제작');assert.deepEqual(combined,before);
   const work=fixtureCareer({category:'근무·파견',title:'합성학교 근무'});
-  assert.deepEqual(careerCollections(work),[]);assert.equal(careerCategoryLabel(work),'기타');
+  assert.deepEqual(careerCollections(work),[]);assert.equal(careerCategoryLabel(work),'');
   assert.equal(careerCollections(fixtureCareer({title:'회의 출장'})).includes('secondment'),false);
   assert.equal(careerCollections(fixtureCareer({title:'현장교사 파견'})).includes('secondment'),true);
   const linked=fixtureCareer({documentIds:['proof_one']});
@@ -56,7 +56,7 @@ test('legacy awards, book writing and KERIS operations each have exactly one des
   for(const [fields,expected] of cases){
     const career=fixtureCareer({...fields,documentIds:['evidence_original']}),before=structuredClone(career);
     assert.equal(careerSection(career),expected,career.title);
-    assert.deepEqual(careerCategoryChoices.filter(choice=>matchesCareerCategory(career,choice)),[expected]);
+    assert.deepEqual(careerCategoryChoices.filter(choice=>matchesCareerCategory(career,choice)),expected==='기타'?[]:[expected]);
     assert.deepEqual(career,before);assert.deepEqual(normalizeBrowserCareer(career),career);
   }
   assert.ok(!careerCategoryChoices.includes('근무'));assert.ok(!careerCategoryChoices.includes('연구·수상'));
@@ -187,4 +187,15 @@ test('favorites preserve old row shape, cross-links, backup data and revision co
   assert.throws(()=>mutateWorkspace(updated,{operation:'update',id:'html_favorite',item:{...item,favorite:false},links:[],expectedRevision:4},[career]),/다른 화면/);
   assert.throws(()=>normalizeWorkspaceItem({...item,favorite:'true'}),/즐겨찾기/);
   assert.deepEqual(workspace.items,[item]);
+});
+
+test('remove Other navigation while classifying supported legacy activities and retaining unknown data',()=>{
+  assert.equal(careerCategoryChoices.includes('기타'),false);
+  for(const [title,expected] of [['AIEDAP 마스터 교원','위원회·지원단'],['교실혁명선도교사','위원회·지원단'],['영상 연수 강사','강의·연수'],['컴퓨터활용능력 1급','자격증']]){
+    const c=fixtureCareer({title}),before=structuredClone(c);
+    assert.equal(careerSection(c),expected);assert.deepEqual(c,before);
+    assert.equal(matchesCareerCategory(c,'전체'),true);
+  }
+  const unknown=fixtureCareer({title:'이름만 있는 예전 활동'}),before=structuredClone(unknown);
+  assert.equal(careerCategoryLabel(unknown),'');assert.equal(matchesCareerCategory(unknown,'전체'),true);assert.deepEqual(unknown,before);
 });

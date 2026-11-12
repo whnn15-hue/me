@@ -1,14 +1,15 @@
 import type { Career } from "../types";
 import type { PreparedEvidenceImport } from "./evidence-import";
-import { approvedEvidenceArchives, approvedEvidenceNewCareerArchives } from "./evidence-approvals";
+import { approvedEvidenceArchives, approvedEvidenceNewCareerArchives, approvedEvidenceDetailArchives } from "./evidence-approvals";
 
 /** A URL parameter or a flag inside an imported ZIP cannot grant approval. */
-export async function evidenceImportApproval(file: File): Promise<{ allowNewCareers: boolean } | null> {
+export async function evidenceImportApproval(file: File): Promise<{ allowNewCareers: boolean; allowCareerDetails: boolean } | null> {
   if (file.size < 1 || file.size > 16 * 1024 * 1024) return null;
   const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())),
     byte => byte.toString(16).padStart(2, "0")).join("");
   const allowNewCareers = approvedEvidenceNewCareerArchives.includes(fingerprint);
-  return allowNewCareers || approvedEvidenceArchives.includes(fingerprint) ? { allowNewCareers } : null;
+  const allowCareerDetails = approvedEvidenceDetailArchives.includes(fingerprint);
+  return allowNewCareers || allowCareerDetails || approvedEvidenceArchives.includes(fingerprint) ? { allowNewCareers, allowCareerDetails } : null;
 }
 
 export async function hasEvidenceImportApproval(file: File): Promise<boolean> {
@@ -33,8 +34,8 @@ function sameNewCareer(before: Career, now: Career) {
 
 export interface AutomaticEvidencePlan { links: Record<string, string[]>; newCareerIds: string[] }
 
-/** Only separately approved new proposals may be created. Existing records
- * always keep their fields; exact semantic matches reuse their current IDs. */
+/** Only separately approved new proposals may be created. Matching itself never
+ * changes fields; exact semantic matches reuse their current IDs. */
 export function automaticEvidencePlan(prepared: PreparedEvidenceImport, current: Career[], allowNewCareers = false): AutomaticEvidencePlan | null {
   const proposed = new Set(prepared.newCareerIds ?? []);
   if ((!allowNewCareers && proposed.size) || !prepared.documents.length) return null;
