@@ -168,7 +168,7 @@ export default function EvidenceImport({
       const [latestCareers, approved] = await Promise.all([
         readEvidenceImportReviewCareers(), evidenceImportApproval(archive),
       ]);
-      const automatic = approved ? automaticEvidencePlan(content, latestCareers, approved.allowNewCareers) : null;
+      const automatic = approved ? automaticEvidencePlan(content, latestCareers, approved.allowNewCareers, approved.allowCareerDetails) : null;
       const liveIds = new Set(latestCareers.map(career => career.id));
       const newIds = (content.newCareerIds ?? []).filter(id => !liveIds.has(id));
       const availableIds = new Set([...liveIds, ...newIds]);
@@ -221,7 +221,7 @@ export default function EvidenceImport({
       setApprovedLinks({});
       setApprovedNewCareerIds([]);
       setStep("complete");
-      onToast(`${saved.careersAdded ? `새 경력 ${saved.careersAdded}건, ` : ""}증빙 ${saved.added}개 추가, 연결 ${saved.linked}개 저장${saved.detailsUpdated ? `, 기관과 날짜 기록 ${saved.detailsUpdated}건 보완` : ""}`);
+      onToast(`${saved.careersAdded ? `새 경력 ${saved.careersAdded}건, ` : ""}증빙 ${saved.added}개 추가, 연결 ${saved.linked}개 저장${saved.detailsUpdated ? `, 이력 ${saved.detailsUpdated}건 보완` : ""}`);
       await onRefresh();
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") setCanceled(true);
@@ -442,7 +442,7 @@ export default function EvidenceImport({
       {step === "complete" && result && (
         <div className="evidence-import-complete" role="status">
           <span className="evidence-complete-mark"><Check size={22} /></span>
-          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 추가했습니다.</p>}{Boolean(result.detailsUpdated) && <p>공문을 바탕으로 기관과 날짜 기록 {result.detailsUpdated}건을 보완했습니다.</p>}{Boolean(result.detailsSkipped) && <p>이미 수정된 정보는 유지했습니다. {result.detailsSkipped}건</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
+          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 추가했습니다.</p>}{Boolean(result.detailsUpdated) && <p>증빙을 바탕으로 이력 {result.detailsUpdated}건을 보완했습니다.</p>}{Boolean(result.detailsSkipped) && <p>이미 수정된 정보는 유지했습니다. {result.detailsSkipped}건</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
           <div className="evidence-complete-actions">
             <button className="button secondary" disabled={disabled} onClick={() => void onBackup()}><FileCheck2 size={15} /> 지금 백업하기</button>
             <button className="text-button" disabled={disabled} onClick={reset}>다른 증빙 가져오기 <ArrowRight size={14} /></button>

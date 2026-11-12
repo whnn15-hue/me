@@ -131,7 +131,7 @@ export async function readEvidenceImportFile(
 
 /**
  * Merge against a fresh server snapshot. Existing originals survive. Only
- * separately approved detail patches can enrich current institution/date fields.
+ * separately approved, source-backed patches can correct current career fields.
  */
 export async function applyEvidenceImport(
   prepared: PreparedEvidenceImport,
@@ -156,6 +156,7 @@ export async function applyEvidenceImport(
   const approvedDetails = options.requireMatchingCareerDetails && options.allowAutomaticCareerDetails === true ? requestedDetails : [];
   const automaticInput: PreparedEvidenceImport | null = options.requireMatchingCareerDetails ? {
     ...prepared, careers: prepared.careers.map(item => normalizeCareer(item)), newCareerIds: [...suggestedIds],
+    careerDetails: approvedDetails,
     documents: prepared.documents.map(item => ({ ...item, recordIds: [...item.recordIds] })),
   } : null;
   if (automaticInput && selectedIds.length && !allowAutomaticNewCareers)
@@ -203,7 +204,7 @@ export async function applyEvidenceImport(
   const current = await readFreeSnapshot();
   checkCancellation(options.signal);
   if (automaticInput) {
-    const plan = automaticEvidencePlan(automaticInput, current.careers, allowAutomaticNewCareers);
+    const plan = automaticEvidencePlan(automaticInput, current.careers, allowAutomaticNewCareers, approvedDetails.length > 0);
     if (!plan || incoming.some(item => !item.links.length))
       throw new Error("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 최신 연결 내용을 확인해 주세요.");
     // A record added in another tab between review and save is reused here.

@@ -817,3 +817,68 @@ test('a changed career identity prevents all automatic detail writes and a stagi
   const conflict=runtime([carrier],[storedDocument(doc)]);conflict.failure='definite-conflict';
   await assert.rejects(applyEvidenceImport(input,detailsOptions),/archive changed/);assert.deepEqual(conflict.snapshot.careers,[carrier]);assert.equal(conflict.uploads.length,0);
 });
+
+test('approved corrections replace stale descriptions and narrow titles to the owners actual role, with idempotent replay',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const correction={...details,title:{before:carrier.title,after:'Specific assigned workshop'},role:{before:carrier.role,after:'Lead instructor'},descriptionReplacements:[{before:'Owner notes',after:'The source states the institution and acquisition date.'}]};
+  const input=await withDetails(carrier,doc,correction);
+  const state=runtime([{...carrier,description:'Owner notes\n\nKeep my personal reflection.'}],[storedDocument(doc)]);
+  await applyEvidenceImport(input,detailsOptions);
+  const now=state.snapshot.careers[0];assert.equal(now.title,correction.title.after);assert.equal(now.role,'Lead instructor');
+  assert.ok(now.description.startsWith(correction.descriptionReplacements[0].after));assert.ok(now.description.includes('Keep my personal reflection.'));assert.ok(!now.description.includes('Owner notes'));
+  const before=structuredClone(state.snapshot);
+  const repeated=await applyEvidenceImport(input,detailsOptions);
+  assert.equal(repeated.detailsUpdated,undefined);assert.deepEqual(state.snapshot,before);assert.equal(state.activations.length,1);
+});
+
+test('title aliases require the detail approval policy and cannot overwrite an independently renamed record',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,{...details,title:{before:carrier.title,after:'Approved corrected title'}});
+  for(const fields of [{title:'Approved corrected title'},{title:'Different owner title'}]){
+    const state=runtime([{...carrier,...fields}],[storedDocument(doc)]);
+    await assert.rejects(applyEvidenceImport(input,{requireMatchingCareerDetails:true}),/변경/);assertNoWrites(state);
+  }
+  const changed=runtime([{...carrier,title:'Different owner title'}],[storedDocument(doc)]);
+  await assert.rejects(applyEvidenceImport(input,detailsOptions),/변경/);assertNoWrites(changed);
+});
+
+test('an older appended provenance note can be removed exactly without deleting owner notes',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const oldNote='[증빙 기록]\nOld provenance note';
+  const input=await withDetails(carrier,doc,{...details,note:undefined,descriptionReplacements:[{before:carrier.description,after:'Corrected source summary'},{before:oldNote,after:''}]});
+  const state=runtime([{...carrier,description:carrier.description+'\n\n'+oldNote+'\n\nPersonal note'}],[storedDocument(doc)]);
+  await applyEvidenceImport(input,detailsOptions);
+  assert.equal(state.snapshot.careers[0].description.replace(/\n+/g,'|'),'Corrected source summary|Personal note');
+  await applyEvidenceImport(input,detailsOptions);assert.equal(state.activations.length,1);
+});
+
+test('manual role and description edits survive source corrections',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,{...details,note:undefined,role:{before:carrier.role,after:'Source role'},descriptionReplacements:[{before:carrier.description,after:'New source description'}]});
+  const state=runtime([{...carrier,role:'My amended role',description:'My rewritten description'}],[storedDocument(doc)]);
+  const result=await applyEvidenceImport(input,detailsOptions);
+  assert.equal(state.snapshot.careers[0].role,'My amended role');assert.equal(state.snapshot.careers[0].description,'My rewritten description');assert.equal(result.detailsSkipped,1);
+});
+
+test('ambiguous fragments, oversized replacements and overlapping replacement rules cannot silently destroy notes',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  for(const replacements of [[{before:'',after:'New'}],[{before:'Owner',after:'Owner again'}],[{before:'Owner',after:'New'},{before:'Owner notes',after:'Other'}],[{before:'Owner',after:'New'},{before:'Other',after:'Owner'}]]){
+    await assert.rejects(withDetails(carrier,doc,{...details,descriptionReplacements:replacements}));
+  }
+  const input=await withDetails(carrier,doc,{...details,note:undefined,descriptionReplacements:[{before:carrier.description,after:'Corrected text'}]});
+  const state=runtime([{...carrier,description:'Owner notes\nOwner notes'}],[storedDocument(doc)]);
+  const result=await applyEvidenceImport(input,detailsOptions);
+  assert.equal(state.snapshot.careers[0].description,'Owner notes\nOwner notes');assert.equal(result.detailsSkipped,1);
+  const long=await withDetails(carrier,doc,{...details,note:undefined,descriptionReplacements:[{before:carrier.description,after:'y'.repeat(10000)}]});
+  const tooLong=runtime([{...carrier,description:'Owner notes\nPersonal annotation'}],[storedDocument(doc)]);
+  const kept=await applyEvidenceImport(long,detailsOptions);assert.equal(kept.detailsSkipped,1);assert.equal(tooLong.snapshot.careers[0].description,'Owner notes\nPersonal annotation');
+});
+
+test('mutable corrections cannot change title, role or prose once validation starts',async()=>{
+  const {doc,carrier,details}=detailFixture();
+  const input=await withDetails(carrier,doc,{...details,title:{before:carrier.title,after:'Reviewed title'},role:{before:carrier.role,after:'Reviewed role'},descriptionReplacements:[{before:carrier.description,after:'Reviewed prose'}]});
+  const state=runtime([{...carrier,documentIds:[]}]);
+  state.onUpload=()=>{const patch=input.careerDetails[0];patch.title.after='Injected';patch.role.after='Injected';patch.descriptionReplacements[0].after='Injected';};
+  await applyEvidenceImport(input,detailsOptions);const now=state.snapshot.careers[0];
+  assert.equal(now.title,'Reviewed title');assert.equal(now.role,'Reviewed role');assert.ok(now.description.startsWith('Reviewed prose'));
+});

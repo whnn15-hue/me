@@ -36,7 +36,7 @@ export interface AutomaticEvidencePlan { links: Record<string, string[]>; newCar
 
 /** Only separately approved new proposals may be created. Matching itself never
  * changes fields; exact semantic matches reuse their current IDs. */
-export function automaticEvidencePlan(prepared: PreparedEvidenceImport, current: Career[], allowNewCareers = false): AutomaticEvidencePlan | null {
+export function automaticEvidencePlan(prepared: PreparedEvidenceImport, current: Career[], allowNewCareers = false, allowCareerDetails = false): AutomaticEvidencePlan | null {
   const proposed = new Set(prepared.newCareerIds ?? []);
   if ((!allowNewCareers && proposed.size) || !prepared.documents.length) return null;
   const live = new Map(current.map(career => [career.id, career]));
@@ -50,7 +50,11 @@ export function automaticEvidencePlan(prepared: PreparedEvidenceImport, current:
       const before = archived.get(id), now = live.get(id);
       if (!before) return null;
       if (now) {
-        if (!sameEvidenceCareer(before, now)) return null;
+        const correctedTitle = allowCareerDetails ? prepared.careerDetails?.find(item => item.careerId === id)?.title : undefined;
+        // The exact approved correction may be replayed after its title changed.
+        // Unapproved archives and arbitrary current titles never gain this alias.
+        if (!sameEvidenceCareer(before, now) && !(correctedTitle?.before === before.title
+          && sameEvidenceCareer({ ...before, title: correctedTitle.after }, now))) return null;
         targets.push(now.id);
       } else if (proposed.has(id) && allowNewCareers) {
         const matches = current.filter(candidate => sameNewCareer(before, candidate));
