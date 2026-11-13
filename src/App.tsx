@@ -932,7 +932,7 @@ export default function App() {
               {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 계정과 실제 저장소에는 연결하지 않습니다.</div>}
               {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh}/>}
               {view === "home" && status && <HomeDashboard onOverview={() => {changeView("careers");setCareerMode("overview");}} overview={<>
-                  <GrowthOverview careers={careers} documents={documents} onShowCareers={() => changeView("careers")} onYear={next=>{changeView("careers");chooseCategory("전체");setYear(String(next));setYearStartOnly(true);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
+                  <GrowthOverview careers={careers} documents={documents} onOpen={openWorkspaceRef} onShowCareers={() => changeView("careers")} onYear={next=>{changeView("careers");chooseCategory("전체");setYear(String(next));setYearStartOnly(true);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
 </>} careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
               {!["home", "projects", "materials", "video", "graduate", "photos", "submissions", "research"].includes(view) && <div className="page-heading">
                 <div className="page-heading-text">
@@ -990,10 +990,20 @@ export default function App() {
                   )}
                 </div>
               </div>}
-              {isCareerView && <div className="career-view-control"><label className="select-wrap"><select aria-label="이력 화면" value={careerMode} onChange={event=>setCareerMode(event.target.value as "manage" | "overview")}><option value="manage">목록 보기</option><option value="overview">한눈에 보기</option></select><ChevronDown size={13}/></label></div>}
+              {isCareerView && <nav className="career-mode-tabs" aria-label="이력 화면"><button aria-pressed={careerMode === "manage"} onClick={()=>setCareerMode("manage")}><List size={16}/>목록 관리</button><button aria-pressed={careerMode === "overview"} onClick={()=>setCareerMode("overview")}><Layers3 size={16}/>한눈에 보기</button></nav>}
               {isCareerView && careerMode === "overview" && <CareerOverview careers={careers} documents={documents} onOpen={openWorkspaceRef}/>}
               {isCareerView && careerMode === "manage" && (
                 <>
+                  <nav className="category-tabs career-collections" aria-label="이력 분류">
+                    {(["전체", ...careerNavigationChoices] as const).map(c => {
+                      const count = c === "전체" ? careers.length : careers.filter(item => matchesCareerCategory(item,c,documents)).length;
+                      const Icon = c === "전체" ? Layers3 : categoryIcons[c] || Layers3;
+                      const current = (category === "파견" ? "전체" : category) === c;
+                      return <button key={c} className={current ? "active" : ""} aria-pressed={current} onClick={()=>chooseCategory(c)}>
+                        <Icon size={17}/><strong>{displayLabel(c)}</strong><span>{count}</span>
+                      </button>;
+                    })}
+                  </nav>
                   <section className="career-section" id="career-records">
                     <div className="section-heading">
                       <h2>
@@ -1009,8 +1019,7 @@ export default function App() {
                       </button>
                     </div>
                     <div className="career-search-toolbar">
-                      <label className="select-wrap career-category-select"><select aria-label="이력 분류" value={category === "파견" ? "전체" : category} onChange={event=>chooseCategory(event.target.value as Category | "전체")}><option value="전체">모든 이력</option>{careerNavigationChoices.map(value=><option key={value} value={value}>{displayLabel(value)}</option>)}</select><ChevronDown size={13}/></label>
-                      <label className="search-box"><Search size={18}/><input ref={searchRef} aria-label="경력 검색" placeholder="활동명, 기관, 태그 검색" value={query} onChange={event=>setQuery(event.target.value)}/>{query && <button aria-label="검색 지우기" onClick={()=>setQuery("")}><X size={14}/></button>}</label>
+                                            <label className="search-box"><Search size={18}/><input ref={searchRef} aria-label="경력 검색" placeholder="활동명, 기관, 태그 검색" value={query} onChange={event=>setQuery(event.target.value)}/>{query && <button aria-label="검색 지우기" onClick={()=>setQuery("")}><X size={14}/></button>}</label>
                       {!qualificationsOnly && <label className="select-wrap"><select aria-label="연도 필터" value={year} onChange={event=>{setYear(event.target.value);setYearStartOnly(false);}}><option>전체 연도</option>{years.map(value=><option key={value}>{value}</option>)}</select><ChevronDown size={13}/></label>}
                       <details className="career-extra-filters"><summary><Settings2 size={16}/>필터</summary><div className="career-filter-panel">
                         {(category === "전체" || category === "파견") && <label><span>활동 맥락</span><select aria-label="활동 맥락" value={category} onChange={event=>chooseCategory(event.target.value as "전체" | "파견")}><option value="전체">모든 활동</option><option value="파견">파견 업무</option></select></label>}

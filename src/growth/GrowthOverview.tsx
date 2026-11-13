@@ -1,21 +1,29 @@
-import { useId, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowUpRight, ChevronDown, Compass, RotateCcw, Sparkles } from "lucide-react";
 import type { Career, DocumentRecord } from "../types";
 import { displayText } from "../display";
 import { growthJourney, growthModel, seoulToday } from "./growth-model";
+import { AchievementReel, Burst, CountUp } from "./Celebration";
+import { celebrationHeadline, celebrationStats, INTRO_TIMELINE, markIntroPlayed, pickAchievements, shouldPlayIntro } from "./celebration";
 import "./atlas.css";
+import "./celebration.css";
+
+const prefersReducedMotion = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
+const session = () => { try { return window.sessionStorage; } catch { return null; } };
 
 interface Props {
   careers: Career[]; documents: DocumentRecord[];
   /** Opens the career list for the year in which a record started. */
   onYear?: (year: number) => void;
   today?: string; onShowCareers?: () => void;
+  /** Opens a record by reference (e.g. `career:<id>`), used by the achievement reel. */
+  onOpen?: (ref: string) => void;
 }
 function smoothPath(points: { x: number; y: number }[]) {
   return points.map((point, i) => !i ? `M${point.x},${point.y}` : `C${(points[i - 1].x + point.x) / 2},${points[i - 1].y} ${(points[i - 1].x + point.x) / 2},${point.y} ${point.x},${point.y}`).join(" ");
 }
 
-export default function GrowthOverview({ careers, documents, onYear, onShowCareers, today = seoulToday() }: Props) {
+export default function GrowthOverview({ careers, documents, onYear, onShowCareers, onOpen, today = seoulToday() }: Props) {
   const model = useMemo(() => growthModel(careers, documents, today), [careers, documents, today]);
   const journey = useMemo(() => growthJourney(model, today), [model, today]);
   const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem("introduce-me-growth-open") !== "false"; } catch { return true; } });
@@ -33,31 +41,73 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
     x: visible.length === 1 ? 50 : 7 + i * 86 / (visible.length - 1),
     y: !hasVisibleRecords ? 68 : visible.length === 1 ? 48 : 76 - ((point.cumulative - baseline) / Math.max(1, high - baseline)) * 37,
   }));
+  const stats = useMemo(() => celebrationStats(model, documents), [model, documents]);
+  const headline = celebrationHeadline(stats);
+  const achievements = useMemo(() => pickAchievements(careers, documents, today), [careers, documents, today]);
+  const latestPin = pins.find(point => point.year === latest) ?? pins.at(-1);
+  // Once-per-session celebration; reduced motion always shows the final state.
+  const [playing, setPlaying] = useState(() => shouldPlayIntro(session(), prefersReducedMotion(), hasVisibleRecords));
+  const [burst, setBurst] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
+  const finish = useCallback(() => {
+    setPlaying(false); setBurst(false);
+    // Jump every running CSS animation to its end state instead of removing it.
+    rootRef.current?.getAnimations({ subtree: true }).forEach(animation => { try { animation.finish(); } catch { /* Infinite or idle animations stay as they are. */ } });
+  }, []);
+  useEffect(() => {
+    if (!playing) return;
+    markIntroPlayed(session());
+    const timers = [window.setTimeout(() => setBurst(true), INTRO_TIMELINE.burst), window.setTimeout(() => { setPlaying(false); setBurst(false); }, INTRO_TIMELINE.done)];
+    const skip = () => finish();
+    const hidden = () => { if (document.hidden) finish(); };
+    window.addEventListener("keydown", skip); window.addEventListener("pointerdown", skip); document.addEventListener("visibilitychange", hidden);
+    return () => { timers.forEach(window.clearTimeout); window.removeEventListener("keydown", skip); window.removeEventListener("pointerdown", skip); document.removeEventListener("visibilitychange", hidden); };
+  }, [playing, replay, finish]);
+  const counters = [
+    { label: "쌓아 온 이력", value: stats.total, unit: "건" },
+    { label: "활동한 해", value: stats.years, unit: "년" },
+    ...(stats.institutions ? [{ label: "함께한 기관", value: stats.institutions, unit: "곳" }] : []),
+    ...(stats.achievements ? [{ label: "수상과 성과", value: stats.achievements, unit: "건" }] : []),
+  ];
   const route = smoothPath(pins.map(point => ({ x: point.x * 10, y: point.y * 4 })));
   const area = pins.length > 1 ? `${route} L${pins.at(-1)!.x * 10},400 L${pins[0].x * 10},400 Z` : "";
   function toggleExpanded() {
     const next = !expanded; setExpanded(next);
     try { localStorage.setItem("introduce-me-growth-open", String(next)); } catch { /* View preference only. */ }
   }
-  return <section className="growth-overview growth-atlas atlas-primary" aria-label="나의 성장">
+  return <section ref={rootRef} className={`growth-overview growth-atlas atlas-primary ${playing ? "is-celebrating" : ""}`} aria-label="나의 성장">
     <div className="atlas-heading">
       <div><span className="atlas-kicker">GROWTH JOURNEY</span><h2>나의 성장</h2></div>
       <div className="atlas-actions">
-        {expanded && hasVisibleRecords && <button className="atlas-replay" aria-label="성장 지도 모션 다시 보기" title="모션 다시 보기" onClick={() => setReplay(value => value + 1)}><RotateCcw size={16}/></button>}
+        {expanded && hasVisibleRecords && <button className="atlas-replay" aria-label="성장 지도 모션 다시 보기" title="모션 다시 보기" onClick={() => { setReplay(value => value + 1); setBurst(false); setPlaying(!prefersReducedMotion()); }}><RotateCcw size={16}/></button>}
         <button className="atlas-disclosure" aria-expanded={expanded} aria-controls={`${id}-panels`} onClick={toggleExpanded}>{expanded ? "접기" : "펼치기"}<ChevronDown size={16}/></button>
       </div>
     </div>
-    {expanded && <section className="atlas-panel" id={`${id}-panels`} aria-label="연도별 성장 지도">
-      <div className="atlas-panel-top">
+    {expanded && <section className={`atlas-panel ${hasVisibleRecords ? "has-hero" : ""}`} id={`${id}-panels`} aria-label="연도별 성장 지도">
+      {hasVisibleRecords ? <div className="atlas-hero" key={`hero-${replay}`}>
+        <div className="atlas-hero-glow" aria-hidden="true"/>
+        <div className="atlas-hero-copy">
+          <span className="atlas-range">{visible[0].year}<span>—</span>{visible.at(-1)!.year}<em>모든 해의 발자취</em></span>
+          <h3 className="atlas-hero-title">{headline.title}</h3>
+          <p>{headline.sub}</p>
+        </div>
+        <dl className="atlas-hero-stats" style={{ "--stat-count": counters.length } as CSSProperties}>
+          {counters.map((counter, index) => <div key={counter.label} style={{ "--stat-delay": `${INTRO_TIMELINE.counters + index * INTRO_TIMELINE.counterStagger}ms` } as CSSProperties}>
+            <dt>{counter.label}</dt>
+            <dd><CountUp value={counter.value} play={playing} delay={INTRO_TIMELINE.counters + index * INTRO_TIMELINE.counterStagger} duration={INTRO_TIMELINE.counterDuration}/><span className="visually-hidden">{counter.value.toLocaleString("ko-KR")}</span><small>{counter.unit}</small></dd>
+          </div>)}
+        </dl>
+      </div> : <div className="atlas-panel-top">
         <span className="atlas-range">{visible[0].year}<span>—</span>{visible.at(-1)!.year}</span>
         <span className="atlas-entire-range">모든 해의 발자취</span>
-      </div>
+      </div>}
       <div className="atlas-canvas" key={replay}>
         <div className="atlas-horizon" aria-hidden="true"/>
         <svg className="atlas-contours" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
           {[0,1,2,3,4].map(index => <path key={index} d={`M-100,${300 + index * 38} C120,${180 + index * 38} 220,${415 + index * 32} 450,${305 + index * 32} S760,${115 + index * 34} 1110,${165 + index * 38}`}/>)}
         </svg>
         <span className="atlas-watermark" aria-hidden="true">{visible.at(-1)?.year}</span>
+        {hasVisibleRecords && latestPin && <Burst fire={burst} x={latestPin.x} y={latestPin.y}/>}
         {hasVisibleRecords && <div className="atlas-milestone" aria-label={`${selected.year}년 기록 미리보기`}>
           <span>{selected.year}<i/></span>
           {milestone ? <><strong title={displayText(milestone.title)}>{displayText(milestone.title)}</strong>{milestone.organization && <small>{displayText(milestone.organization)}</small>}</> : <strong className="atlas-milestone-empty">등록된 기록이 없습니다</strong>}
@@ -73,11 +123,12 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
         </svg>}
         {pins.map((point, index) => <button key={point.year} className={`atlas-pin ${latest === point.year ? "is-latest" : ""} ${!point.count ? "is-empty" : ""} ${selected.year === point.year ? "is-selected" : ""}`} style={{ left:`${point.x}%`, top:`${point.y}%`, "--pin-delay":`${.18 + index / Math.max(1,pins.length-1) * 1.6}s` } as CSSProperties} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`} title={point.count ? `${point.year}년까지 누적 ${point.cumulative}건` : `${point.year}년 기록 없음`} disabled={!point.count} onMouseEnter={() => setActiveYear(point.year)} onFocus={() => setActiveYear(point.year)} onClick={() => onYear?.(point.year)}>
           <span className="atlas-pin-orbit" aria-hidden="true"/><span className="atlas-pin-core" aria-hidden="true">{latest === point.year ? <Sparkles size={18} strokeWidth={1.8}/> : <i/>}</span>
-          <span className="atlas-pin-label"><strong>{point.year}</strong><small>{point.count ? `${point.count}개 기록` : "기록 없음"}<ArrowUpRight size={12}/></small></span>
+          <span className="atlas-pin-label"><strong>{point.year}</strong><small>{point.count ? <span><CountUp value={point.count} play={playing} delay={Math.round((.18 + index / Math.max(1,pins.length-1) * 1.6) * 1000) + 120} duration={650}/>개 기록</span> : "기록 없음"}<ArrowUpRight size={12}/></small></span>
           {latest === point.year && <span className="atlas-present">최근의 발자취</span>}
         </button>)}
         {!hasVisibleRecords && <div className="atlas-empty"><Compass size={32} strokeWidth={1.2}/><h3>{earlier.length ? "이곳에 다음 발자취를 이어 보세요" : "첫 발자취를 기다리고 있어요"}</h3>{onShowCareers && <button onClick={onShowCareers}>이력 열기<ArrowUpRight size={15}/></button>}</div>}
       </div>
+      {hasVisibleRecords && <AchievementReel key={`reel-${replay}`} items={achievements} play={playing} onOpen={onOpen}/>}
       <footer className="atlas-footer">
         {earlier.length ? <details className="atlas-earlier"><summary>{visible[0].year}년 이전 기록<ChevronDown size={13}/></summary><div>{earlier.map(point=><button key={point.year} onClick={()=>onYear?.(point.year)} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`}><strong>{point.year}</strong><span>{point.count}개 기록</span><ArrowUpRight size={13}/></button>)}</div></details> : <span className="atlas-origin"><span className="atlas-origin-dot"/>{first ? `${first}년, 첫 기록부터` : "나의 기록"}</span>}
         <div><details className="atlas-note"><summary>집계 기준</summary><p>2020년부터 올해까지 모든 연도를 표시합니다. 오늘까지 시작한 이력을 시작 연도에 한 번씩 집계하며 선의 높이는 누적 기록 수입니다.{earlier.length > 0 && " 2020년 이전 기록도 누적 수에 포함합니다."}{model.unknown.length > 0 && ` 연도 미입력 ${model.unknown.length}건은 제외했습니다.`}{model.future.length > 0 && ` 예정 이력 ${model.future.length}건은 제외했습니다.`}</p></details>{onShowCareers && <button onClick={onShowCareers}>전체 발자취<ArrowUpRight size={15}/></button>}</div>

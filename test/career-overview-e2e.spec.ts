@@ -23,7 +23,7 @@ test('desktop overview shows every career, filters the matrix, opens details and
   await page.emulateMedia({colorScheme:'dark'});await expect(overview).toHaveCSS('background-color','rgb(32, 32, 32)');await page.screenshot({path:'/workspace/artifacts/career-overview-dark.png',animations:'disabled'});
   await page.setViewportSize({width:1280,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.emulateMedia({media:'print'});await expect(page.locator('.sidebar')).toBeHidden();await expect(overview.locator('.overview-records')).toBeVisible();await page.emulateMedia({media:'screen'});
-  await page.getByRole('combobox',{name:'이력 화면',exact:true}).selectOption('manage');await expect(page.locator('.career-row').filter({hasText:'한눈검증 가상 연구대회'})).toBeVisible();expect(errors).toEqual([]);
+  await page.getByRole('navigation',{name:'이력 화면',exact:true}).getByRole('button',{name:'목록 관리'}).click();await expect(page.locator('.career-row').filter({hasText:'한눈검증 가상 연구대회'})).toBeVisible();expect(errors).toEqual([]);
   const current=(await (await page.request.get('/api/data')).json()).careers;
   expect(current.find((career:{id:string})=>career.id===extraIds[0]).role).toBe('연구자');
  }finally{for(const id of extraIds)expect((await page.request.delete(`/api/careers/${id}`)).ok()).toBeTruthy();}

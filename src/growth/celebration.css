@@ -1,0 +1,80 @@
+/* Home celebration: hero counters (top of the map card), achievement reel
+   (below the map), sparkle burst over the latest year.
+   Layout is final from the first frame; motion uses transform/opacity only. */
+.growth-atlas .atlas-hero { position:relative; isolation:isolate; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px 30px; align-items:center; padding:26px 32px 8px; z-index:2; }
+.growth-atlas .atlas-hero-glow { position:absolute; inset:-60% -10% -120% -10%; z-index:-1; pointer-events:none; background:
+  radial-gradient(34% 55% at 22% 40%, color-mix(in srgb,var(--ui-accent) 15%,transparent), transparent 70%),
+  radial-gradient(24% 40% at 78% 30%, color-mix(in srgb,#f6c453 12%,transparent), transparent 70%); }
+.growth-atlas .atlas-hero-copy { display:grid; gap:8px; min-width:0; }
+.growth-atlas .atlas-hero .atlas-range { font-size:15px; gap:9px; color:var(--ui-muted); }
+.growth-atlas .atlas-hero .atlas-range em { font-style:normal; margin-left:6px; color:var(--ui-subtle); font:400 13px/1 var(--font-sans, inherit); letter-spacing:0; }
+.growth-atlas .atlas-hero-title { margin:2px 0 0; font:650 clamp(24px,2.2vw,32px)/1.25 var(--font-display); letter-spacing:-.045em; color:var(--ui-text); word-break:keep-all; }
+.growth-atlas .atlas-hero-copy p { margin:0; color:var(--ui-muted); font-size:15px; line-height:1.55; word-break:keep-all; }
+.growth-atlas .atlas-hero-stats { display:grid; grid-template-columns:repeat(var(--stat-count,4),minmax(104px,auto)); gap:10px; margin:0; }
+.growth-atlas .atlas-hero-stats > div { display:grid; gap:7px; padding:13px 16px 12px; border-radius:16px; background:color-mix(in srgb,var(--ui-surface) 72%,transparent); border:1px solid color-mix(in srgb,var(--ui-accent-line) 50%,var(--ui-border)); box-shadow:0 6px 22px rgb(var(--ui-shadow-rgb, 0 0 0) / .05); }
+.growth-atlas .atlas-hero-stats dt { color:var(--ui-muted); font-size:13px; font-weight:500; white-space:nowrap; }
+.growth-atlas .atlas-hero-stats dd { margin:0; display:flex; align-items:baseline; gap:4px; color:var(--ui-text); }
+.growth-atlas .atlas-hero-stats .count-up { display:inline-block; font:650 34px/1 var(--font-display); letter-spacing:-.05em; font-variant-numeric:tabular-nums; color:var(--ui-text); }
+.growth-atlas .atlas-hero-stats > div:last-child .count-up { color:var(--ui-accent-ink); }
+.growth-atlas .atlas-hero-stats small { color:var(--ui-muted); font-size:14px; }
+.growth-atlas .atlas-pin-label .count-up { display:inline-block; text-align:right; font-variant-numeric:tabular-nums; }
+.growth-atlas .atlas-panel.has-hero .atlas-canvas { height:372px; margin-top:0; }
+.growth-atlas .atlas-panel.has-hero .atlas-milestone { top:8px; }
+
+/* Achievement reel */
+.growth-atlas .atlas-reel { position:relative; z-index:2; display:flex; align-items:center; gap:14px; min-width:0; padding:4px 32px 22px; }
+.growth-atlas .atlas-reel-label { display:inline-flex; align-items:center; gap:7px; flex:none; color:#8f5d00; font-size:13px; font-weight:650; }
+.growth-atlas .atlas-reel ul { flex:1; display:flex; gap:9px; margin:0; padding:0; list-style:none; min-width:0; }
+.growth-atlas .atlas-reel li { flex:1 1 0; min-width:0; max-width:340px; }
+.growth-atlas .atlas-reel button { width:100%; display:flex; align-items:center; gap:8px; height:40px; padding:0 12px 0 6px; border-radius:100px; border:1px solid color-mix(in srgb,#f6c453 55%,var(--ui-border)); background:color-mix(in srgb,#f6c453 11%,var(--ui-surface)); color:var(--ui-text); font-size:13px; text-align:left; transition:transform .18s, box-shadow .18s, border-color .18s; }
+.growth-atlas .atlas-reel button:hover:not(:disabled), .growth-atlas .atlas-reel button:focus-visible { transform:translateY(-2px); border-color:#e0a82e; box-shadow:0 8px 22px rgb(224 168 46 / .22); }
+.growth-atlas .atlas-reel-icon { display:grid; place-items:center; width:28px; height:28px; flex:none; border-radius:50%; background:linear-gradient(140deg,#ffe09a,#f0b23a); color:#5b3b00; box-shadow:0 2px 8px rgb(240 178 58 / .35); }
+.growth-atlas .atlas-reel-year { flex:none; color:#8f5d00; font-weight:650; font-variant-numeric:tabular-nums; }
+.growth-atlas .atlas-reel-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.growth-atlas .atlas-reel-grade { flex:none; padding:2px 8px; border-radius:100px; background:color-mix(in srgb,#f6c453 30%,transparent); color:#6a4500; font-size:12px; font-weight:650; }
+
+/* Sparkle burst canvas over the map */
+.growth-atlas .atlas-burst { position:absolute; inset:0; width:100%; height:100%; z-index:3; pointer-events:none; }
+
+/* ---------- Intro choreography (only while .is-celebrating) ---------- */
+.growth-atlas.is-celebrating .atlas-hero-glow { animation:celebrate-glow 2.6s cubic-bezier(.3,.7,.3,1) both; }
+.growth-atlas.is-celebrating .atlas-hero-copy { animation:celebrate-rise .8s cubic-bezier(.2,.8,.2,1) both; }
+.growth-atlas.is-celebrating .atlas-hero-title { background:linear-gradient(100deg,var(--ui-text) 0 38%,var(--ui-accent) 46%,#f2b33d 50%,var(--ui-accent) 54%,var(--ui-text) 62% 100%) 0 0 / 300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:celebrate-shimmer 1.15s ease-in-out 2.05s both; }
+.growth-atlas.is-celebrating .atlas-hero-stats > div { animation:celebrate-pop .7s cubic-bezier(.34,1.56,.64,1) var(--stat-delay) both; }
+.growth-atlas.is-celebrating .atlas-pin-core { animation:celebrate-core-pop .75s cubic-bezier(.34,1.7,.64,1) var(--pin-delay) both; }
+.growth-atlas.is-celebrating .atlas-pin.is-latest .atlas-pin-core { animation:celebrate-core-pop .75s cubic-bezier(.34,1.7,.64,1) var(--pin-delay) both, celebrate-pulse 1.05s ease-out 2.05s 2; }
+.growth-atlas.is-celebrating .atlas-pin.is-latest .atlas-present { animation:celebrate-pop .6s cubic-bezier(.34,1.56,.64,1) 2.25s both; }
+.growth-atlas.is-celebrating .atlas-milestone { animation:celebrate-rise .7s cubic-bezier(.2,.8,.2,1) 2.15s both; }
+.growth-atlas .atlas-reel.is-playing .atlas-reel-label { animation:celebrate-rise .5s cubic-bezier(.2,.8,.2,1) 2.25s both; }
+.growth-atlas .atlas-reel.is-playing li { animation:celebrate-fly .7s cubic-bezier(.2,.9,.25,1.15) var(--reel-delay) both; }
+.growth-atlas .atlas-reel.is-playing .atlas-reel-icon { animation:celebrate-spin .85s cubic-bezier(.3,1.5,.5,1) var(--reel-delay) both; }
+
+@keyframes celebrate-glow { from { opacity:0; transform:translateX(-24%) scale(.94); } 60% { opacity:1; } to { opacity:1; transform:none; } }
+@keyframes celebrate-rise { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+@keyframes celebrate-pop { from { opacity:0; transform:translateY(10px) scale(.86); } to { opacity:1; transform:none; } }
+@keyframes celebrate-shimmer { from { background-position:100% 0; } to { background-position:0 0; } }
+@keyframes celebrate-core-pop { 0% { opacity:0; transform:scale(.2); } 55% { opacity:1; box-shadow:0 0 0 10px color-mix(in srgb,var(--ui-accent) 22%,transparent),0 0 28px color-mix(in srgb,var(--ui-accent) 45%,transparent); } 100% { transform:scale(1); } }
+@keyframes celebrate-pulse { 0% { box-shadow:0 0 0 0 color-mix(in srgb,var(--ui-accent) 55%,transparent),0 0 35px color-mix(in srgb,var(--ui-accent) 40%,transparent); transform:scale(1); } 35% { transform:scale(1.18); } 100% { box-shadow:0 0 0 26px transparent,0 0 35px color-mix(in srgb,var(--ui-accent) 19%,transparent); transform:scale(1); } }
+@keyframes celebrate-fly { from { opacity:0; transform:translate(-34px,18px) scale(.85) rotate(-3deg); } to { opacity:1; transform:none; } }
+@keyframes celebrate-spin { from { transform:rotate(-120deg) scale(.4); } to { transform:none; } }
+
+/* Dark theme: warmer, readable gold on dark surfaces. */
+:root[data-theme="dark"] .growth-atlas .atlas-reel-label, :root[data-theme="dark"] .growth-atlas .atlas-reel-year { color:#f3c45e; }
+:root[data-theme="dark"] .growth-atlas .atlas-reel-grade { color:#ffe2a3; background:rgb(246 196 83 / .18); }
+:root[data-theme="dark"] .growth-atlas .atlas-reel button { background:rgb(246 196 83 / .08); border-color:rgb(246 196 83 / .35); }
+
+@media (max-width:1180px) {
+  .growth-atlas .atlas-hero { grid-template-columns:1fr; }
+  .growth-atlas .atlas-hero-stats { grid-template-columns:repeat(var(--stat-count,4),minmax(0,1fr)); }
+}
+@media (max-width:1050px) {
+  .growth-atlas .atlas-hero { padding:22px 24px 6px; }
+  .growth-atlas .atlas-hero-stats .count-up { font-size:28px; }
+  .growth-atlas .atlas-reel { padding:4px 24px 20px; flex-wrap:wrap; }
+  .growth-atlas .atlas-reel ul { flex-wrap:wrap; }
+  .growth-atlas .atlas-reel li { flex:1 1 220px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .growth-atlas .atlas-burst { display:none; }
+  .growth-atlas .atlas-hero *, .growth-atlas .atlas-reel * { animation:none !important; }
+}

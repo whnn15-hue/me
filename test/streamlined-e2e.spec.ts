@@ -26,12 +26,13 @@ test('career collections separate awards, default lectures to years and retain q
   const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   for(const name of ['파견','집필','콘텐츠 제작'])await expect(menu.getByRole('button',{name,exact:true})).toHaveCount(0);
-  const categories=page.getByRole('combobox',{name:'이력 분류',exact:true});
-  await expect(page.locator('.career-collections,.collection-evidence,.career-mode-tabs')).toHaveCount(0);
-  for(const value of ['근무','연구·수상','기타','파견'])await expect(categories.locator(`option[value="${value}"]`)).toHaveCount(0);
+  const categories=page.getByRole('navigation',{name:'이력 분류',exact:true});
+  // The owner asked (2026-11-12) to keep the visible category tabs and list/overview tabs.
+  await expect(page.locator('.career-collections')).toHaveCount(1);await expect(page.locator('.career-mode-tabs')).toHaveCount(1);
+  for(const value of ['근무','연구, 수상','기타','파견'])await expect(categories.getByRole('button',{name:new RegExp(`^${value}`)})).toHaveCount(0);
   await expect(primary.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(0);
-  await expect(categories.locator('option[value="공모전 수상"]')).toHaveCount(1);
-  const choose=async(name:string)=>{await categories.selectOption(({'위원회, 지원단':'위원회·지원단','강의, 연수':'강의·연수'} as Record<string,string>)[name]||name);const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')!==null)await details.locator('summary').click();};
+  await expect(categories.getByRole('button',{name:/^공모전 수상/})).toHaveCount(1);
+  const choose=async(name:string)=>{await categories.getByRole('button',{name:new RegExp(`^${name}`)}).first().click();const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')!==null)await details.locator('summary').click();};
   const moreFilters=async()=>{const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')===null)await details.locator('summary').click();};
   const row=(index:number)=>page.locator('.career-row').filter({hasText:fixtures[index].title});
   await choose('전체');await expect(row(10)).toBeVisible();
