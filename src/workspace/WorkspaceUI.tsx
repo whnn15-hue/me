@@ -15,7 +15,7 @@ export const workspaceKindIcons = {
   assignment: ListChecks, paper: BookOpen, idea: Lightbulb, document: FileText, photo: FolderOpen, submission: FileText,
 };
 export function workspaceItemLabel(item: WorkspaceItem): string {
-  return item.kind === "material" && item.purpose === "classroom" ? "학급 자료" : item.kind === "material" && item.purpose === "research" ? "연구대회 자료" : item.kind === "material" && materialLibrary(item) === "video" ? "영상 작업" : workspaceKindLabels[item.kind];
+  return item.kind === "material" && item.purpose === "classroom" ? item.schoolSection === "lesson" ? "수업 자료" : "학급 자료" : item.kind === "material" && item.purpose === "research" ? "연구대회 자료" : item.kind === "material" && materialLibrary(item) === "video" ? "영상 작업" : workspaceKindLabels[item.kind];
 }
 export function linkedRefs(workspace: WorkspaceData, currentRef: string): string[] {
   return [...new Set(workspace.links.flatMap(link => link.from === currentRef ? [link.to] : link.to === currentRef ? [link.from] : []))];

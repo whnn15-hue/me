@@ -15,7 +15,7 @@ const bundle=await build({stdin:{resolveDir:root,loader:'tsx',contents:`
     onSave={async(...args)=>{globalThis.fixture.saves.push(args)}} onDelete={async()=>{}} onOpen={()=>{}} onError={()=>{}}/>;}
   createRoot(document.getElementById('root')).render(<Fixture/>);
 `},bundle:true,platform:'browser',format:'iife',write:false,outdir:'/tmp/dropzone-ui-fixture',jsx:'automatic'});
-test('dragging hands files to classroom automatic registration once, locks while busy and keeps optional fields folded',{skip:!existsSync(chromiumPath)&&!existsSync(chromium.executablePath())},async()=>{
+test('compact file selection registers once, locks while busy and keeps optional fields folded',{skip:!existsSync(chromiumPath)&&!existsSync(chromium.executablePath())},async()=>{
   const javascript=bundle.outputFiles.find(file=>file.path.endsWith('.js')).text;
   const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8')+(bundle.outputFiles.find(file=>file.path.endsWith('.css'))?.text||'')+readFileSync(new URL('../src/refinements.css',import.meta.url),'utf8');
   const server=createServer((req,res)=>{if(req.url==='/bundle.js')return res.writeHead(200,{'Content-Type':'application/javascript'}).end(javascript);res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}).end(`<style>${css}body{padding:16px}</style><div id="root"></div><script src="/bundle.js"></script>`)});
@@ -24,15 +24,19 @@ test('dragging hands files to classroom automatic registration once, locks while
     browser=await chromium.launch({executablePath:existsSync(chromiumPath)?chromiumPath:undefined,args:['--no-sandbox']});const page=await browser.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
     const origin=`http://127.0.0.1:${server.address().port}`;await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
     await page.goto(origin);
-    const drop=page.locator('.file-dropzone');await drop.waitFor();
-    const transfer=await page.evaluateHandle(()=>{const data=new DataTransfer();data.items.add(new File(['synthetic content'],'가상 속담.txt',{type:'text/plain'}));return data;});
-    await drop.dispatchEvent('dragenter',{dataTransfer:transfer});assert.match(await drop.getAttribute('class'),/dragging/);
-    await drop.dispatchEvent('drop',{dataTransfer:transfer});
+    const input=page.getByLabel('학급 자료 파일 선택',{exact:true});
+    await page.getByRole('button',{name:'파일 추가',exact:true}).waitFor();
+    assert.equal(await page.locator('.file-dropzone').count(),0,'The page uses a compact file action instead of a permanent drop box');
+    const chooser=page.waitForEvent('filechooser');
+    await page.getByRole('button',{name:'파일 추가',exact:true}).click();
+    await (await chooser).setFiles({name:'가상 속담.txt',mimeType:'text/plain',buffer:Buffer.from('synthetic content')});
     await page.waitForFunction(()=>fixture.uploads.length===1);
     assert.deepEqual(await page.evaluate(()=>fixture.uploads),[{purpose:'classroom',names:['가상 속담.txt']}]);
-    await drop.dispatchEvent('drop',{dataTransfer:transfer});assert.equal(await page.evaluate(()=>fixture.uploads.length),1);
+    assert.equal(await page.getByRole('button',{name:'저장 중',exact:true}).isDisabled(),true);
+    await input.setInputFiles({name:'가상 읽기.txt',mimeType:'text/plain',buffer:Buffer.from('synthetic')});
+    assert.equal(await page.evaluate(()=>fixture.uploads.length),1,'Busy registration rejects a second file selection');
     await page.evaluate(()=>fixture.setBusy(false));
-    await page.getByLabel('파일을 끌어 놓거나 선택',{exact:true}).setInputFiles({name:'가상 읽기.txt',mimeType:'text/plain',buffer:Buffer.from('synthetic')});
+    await input.setInputFiles({name:'가상 읽기.txt',mimeType:'text/plain',buffer:Buffer.from('synthetic')});
     await page.waitForFunction(()=>fixture.uploads.length===2);
     await page.getByRole('button',{name:'자료 추가',exact:true}).click();const editor=page.getByRole('dialog');
     assert.equal(await editor.locator('details.optional-fields').getAttribute('open'),null);

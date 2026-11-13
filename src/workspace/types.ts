@@ -2,6 +2,7 @@ import type { Career, DocumentRecord } from "../types";
 import type {ResourceType, DriveQuota} from "../../shared/resources.mjs";
 
 export type WorkspaceKind = "project" | "material" | "course" | "assignment" | "paper" | "idea" | "photo" | "submission";
+export type SchoolSection = "lesson" | "classroom";
 export interface WorkspaceItemBase {
   favorite?: boolean;
   id: string; kind: WorkspaceKind; title: string; tags: string[]; createdAt: string; updatedAt: string;
@@ -15,6 +16,8 @@ export interface ProjectItem extends WorkspaceItemBase {
 export interface MaterialItem extends WorkspaceItemBase {
   kind: "material"; ownership: "created" | "collected"; author: string; eventName: string;
   purpose?: "classroom" | "lecture" | "research";
+  /** Absent on legacy classroom materials, which remain in the classroom shelf. */
+  schoolSection?: SchoolSection;
   researchType?: "계획서" | "보고서" | "발표자료" | "부록·증빙" | "참고자료" | "기타";
   resourceType?: ResourceType;
   subjects?: string[];
@@ -59,13 +62,14 @@ export interface WorkspaceSectionProps {
   onSave: (item: WorkspaceItem, links: string[], expectedRevision: number) => Promise<void>;
   onDelete: (id: string, expectedRevision: number) => Promise<void>; onOpen: (ref: string) => void;
   focusId?: string; onError: (error: unknown) => void;
-  onFiles?: (files: File[], purpose: "classroom" | "lecture") => Promise<void>;
+  onFiles?: (files: File[], purpose: "classroom" | "lecture", schoolSection?: SchoolSection, resourceType?: ResourceType) => Promise<void>;
   uploading?: boolean;
   initialSection?: string;
   initialSubject?: string;
   loadHtmlPreview?: (item: MaterialItem) => Promise<string>;
   loadAudioPreview?: (item: MaterialItem) => Promise<Blob>;
   readDriveStorage?: () => Promise<DriveQuota>;
+  onDownloadOriginal?: (item: MaterialItem) => Promise<void>;
 }
 // Descriptive aliases keep individual tab code concise.
 export type Project = ProjectItem;

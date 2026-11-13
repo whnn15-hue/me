@@ -13,6 +13,9 @@ type ResearchType = NonNullable<MaterialItem["researchType"]>;
 type Props = Omit<WorkspaceSectionProps, "onFiles" | "uploading" | "initialSubject"> & {
   documents: DocumentRecord[];
   onUploadFile: (file: File) => Promise<DocumentRecord>;
+  onFiles?: (files: File[]) => Promise<void>;
+  uploading?: boolean;
+  onTypeChange?: (type: ResearchType | "") => void;
 };
 const researchTypeIcons = [ClipboardList, FileText, Presentation, Paperclip, BookOpen, Files];
 const ACCEPT = ".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.html,.htm,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp";
@@ -73,7 +76,7 @@ function ResearchEditor({ item, workspace, careers, onSave, onUploadFile, onClos
   const contests = [...new Set(workspace.items.filter(isResearch).map(row => row.eventName.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko"));
   return <Modal title={`연구대회 자료 ${item.id ? "수정" : "보관"}`} wide onClose={() => !saving.current && onClose()}>
     <form onSubmit={event => void save(event)}><fieldset className="modal-body research-editor" disabled={busy}>
-      <label className={`research-file-picker ${file || draft.sourceFile ? "chosen" : ""}`} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); selectFile(event.dataTransfer.files?.[0]); }}>
+      <label className={`research-file-picker ${file || draft.sourceFile ? "chosen" : ""}`} onDragOver={event => { event.preventDefault(); event.stopPropagation(); }} onDrop={event => { event.preventDefault(); event.stopPropagation(); selectFile(event.dataTransfer.files?.[0]); }}>
         <Upload size={22} aria-hidden="true" />
         <strong>{displayLabel(file?.name || draft.sourceFile?.name || "원본 파일 선택 또는 끌어다 놓기")}</strong>
         <span>{file ? `${sizeLabel(file.size)}, 저장하면 보관합니다` : draft.sourceFile ? `${sizeLabel(draft.sourceFile.size)}, 다른 파일을 고르면 새 원본으로 바뀝니다` : "PDF, 한글, Word, PPT, Excel, 이미지, 최대 25 MB"}</span>
@@ -97,10 +100,12 @@ function ResearchEditor({ item, workspace, careers, onSave, onUploadFile, onClos
   </Modal>;
 }
 
-export default function ResearchView({ workspace, documents, careers, onSave, onDelete, onOpen, onError, onUploadFile, focusId, initialSection }: Props) {
+export default function ResearchView({ workspace, documents, careers, onSave, onDelete, onOpen, onError, onUploadFile, onFiles, uploading, onTypeChange, focusId, initialSection }: Props) {
   const items = useMemo(() => workspace.items.filter(isResearch), [workspace.items]);
   const [query, setQuery] = useState(""), [contest, setContest] = useState("");
   const [type, setType] = useState<ResearchType | "">(RESEARCH_TYPES.includes(initialSection as ResearchType) ? initialSection as ResearchType : "");
+  const filePicker = useRef<HTMLInputElement>(null);
+  useEffect(() => { onTypeChange?.(type); }, [type, onTypeChange]);
   const [selectedId, setSelectedId] = useState(""), [editing, setEditing] = useState<MaterialItem | null>(null);
   const [deleting, setDeleting] = useState<{ item: MaterialItem; revision: number } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -136,6 +141,7 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
       <div><h1>연구대회 자료 <small aria-label={`전체 ${items.length}개`}>{items.length}</small></h1></div>
       <button className="button primary" onClick={() => setEditing(emptyResearch())}><Plus size={17} />자료 보관</button>
     </header>
+    {onFiles && <><button type="button" className="archive-upload-hint" disabled={uploading} onClick={() => filePicker.current?.click()} title="최대 10개, 파일당 25 MB"><Upload size={16} aria-hidden="true"/><span>파일을 화면에 놓으면 {type ? displayLabel(type) : "연구 자료"}에 추가</span></button><input ref={filePicker} className="visually-hidden" type="file" multiple accept={ACCEPT} aria-label="연구대회 파일 추가" disabled={uploading} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) void onFiles(files); }}/></>}
     <div className="research-workbench">
       <div className="research-filter-label"><span>자료 종류</span>{(query || contest || type) && <button type="button" onClick={() => { setQuery(""); setContest(""); setType(""); }}>조건 지우기</button>}</div>
       <div className="research-type-filter" role="group" aria-label="자료 종류로 거르기">

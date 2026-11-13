@@ -3,11 +3,10 @@ import type { MaterialItem, WorkspaceItem } from "./types";
 
 export function placeUploadedMaterial(item: MaterialItem, library: MaterialLibrary): MaterialItem {
   const inferred = resourceType(item);
-  // Lesson videos belong with learning; clearly named audio and templates belong
-  // with video assets even when dropped on the learning screen.
+  // The open library is the destination. File content only supplies metadata.
   const type = item.purpose === "classroom" ? "lecture"
     : library === "video" ? videoResourceTypes.some(value => value.id === inferred) ? inferred : "template"
-    : ["sound", "music", "template"].includes(inferred) ? inferred : "lecture";
+    : "lecture";
   return { ...item, resourceType: type };
 }
 

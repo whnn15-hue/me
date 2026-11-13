@@ -20,6 +20,7 @@ const bundle = await build({
       {id:'learning',kind:'material',title:'검색검증 생태 교안',purpose:'lecture',resourceType:'lecture',format:'PDF',summary:'관찰 기록을 수업에 활용',tags:['공통'],createdAt:stamp,updatedAt:stamp},
       {id:'video',kind:'material',title:'검색검증 배경음악',purpose:'lecture',resourceType:'music',format:'오디오',tags:['영상'],createdAt:stamp,updatedAt:stamp},
       {id:'classroom',kind:'material',title:'검색검증 학급 활동지',purpose:'classroom',resourceType:'lecture',format:'PDF',tags:['공통'],createdAt:stamp,updatedAt:stamp},
+      {id:'school_lesson',kind:'material',title:'검색검증 수업 활동 파일',purpose:'classroom',schoolSection:'lesson',resourceType:'lecture',format:'PDF',tags:['공통'],createdAt:stamp,updatedAt:stamp},
       {id:'research',kind:'material',title:'검색검증 연구 보고서',purpose:'research',resourceType:'lecture',format:'PDF',researchType:'보고서',date:'2026-01-01',tags:['연구'],createdAt:stamp,updatedAt:stamp},
       {id:'hidden',kind:'course',title:'검색검증 숨긴 강좌',semester:'2026-1',tags:['공통'],createdAt:stamp,updatedAt:stamp}
     ]});
@@ -70,7 +71,7 @@ test('integrated search is an inline header field and exposes only search contro
     for(const name of ['경력 추가','공문 업로드','이력서 만들기','홈으로'])assert.equal(await page.getByRole('button',{name,exact:true}).count(),0);
     await input(page).fill('    ');await input(page).press('Enter');
     assert.equal(await page.locator('.global-search-result').count(),0);assert.deepEqual(await page.evaluate(()=>fixture.events),[]);
-    await input(page).fill('검색검증');assert.equal(await page.locator('.global-search-result').count(),7);
+    await input(page).fill('검색검증');assert.equal(await page.locator('.global-search-result').count(),8);
     assert.ok(!(await titles(page)).includes('검색검증 숨긴 강좌'));
     await input(page).fill('토양');assert.deepEqual(await titles(page),['검색검증 증빙.pdf']);
     await input(page).fill('검색검증 생태 연수');assert.equal((await titles(page))[0],'검색검증 생태 연수');
@@ -84,7 +85,9 @@ test('search filters keep teaching plans, video assets, classroom materials and 
     await kinds(page).selectOption('material');assert.deepEqual(await titles(page),['검색검증 생태 교안']);
     await kinds(page).selectOption('video');assert.deepEqual(await titles(page),['검색검증 배경음악']);
     await kinds(page).selectOption('research');assert.deepEqual(await titles(page),['검색검증 연구 보고서']);
-    await kinds(page).selectOption('project');assert.deepEqual(new Set(await titles(page)),new Set(['검색검증 생태 수업','검색검증 학급 활동지']));
+    await kinds(page).selectOption('project');assert.deepEqual(new Set(await titles(page)),new Set(['검색검증 생태 수업','검색검증 학급 활동지','검색검증 수업 활동 파일']));
+    await kinds(page).selectOption('lesson');assert.deepEqual(await titles(page),['검색검증 수업 활동 파일']);
+    await kinds(page).selectOption('classroom');assert.deepEqual(await titles(page),['검색검증 학급 활동지']);
     await kinds(page).selectOption('all');
     await page.getByRole('combobox',{name:'통합 검색 태그',exact:true}).selectOption('영상');
     assert.deepEqual(await titles(page),['검색검증 배경음악']);
@@ -128,7 +131,7 @@ test('inline search handles shortcut, dismissal and Korean IME without changing 
     await page.evaluate(()=>fixture.events=[]);
     await page.getByRole('button',{name:'통합 검색 실행',exact:true}).click();
     assert.equal(await input(page).getAttribute('aria-expanded'),'true');
-    assert.equal(await page.locator('.global-search-result').count(),7);
+    assert.equal(await page.locator('.global-search-result').count(),8);
     await page.getByRole('button',{name:'검색 밖으로',exact:true}).click();
     assert.equal(await input(page).getAttribute('aria-expanded'),'false');
     await page.keyboard.press('Control+k');

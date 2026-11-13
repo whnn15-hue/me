@@ -127,6 +127,12 @@ export function normalizeWorkspaceItem(value, previous) {
         if (!['classroom', 'lecture', 'research'].includes(merged.purpose)) fail('자료를 보관할 곳을 확인해 주세요.');
         result.purpose = merged.purpose;
       }
+      // Existing classroom rows keep their exact shape and remain classroom
+      // materials. Only newly placed school files need an explicit shelf.
+      if (merged.schoolSection !== undefined) {
+        if (merged.purpose !== 'classroom' || !['lesson', 'classroom'].includes(merged.schoolSection)) fail('학교 자료 분류를 확인해 주세요.');
+        result.schoolSection = merged.schoolSection;
+      }
       // Optional and additive: absent on every pre-existing row.
       if (merged.researchType !== undefined) {
         if (!RESEARCH_TYPES.includes(merged.researchType)) fail('연구대회 자료 종류를 확인해 주세요.');

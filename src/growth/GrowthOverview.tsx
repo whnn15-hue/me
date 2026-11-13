@@ -38,7 +38,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   const previewIds = useRef<Record<number, string>>({});
   const hoveredYear = useRef<number | null>(null);
   const id = useId().replaceAll(":", "");
-  const { points: visible, first, latest, earlier } = journey;
+  const { points: visible, latest, earlier } = journey;
   const carouselRecords = useMemo(() => [...model.dated, ...model.unknown].map(entry => entry.career), [model]);
   const carousel = useCareerCarousel(carouselRecords, true, bannerHovered || bannerFocused || yearHovered || yearFocused);
   const milestone = carousel.record;
@@ -103,9 +103,6 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   const route = smoothPath(pins.map(point => ({ x: point.x * 10, y: point.y * 4 })));
   const area = pins.length > 1 ? `${route} L${pins.at(-1)!.x * 10},400 L${pins[0].x * 10},400 Z` : "";
   return <section ref={rootRef} className={`growth-overview growth-atlas atlas-primary ${playing ? "is-celebrating" : ""}`} aria-label="나의 성장">
-    <div className="atlas-heading">
-      <h2>나의 성장</h2>
-    </div>
     <section className={`atlas-panel ${hasVisibleRecords ? "has-hero" : ""}`} id={`${id}-panels`} aria-label="연도별 성장 지도">
       {hasVisibleRecords ? <div className="atlas-hero">
         <div className="atlas-hero-glow" aria-hidden="true"/>
@@ -177,10 +174,10 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
       </div>
       </div>
       {hasVisibleRecords && <AchievementReel items={achievements} play={playing} onOpen={onOpen}/>}
-      <footer className="atlas-footer">
-        {earlier.length ? <details className="atlas-earlier"><summary>{visible[0].year}년 이전 기록<ChevronDown size={13}/></summary><div>{earlier.map(point=><button key={point.year} onClick={()=>onYear?.(point.year)} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`}><strong>{point.year}</strong><span>{point.count}개 기록</span><ArrowUpRight size={13}/></button>)}</div></details> : <span className="atlas-origin"><span className="atlas-origin-dot"/>{first ? `${first}년, 첫 기록부터` : "나의 기록"}</span>}
+      {earlier.length > 0 && <footer className="atlas-footer">
+        <details className="atlas-earlier"><summary>{visible[0].year}년 이전 기록<ChevronDown size={13}/></summary><div>{earlier.map(point=><button key={point.year} onClick={()=>onYear?.(point.year)} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`}><strong>{point.year}</strong><span>{point.count}개 기록</span><ArrowUpRight size={13}/></button>)}</div></details>
         {onShowCareers && <button onClick={onShowCareers}>전체 발자취<ArrowUpRight size={15}/></button>}
-      </footer>
+      </footer>}
     </section>
   </section>;
 }

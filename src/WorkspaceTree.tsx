@@ -15,7 +15,7 @@ const researchViews = ["research", "submissions", "photos"] as const;
 const entries = [
   { view: "home", label: "홈", icon: House },
   { view: "careers", label: "이력", icon: Layers3 },
-  { view: "projects", label: "수업", icon: BookOpen },
+  { view: "projects", label: "학교", icon: BookOpen },
   { view: "research", label: "연구 자료", icon: FileStack },
   { view: "materials", label: "교안", icon: FileText },
   { view: "video", label: "영상 작업", icon: Clapperboard },
@@ -89,8 +89,8 @@ export default function WorkspaceTree({ view, careers, documents, category, onVi
               onClick={() => onCategory(link.value)}><link.icon size={15} aria-hidden="true" /><span>{link.label}</span><small aria-hidden="true">{link.count}</small></button>;
           })}
           {item.view === "projects" && <>
-            <button onClick={() => onSection("projects", "records")} aria-label="수업에서 수업 기록 보기"><Folder size={14} aria-hidden="true" /><span>수업 기록</span></button>
-            <button onClick={() => onSection("projects", "classroom")} aria-label="수업에서 학급 자료 보기"><BookOpen size={14} aria-hidden="true" /><span>학급 자료</span></button>
+            <button onClick={() => onSection("projects", "records")} aria-label="학교에서 수업 자료 보기"><Folder size={14} aria-hidden="true" /><span>수업 자료</span></button>
+            <button onClick={() => onSection("projects", "classroom")} aria-label="학교에서 학급 자료 보기"><BookOpen size={14} aria-hidden="true" /><span>학급 자료</span></button>
           </>}
           {item.view === "research" && researchLinks.map(link => <button key={link.view} className={view === link.view ? "selected" : ""}
             aria-current={view === link.view ? "page" : undefined} onClick={() => onView(link.view)}><link.icon size={14} aria-hidden="true" /><span>{link.label}</span></button>)}
