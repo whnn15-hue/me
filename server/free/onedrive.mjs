@@ -21,6 +21,18 @@ const validUid = value => typeof value === 'string' && value.length > 0 && value
 const expiration = seconds => Date.now() + Math.min(86400, Math.max(1, Number(seconds) || 3600)) * 1000;
 const tokenHeaders = token => ({ Authorization: `Bearer ${token}` });
 const grantedScope = (scope, wanted) => String(scope || '').split(/\s+/).some(item => item === wanted || item.endsWith(`/${wanted}`));
+const timedOut = error => ['AbortError', 'TimeoutError'].includes(error?.name) || error?.status === 504;
+const networkFailure = (stage, error) => fault(timedOut(error)
+  ? `OneDrive 응답 대기 시간이 초과되었습니다 (${stage}). 잠시 후 다시 시도해 주세요.`
+  : `OneDrive에 연결하지 못했습니다 (${stage}). 잠시 후 다시 시도해 주세요.`, timedOut(error) ? 504 : 502);
+const graphFailure = (stage, status) => fault(status === 507 ? 'OneDrive 저장 공간이 부족합니다.'
+  : status === 401 ? `OneDrive 요청 인증을 확인하지 못했습니다 (${stage}, HTTP 401). 연결을 다시 확인해 주세요.`
+  : status === 403 ? `OneDrive 사용 권한을 확인해 주세요 (${stage}, HTTP 403).`
+  : `OneDrive 요청을 완료하지 못했습니다 (${stage}, HTTP ${status}). 잠시 후 다시 시도해 주세요.`, status === 507 ? 507 : 502);
+const uploadSessionFailure = status => fault([401, 404, 410].includes(status)
+  ? `OneDrive 업로드 세션이 만료되었거나 유효하지 않습니다 (파일 전송, HTTP ${status}). 같은 작업을 다시 시도해 주세요.`
+  : status === 507 ? 'OneDrive 저장 공간이 부족합니다.'
+  : `OneDrive 파일 전송을 완료하지 못했습니다 (HTTP ${status}). 잠시 후 다시 시도해 주세요.`, status === 507 ? 507 : 502);
 // OneDrive rejects these characters and trailing dots/spaces in item names.
 export function oneDriveName(value) {
   const name = String(value || '').replace(/[\r\n\0"*:<>?/\\|]/g, '_').replace(/[. ]+$/g, '').trim().slice(0, 240);
@@ -84,11 +96,14 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     if (!account) return { ...base, driveConfigured: configured, driveConnected: false, lastBackup: null };
     const uid = requireOwner(account);
     if (!configured) return { ...base, driveConfigured: false, driveConnected: false, lastBackup: null };
-    const [tokens, firebaseTokens, lastBackup, backupError, lastBackupKind] = await Promise.all([
+    const [tokens, firebaseTokens, lastBackup, backupError, lastBackupKind, authState] = await Promise.all([
       vault.getJSON(`oneDriveTokens/${uid}`), vault.getJSON(`firebaseTokens/${uid}`),
       vault.getJSON(`lastBackup/${uid}`), vault.getJSON(`backupError/${uid}`), vault.getJSON(`lastBackupKind/${uid}`),
+      vault.getJSON(`oneDriveAuthState/${uid}`),
     ]);
-    return { ...base, driveConfigured: configured, driveConnected: Boolean(tokens?.refresh_token && firebaseTokens?.refreshToken),
+    const reconnectRequired = authState?.reconnectRequired === true;
+    return { ...base, driveConfigured: configured, driveConnected: Boolean(tokens?.refresh_token && firebaseTokens?.refreshToken && !reconnectRequired),
+      ...(reconnectRequired ? { storageReconnectRequired: true } : {}),
       ...(tokens?.accountEmail ? { storageAccount: tokens.accountEmail } : {}),
       lastBackup: lastBackup || null, ...(backupError ? { backupError } : {}),
       ...(['snapshot', 'full'].includes(lastBackupKind) ? { lastBackupKind } : {}) };
@@ -165,6 +180,7 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
         await vault.setJSON(`oneDriveTokens/${saved.uid}`, { access_token: tokens.access_token, refresh_token: refreshToken,
           expiresAt: expiration(tokens.expires_in), accountId: profile.id,
           accountEmail: normalizedEmail(profile.mail || profile.userPrincipalName) || null });
+        await vault.deleteJSON(`oneDriveAuthState/${saved.uid}`);
         await vault.deleteJSON(`backupError/${saved.uid}`);
         return res.redirect(`${appURL.origin}/?connected=drive`);
       } finally { await release(); }
@@ -174,26 +190,68 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
   }
 
   // Call only while holding the per-owner storage lease.
-  async function accessToken(uid) {
+  async function accessToken(uid, forceRefresh = false) {
     const tokens = await vault.getJSON(`oneDriveTokens/${uid}`);
     if (!tokens) throw fault('공문 보관과 백업을 위해 OneDrive를 먼저 연결해 주세요.', 409);
-    if (tokens.access_token && Number(tokens.expiresAt) > Date.now() + 60000) return { accessToken: tokens.access_token, expiresAt: tokens.expiresAt };
+    const authState = await vault.getJSON(`oneDriveAuthState/${uid}`);
+    if (!forceRefresh && !authState?.reconnectRequired && tokens.access_token && Number(tokens.expiresAt) > Date.now() + 60000) return { accessToken: tokens.access_token, expiresAt: tokens.expiresAt };
     if (!tokens.refresh_token) throw fault('OneDrive를 다시 연결해 주세요.', 409);
-    const response = await tokenRequest({ refresh_token: tokens.refresh_token, grant_type: 'refresh_token' });
-    if (!response.ok) throw fault('OneDrive 권한을 갱신하지 못했습니다. 다시 연결해 주세요.', 502);
+    let response;
+    try { response = await tokenRequest({ refresh_token: tokens.refresh_token, grant_type: 'refresh_token' }); }
+    catch (error) { throw networkFailure('인증 갱신', error); }
+    if (!response.ok) {
+      // Read only a recognized error code. Provider descriptions can contain
+      // request details and must never reach UI, backup errors or logs.
+      const code = await response.json().then(body => typeof body?.error === 'string' ? body.error : '', () => '');
+      if (['invalid_grant', 'interaction_required', 'login_required', 'consent_required'].includes(code)) {
+        await vault.setJSON(`oneDriveAuthState/${uid}`, { reconnectRequired: true, code });
+        throw fault('OneDrive 연결 승인이 만료되었거나 취소되었습니다. 처음 연결한 마이크로소프트 계정으로 다시 연결해 주세요.', 409);
+      }
+      if (['invalid_client', 'unauthorized_client'].includes(code)) throw fault('OneDrive 서버 연결 설정을 확인해야 합니다. 잠시 후 다시 시도해 주세요.', 503);
+      throw graphFailure('인증 갱신', response.status);
+    }
     const fresh = await response.json();
     if (typeof fresh.access_token !== 'string' || !fresh.access_token) throw fault('OneDrive 권한을 갱신하지 못했습니다.', 502);
     const expiresAt = expiration(fresh.expires_in);
     // Microsoft rotates refresh tokens; always keep the newest one.
     await vault.setJSON(`oneDriveTokens/${uid}`, { ...tokens, access_token: fresh.access_token,
       refresh_token: typeof fresh.refresh_token === 'string' && fresh.refresh_token ? fresh.refresh_token : tokens.refresh_token, expiresAt });
+    await vault.deleteJSON(`oneDriveAuthState/${uid}`);
     return { accessToken: fresh.access_token, expiresAt };
   }
 
-  async function folderFor(uid, token) {
+  // A rejected Graph token gets at most one renewal in this operation. Upload
+  // session URLs never use this helper: their authorization is independent.
+  async function graphRequest(uid, context, url, options, stage, leaseHeld = false) {
+    if (!url.startsWith(`${GRAPH}/`)) throw fault('OneDrive 요청 주소가 올바르지 않습니다.', 502);
+    const send = async () => {
+      try { return await fetcher(url, { ...options, headers: { ...options.headers, ...tokenHeaders(context.accessToken) } }); }
+      catch (error) { throw networkFailure(stage, error); }
+    };
+    let response = await send();
+    if (response.status !== 401 || context.refreshUsed) return response;
+    context.refreshUsed = true;
+    await response.body?.cancel().catch(() => {});
+    const renew = async () => {
+      // Another operation may already have rotated the rejected token.
+      const latest = await vault.getJSON(`oneDriveTokens/${uid}`);
+      return accessToken(uid, latest?.access_token === context.accessToken);
+    };
+    let fresh;
+    if (leaseHeld) fresh = await renew();
+    else {
+      const release = await vault.acquireLease(`drive/${uid}`);
+      try { fresh = await renew(); } finally { await release(); }
+    }
+    Object.assign(context, fresh);
+    response = await send();
+    return response;
+  }
+
+  async function folderFor(uid, context, leaseHeld = false) {
     const key = `oneDriveFolder/${uid}`;
-    const response = await fetcher(`${GRAPH}/me/drive/special/approot?$select=id,name,folder`, { headers: tokenHeaders(token), signal: AbortSignal.timeout(20000) });
-    if (!response.ok) throw fault('OneDrive 앱 폴더를 확인하지 못했습니다.', 502);
+    const response = await graphRequest(uid, context, `${GRAPH}/me/drive/special/approot?$select=id,name,folder`, { signal: AbortSignal.timeout(20000) }, '폴더 확인', leaseHeld);
+    if (!response.ok) throw graphFailure('폴더 확인', response.status);
     const folder = (await response.json()).id;
     if (!validOneDriveItemId(folder)) throw fault('OneDrive 앱 폴더 응답이 올바르지 않습니다.', 502);
     const saved = await vault.getJSON(key);
@@ -201,48 +259,53 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     return folder;
   }
 
-  async function accessFor(uid) {
+  async function accessWithFolder(uid, forceRefresh = false) {
     requireConfigured();
     await boundOwner(uid);
     const release = await vault.acquireLease(`drive/${uid}`);
     try {
-      const token = await accessToken(uid);
-      const folderId = await folderFor(uid, token.accessToken);
-      return { ...token, folderId, provider: 'onedrive' };
+      const context = { ...await accessToken(uid, forceRefresh), refreshUsed: forceRefresh };
+      const folderId = await folderFor(uid, context, true);
+      return { context, folderId };
     } finally { await release(); }
+  }
+  async function accessFor(uid, { forceRefresh = false } = {}) {
+    const { context, folderId } = await accessWithFolder(uid, forceRefresh === true);
+    return { accessToken: context.accessToken, expiresAt: context.expiresAt, folderId, provider: 'onedrive' };
   }
   async function access(req, res) {
     const uid = requestOwner(req);
-    const value = await accessFor(uid);
+    const value = await accessFor(uid, { forceRefresh: req.body?.forceRefresh === true });
     res.set?.('Cache-Control', 'no-store');
     return res.json(value);
   }
 
   async function requireFile(uid, fileId, { kind, driveAccessToken } = {}) {
     if (!validOneDriveItemId(fileId)) throw fault('공문 파일 정보가 올바르지 않습니다.');
-    let token, folderId;
+    let context, folderId;
     if (driveAccessToken) {
       requireConfigured();
       await boundOwner(uid);
-      token = driveAccessToken;
-      folderId = await folderFor(uid, token);
+      context = { accessToken: driveAccessToken, refreshUsed: false };
+      // Internal full-backup callers already hold the owner lease.
+      folderId = await folderFor(uid, context, true);
     } else {
-      ({ accessToken: token, folderId } = await accessFor(uid));
+      ({ context, folderId } = await accessWithFolder(uid));
     }
-    const response = await fetcher(`${GRAPH}/me/drive/items/${encodeURIComponent(fileId)}?$select=id,name,size,file,parentReference,description,deleted`, {
-      headers: tokenHeaders(token), signal: AbortSignal.timeout(20000),
-    });
+    const response = await graphRequest(uid, context, `${GRAPH}/me/drive/items/${encodeURIComponent(fileId)}?$select=id,name,size,file,parentReference,description,deleted`, {
+      signal: AbortSignal.timeout(20000),
+    }, '원본 확인', Boolean(driveAccessToken));
     if ([400, 404].includes(response.status)) throw fault('OneDrive에서 원본 파일을 찾지 못했습니다. 구글 드라이브에 보관된 원본이면 OneDrive로 옮긴 뒤 다시 시도해 주세요.', 404);
-    if (!response.ok) throw fault('OneDrive 원본 파일을 확인하지 못했습니다.', 502);
+    if (!response.ok) throw graphFailure('원본 확인', response.status);
     const metadata = driveShapedMetadata(await response.json());
     if (metadata.trashed || metadata.appProperties?.archiveUid !== uid || !metadata.parents.includes(folderId)
       || !KINDS.includes(metadata.appProperties?.kind) || (kind && metadata.appProperties.kind !== kind)) throw fault('이 경력 보관함의 원본 파일이 아닙니다.', 403);
     // Graph answers /content with a redirect to a pre-authenticated download URL.
-    const download = () => fetcher(`${GRAPH}/me/drive/items/${encodeURIComponent(fileId)}/content`, { headers: tokenHeaders(token), redirect: 'follow', signal: AbortSignal.timeout(25000) });
-    return { metadata, accessToken: token, download };
+    const download = () => fetcher(`${GRAPH}/me/drive/items/${encodeURIComponent(fileId)}/content`, { headers: tokenHeaders(context.accessToken), redirect: 'follow', signal: AbortSignal.timeout(25000) });
+    return { metadata, accessToken: context.accessToken, download };
   }
 
-  async function uploadFile(uid, token, folderId, buffer, fileName, mime, kind) {
+  async function uploadFile(uid, context, folderId, buffer, fileName, mime, kind) {
     if (!Buffer.isBuffer(buffer) || buffer.length > MAX_BACKUP_BYTES) throw fault('파일은 200MB 이하여야 합니다.', 413);
     if (!buffer.length) throw fault('빈 파일은 보관할 수 없습니다.');
     const name = oneDriveName(fileName);
@@ -252,11 +315,11 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     // OneDrive Personal rejects a description in createUploadSession (400
     // invalidRequest, verified 2026-11-11), so it is set right after the upload.
     // Fragments go to the pre-authorized URL without the token.
-    const session = await fetcher(`${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
-      method: 'POST', headers: { ...tokenHeaders(token), 'Content-Type': 'application/json' },
+    const session = await graphRequest(uid, context, `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename', name } }), signal: AbortSignal.timeout(20000),
-    });
-    if (!session.ok) throw fault(session.status === 507 ? 'OneDrive 저장 공간이 부족합니다.' : 'OneDrive 파일 업로드를 시작하지 못했습니다.', session.status === 507 ? 507 : 502);
+    }, '업로드 시작', true);
+    if (!session.ok) throw graphFailure('업로드 시작', session.status);
     const { uploadUrl } = await session.json();
     let uploadOrigin;
     try { uploadOrigin = new URL(uploadUrl); } catch { /* checked below */ }
@@ -269,22 +332,23 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
         const response = await fetcher(uploadUrl, { method: 'PUT', headers: { 'Content-Length': String(chunk.length),
           'Content-Range': `bytes ${offset}-${end}/${buffer.length}`, 'Content-Type': contentType }, body: chunk, signal: AbortSignal.timeout(120000) });
         if (response.status === 202) continue;
-        if (!response.ok) throw fault('OneDrive 파일 업로드에 실패했습니다.', 502);
+        if (!response.ok) throw uploadSessionFailure(response.status);
         item = await response.json();
         break;
       }
     } catch (error) {
       await fetcher(uploadUrl, { method: 'DELETE', signal: AbortSignal.timeout(10000) }).catch(() => {});
-      throw error.status ? error : fault('OneDrive 파일 업로드에 실패했습니다.', 502);
+      throw error.status && error.status !== 504 ? error : networkFailure('파일 전송', error);
     }
     if (!validOneDriveItemId(item?.id)) throw fault('OneDrive 업로드 응답이 올바르지 않습니다.', 502);
     const itemURL = `${GRAPH}/me/drive/items/${encodeURIComponent(item.id)}`;
-    const labelled = await fetcher(itemURL, { method: 'PATCH', headers: { ...tokenHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description }), signal: AbortSignal.timeout(20000) }).catch(() => null);
+    let labelError;
+    const labelled = await graphRequest(uid, context, itemURL, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description }), signal: AbortSignal.timeout(20000) }, '파일 정보 저장', true).catch(error => { labelError = error; return null; });
     if (!labelled?.ok) {
       // An unlabelled file would fail every ownership check; never leave one behind.
-      await fetcher(itemURL, { method: 'DELETE', headers: tokenHeaders(token), signal: AbortSignal.timeout(10000) }).catch(() => {});
-      throw fault('OneDrive 파일 정보를 저장하지 못했습니다. 다시 시도해 주세요.', 502);
+      await fetcher(itemURL, { method: 'DELETE', headers: tokenHeaders(context.accessToken), signal: AbortSignal.timeout(10000) }).catch(() => {});
+      throw labelError || graphFailure('파일 정보 저장', labelled.status);
     }
     return { driveFileId: item.id, fileName: item.name || name, mime: contentType };
   }
@@ -293,9 +357,9 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     await boundOwner(uid);
     const release = await vault.acquireLease(`drive/${uid}`);
     try {
-      const { accessToken: token } = await accessToken(uid);
-      const folder = await folderFor(uid, token);
-      return await uploadFile(uid, token, folder, buffer, fileName, mime, kind);
+      const context = { ...await accessToken(uid), refreshUsed: false };
+      const folder = await folderFor(uid, context, true);
+      return await uploadFile(uid, context, folder, buffer, fileName, mime, kind);
     } finally { await release(); }
   }
 
@@ -303,12 +367,12 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
   // an interrupted copy can be resumed without uploading the same file twice.
   async function findArchivedFile(uid, sha256, kind = 'document') {
     if (!/^[a-f0-9]{64}$/.test(sha256 || '')) return null;
-    const { accessToken: token, folderId } = await accessFor(uid);
+    const { context, folderId } = await accessWithFolder(uid);
     let next = `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}/children?$select=id,name,size,description,deleted&$top=200`;
     for (let page = 0; next && page < 100; page++) {
       if (!next.startsWith(`${GRAPH}/`)) throw fault('OneDrive 목록 주소가 올바르지 않습니다.', 502);
-      const response = await fetcher(next, { headers: tokenHeaders(token), signal: AbortSignal.timeout(20000) });
-      if (!response.ok) throw fault('OneDrive 앱 폴더 목록을 읽지 못했습니다.', 502);
+      const response = await graphRequest(uid, context, next, { signal: AbortSignal.timeout(20000) }, '파일 목록 확인');
+      if (!response.ok) throw graphFailure('파일 목록 확인', response.status);
       const data = await response.json();
       for (const item of data.value || []) {
         const meta = decodeArchiveDescription(item.description);
@@ -327,9 +391,9 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     if (typeof idToken !== 'string' || !idToken) throw fault('백업에 사용할 로그인 정보를 확인하지 못했습니다.', 401);
     const release = await vault.acquireLease(`drive/${uid}`);
     try {
-      const { accessToken: token } = await accessToken(uid);
+      const context = { ...await accessToken(uid), refreshUsed: false };
       const snapshot = typeof captureSnapshot === 'function';
-      const buffer = snapshot ? await captureSnapshot(uid, { idToken }) : await captureBackup(uid, { idToken, driveAccessToken: token });
+      const buffer = snapshot ? await captureSnapshot(uid, { idToken }) : await captureBackup(uid, { idToken, driveAccessToken: context.accessToken });
       if (!Buffer.isBuffer(buffer) || buffer.length > (snapshot ? MAX_SNAPSHOT_BYTES : MAX_BACKUP_BYTES)) {
         throw fault(snapshot ? '경력 데이터 백업은 5MB 이하여야 합니다.' : '백업 파일은 200MB 이하여야 합니다.', 413);
       }
@@ -337,10 +401,10 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
         try { JSON.parse(buffer.toString('utf8')); }
         catch { throw fault('경력 데이터 백업 형식이 올바르지 않습니다.', 502); }
       }
-      const folder = await folderFor(uid, token);
+      const folder = await folderFor(uid, context, true);
       const timestamp = new Date().toISOString();
       const name = `career-${snapshot ? 'snapshot' : 'backup'}-${timestamp.replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}.${snapshot ? 'json' : 'zip'}`;
-      const uploaded = await uploadFile(uid, token, folder, buffer, name, snapshot ? 'application/json' : 'application/zip', 'backup');
+      const uploaded = await uploadFile(uid, context, folder, buffer, name, snapshot ? 'application/json' : 'application/zip', 'backup');
       const lastBackupKind = snapshot ? 'snapshot' : 'full';
       await vault.setJSON(`lastBackup/${uid}`, timestamp);
       await vault.setJSON(`lastBackupKind/${uid}`, lastBackupKind);
@@ -361,7 +425,7 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
       // Keep accountId so a reconnect is checked against the same Microsoft account.
       await Promise.all([
         tokens?.accountId ? vault.setJSON(`oneDriveTokens/${uid}`, { accountId: tokens.accountId, accountEmail: tokens.accountEmail || null }) : vault.deleteJSON(`oneDriveTokens/${uid}`),
-        vault.deleteJSON(`firebaseTokens/${uid}`), vault.deleteJSON(`backupError/${uid}`),
+        vault.deleteJSON(`firebaseTokens/${uid}`), vault.deleteJSON(`backupError/${uid}`), vault.deleteJSON(`oneDriveAuthState/${uid}`),
       ]);
       // Microsoft has no per-token revoke endpoint for personal accounts; the
       // owner can remove the app at account.live.com/consent/Manage.

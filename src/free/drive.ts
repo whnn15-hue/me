@@ -64,6 +64,17 @@ async function access(): Promise<DriveAccess> {
   const result = await api<DriveAccess>("/auth/drive/access", { method: "POST" });
   if (!result.accessToken || !result.folderId)
     throw new Error("백업 및 공문 보관에 사용할 드라이브를 먼저 연결해 주세요.");
+  if (isOneDrive(result)) {
+    const folderId = result.folderId;
+    result.refresh = async () => {
+      const renewed = await api<DriveAccess>("/auth/drive/access", {
+        method: "POST", body: JSON.stringify({ forceRefresh: true }),
+      });
+      if (!isOneDrive(renewed) || !renewed.accessToken || renewed.folderId !== folderId)
+        throw new Error("파일 보관 계정이 변경되었습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.");
+      return renewed;
+    };
+  }
   return result;
 }
 
