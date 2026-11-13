@@ -43,7 +43,8 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   }));
   const stats = useMemo(() => celebrationStats(model, documents), [model, documents]);
   const headline = celebrationHeadline(stats);
-  const achievements = useMemo(() => pickAchievements(careers, documents, today), [careers, documents, today]);
+  // A fresh random three each time home opens or the intro is replayed.
+  const achievements = useMemo(() => pickAchievements(careers, documents, today), [careers, documents, today, replay]);
   const latestPin = pins.find(point => point.year === latest) ?? pins.at(-1);
   // Once-per-session celebration; reduced motion always shows the final state.
   const [playing, setPlaying] = useState(() => shouldPlayIntro(session(), prefersReducedMotion(), hasVisibleRecords));
@@ -87,7 +88,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
       {hasVisibleRecords ? <div className="atlas-hero" key={`hero-${replay}`}>
         <div className="atlas-hero-glow" aria-hidden="true"/>
         <div className="atlas-hero-copy">
-          <span className="atlas-range">{visible[0].year}<span>—</span>{visible.at(-1)!.year}<em>모든 해의 발자취</em></span>
+          <span className="atlas-range">{visible[0].year}<span>~</span>{visible.at(-1)!.year}<em>모든 해의 발자취</em></span>
           <h3 className="atlas-hero-title">{headline.title}</h3>
           <p>{headline.sub}</p>
         </div>
@@ -98,7 +99,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
           </div>)}
         </dl>
       </div> : <div className="atlas-panel-top">
-        <span className="atlas-range">{visible[0].year}<span>—</span>{visible.at(-1)!.year}</span>
+        <span className="atlas-range">{visible[0].year}<span>~</span>{visible.at(-1)!.year}</span>
         <span className="atlas-entire-range">모든 해의 발자취</span>
       </div>}
       <div className="atlas-canvas" key={replay}>
@@ -115,11 +116,16 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
         {pins.length > 1 && <svg className={`atlas-route ${hasVisibleRecords ? "" : "is-empty"}`} viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient id={`${id}-trail`} x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="var(--ui-accent-line)"/><stop offset=".55" stopColor="var(--ui-accent)"/><stop offset="1" stopColor="var(--ui-accent-ink)"/></linearGradient>
+            {/* The trail is revealed with a clip that grows across the whole viewBox, so it
+                always reaches the latest year whatever the rendered width. A dash-offset reveal
+                stopped short: with non-scaling strokes the dash is measured in screen pixels,
+                which exceed the 1000-unit pathLength on wide screens. */}
+            <clipPath id={`${id}-reveal`} clipPathUnits="userSpaceOnUse"><rect className="atlas-reveal" x="-20" y="-40" width="1040" height="480"/></clipPath>
             <linearGradient id={`${id}-area`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--ui-accent)" stopOpacity=".14"/><stop offset="1" stopColor="var(--ui-accent)" stopOpacity="0"/></linearGradient>
           </defs>
           {hasVisibleRecords && <path className="atlas-area" d={area} fill={`url(#${id}-area)`}/>}
           <path className="atlas-trail-base" d={route}/>
-          {hasVisibleRecords && <><path className="atlas-trail-glow" d={route} stroke={`url(#${id}-trail)`} pathLength={1000}/><path className="atlas-trail" d={route} stroke={`url(#${id}-trail)`} pathLength={1000}/><circle className="atlas-traveler" r="3.5" fill="var(--ui-accent)"><animateMotion dur="2.4s" begin=".15s" repeatCount="1" path={route} fill="freeze"/></circle></>}
+          {hasVisibleRecords && <><g clipPath={`url(#${id}-reveal)`}><path className="atlas-trail-glow" d={route} stroke={`url(#${id}-trail)`}/><path className="atlas-trail" d={route} stroke={`url(#${id}-trail)`}/></g><circle className="atlas-traveler" r="3.5" fill="var(--ui-accent)"><animateMotion dur="2.4s" begin=".15s" repeatCount="1" path={route} fill="freeze"/></circle></>}
         </svg>}
         {pins.map((point, index) => <button key={point.year} className={`atlas-pin ${latest === point.year ? "is-latest" : ""} ${!point.count ? "is-empty" : ""} ${selected.year === point.year ? "is-selected" : ""}`} style={{ left:`${point.x}%`, top:`${point.y}%`, "--pin-delay":`${.18 + index / Math.max(1,pins.length-1) * 1.6}s` } as CSSProperties} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`} title={point.count ? `${point.year}년까지 누적 ${point.cumulative}건` : `${point.year}년 기록 없음`} disabled={!point.count} onMouseEnter={() => setActiveYear(point.year)} onFocus={() => setActiveYear(point.year)} onClick={() => onYear?.(point.year)}>
           <span className="atlas-pin-orbit" aria-hidden="true"/><span className="atlas-pin-core" aria-hidden="true">{latest === point.year ? <Sparkles size={18} strokeWidth={1.8}/> : <i/>}</span>

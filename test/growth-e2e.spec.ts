@@ -46,16 +46,21 @@ test('desktop growth journey animates real records, supports reduced motion and 
   const count=actual.filter((career:{startDate:string})=>career.startDate.startsWith(String(currentYear))&&career.startDate<=today).length;
   await expect(map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true})).toBeVisible();
   await expect(map.getByRole('button',{name:new RegExp(`^${currentYear+1}년 이력 보기`)})).toHaveCount(0);
-  const trail=map.locator('.atlas-trail');
-  await expect(trail).toHaveCSS('animation-name','atlas-trace');
+  const trail=map.locator('.atlas-reveal');
+  await expect(trail).toHaveCSS('animation-name','atlas-reveal');
   await expect(trail).toHaveCSS('animation-iteration-count','1');
+  // The drawn trail must reach the latest year's pin, not stop short of it.
+  await expect.poll(()=>trail.evaluate(element=>element.getAnimations().every(animation=>animation.playState!=='running'))).toBe(true);
+  const reach=await map.evaluate(root=>{const line=root.querySelector('.atlas-trail')!.getBoundingClientRect(),pins=[...root.querySelectorAll('.atlas-pin-core')].map(pin=>pin.getBoundingClientRect());const last=pins.at(-1)!;return {lineEnd:line.right,pin:last.left+last.width/2,reveal:getComputedStyle(root.querySelector('.atlas-reveal')!).transform};});
+  expect(reach.lineEnd).toBeGreaterThanOrEqual(reach.pin-2);
+  expect(['none','matrix(1, 0, 0, 1, 0, 0)']).toContain(reach.reveal);
   await page.getByRole('button',{name:'성장 지도 모션 다시 보기',exact:true}).click();
   await expect.poll(()=>trail.evaluate(element=>element.getAnimations().some(animation=>animation.playState==='running'))).toBe(true);
   await page.emulateMedia({reducedMotion:'reduce'});
   await expect(trail).toHaveCSS('animation-name','none');
   await expect(map.locator('.atlas-pin').first()).toHaveCSS('animation-name','none');
   await expect(page.getByRole('button',{name:'성장 지도 모션 다시 보기',exact:true})).toBeHidden();
-  await expect(trail).toHaveCSS('stroke-dashoffset','0px');
+  await expect(trail).toHaveCSS('transform','none');
   await map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true}).click();
   await expect(page.locator('.career-row')).toHaveCount(count);
   await expect(page.locator('.career-row').filter({hasText:'성장검증 여러 해 활동'})).toHaveCount(0);

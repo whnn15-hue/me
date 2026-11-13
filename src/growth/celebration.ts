@@ -19,14 +19,17 @@ export function celebrationStats(model: Model, documents: DocumentRecord[]) {
 }
 
 export interface Achievement { id: string; title: string; year: number; section: string; grade: string; organization: string }
-/** Newest award/competition records (already started), at most `max`. */
-export function pickAchievements(careers: Career[], documents: DocumentRecord[], today: string, max = 4): Achievement[] {
-  return careers
+/** A random selection (owner request) of at most `max` award/competition records that
+ *  have already started, shown newest first. `random` is injectable for tests. */
+export function pickAchievements(careers: Career[], documents: DocumentRecord[], today: string, max = 3, random: () => number = Math.random): Achievement[] {
+  const eligible = careers
     .filter(career => /^\d{4}/.test(career.startDate) && career.startDate <= today)
     .map(career => ({ career, section: careerSection(career, documents) as string }))
-    .filter(entry => (ACHIEVEMENT_SECTIONS as readonly string[]).includes(entry.section))
+    .filter(entry => (ACHIEVEMENT_SECTIONS as readonly string[]).includes(entry.section));
+  // Fisher–Yates shuffle, then keep the chosen few in date order so the reel reads naturally.
+  for (let i = eligible.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [eligible[i], eligible[j]] = [eligible[j], eligible[i]]; }
+  return eligible.slice(0, Math.max(0, max))
     .sort((a, b) => b.career.startDate.localeCompare(a.career.startDate) || a.career.title.localeCompare(b.career.title, "ko"))
-    .slice(0, Math.max(0, max))
     .map(({ career, section }) => ({ id: career.id, title: career.title, year: Number(career.startDate.slice(0, 4)), section,
       grade: String(recognitionDetails(career).grade || "").trim(), organization: career.organization || "" }));
 }
