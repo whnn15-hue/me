@@ -201,8 +201,7 @@ export default function App() {
     [documents, setDocuments] = useState<DocumentRecord[]>([]),
     [workspace, setWorkspace] = useState<WorkspaceData>(emptyWorkspace),
     [workspaceFocus, setWorkspaceFocus] = useState<string | undefined>(),
-    [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0),
-    [globalSearch, setGlobalSearch] = useState(false);
+    [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0);
   const materialUploading = useRef(false);
   const evidenceSaving = useRef(false);
   const storageName = status?.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
@@ -292,7 +291,6 @@ export default function App() {
         setDocuments([]);
         setWorkspace(emptyWorkspace());
         setWorkspaceFocus(undefined);
-        setGlobalSearch(false);
         setDetail(null);
       }
     } catch (e) {
@@ -307,7 +305,6 @@ export default function App() {
         setDocuments([]);
         setWorkspace(emptyWorkspace());
         setWorkspaceFocus(undefined);
-        setGlobalSearch(false);
         setDetail(null);
       }
       throw e;
@@ -326,7 +323,6 @@ export default function App() {
         setDocuments([]);
         setWorkspace(emptyWorkspace());
         setWorkspaceFocus(undefined);
-        setGlobalSearch(false);
         setEditor(null);
         setQueue([]);
         setDetail(null);
@@ -356,12 +352,6 @@ export default function App() {
   }, [toast]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        if (document.querySelector('[role="dialog"]')) return;
-        setGlobalSearch(true);
-        return;
-      }
       if (
         e.key === "/" &&
         !document.querySelector('[role="dialog"]') &&
@@ -813,7 +803,7 @@ export default function App() {
   }
   const authorized = status && (status.mode === "local" || !!status.user);
   return (
-    <div className="app-shell" onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{
+    <div className={`app-shell ${view === "home" ? "is-home" : ""}`} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{
       if (!event.dataTransfer.files.length) return;
       event.preventDefault(); if(busy || document.querySelector("[role=dialog] form"))return;
       const files=Array.from(event.dataTransfer.files);
@@ -863,7 +853,7 @@ export default function App() {
             <strong>{view === "photos" ? "사진 보관함" : view === "submissions" ? "공모전 제출본" : navItems.find((n) => n.view === view)?.label}</strong>
           </div>
           <div className="topbar-end">
-            {authorized && <button className="global-search-trigger" aria-label="모든 기록 검색 열기" onClick={() => setGlobalSearch(true)}><Search size={15} /><span>통합 검색</span><kbd>{/Mac/.test(navigator.platform) ? "⌘ K" : "Ctrl K"}</kbd></button>}
+            {authorized && <WorkspaceSearch workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} />}
             {authorized && <ArchiveTools onView={changeView} />}
           </div>
         </header>
@@ -998,7 +988,8 @@ export default function App() {
               {isCareerView && <nav className="career-mode-tabs" aria-label="이력 화면"><button aria-pressed={careerMode === "manage"} onClick={()=>setCareerMode("manage")}><List size={16}/>목록 관리</button><button aria-pressed={careerMode === "overview"} onClick={()=>setCareerMode("overview")}><Layers3 size={16}/>한눈에 보기</button></nav>}
               {isCareerView && careerMode === "overview" && <CareerOverview careers={careers} documents={documents} onOpen={openWorkspaceRef}/>}
               {isCareerView && careerMode === "manage" && (
-                <>
+                <div className="career-workbench">
+                  <p className="career-classification-label">분류</p>
                   <nav className="category-tabs career-collections" aria-label="이력 분류">
                     {(["전체", ...careerNavigationChoices] as const).map(c => {
                       const count = c === "전체" ? careers.length : careers.filter(item => matchesCareerCategory(item,c,documents)).length;
@@ -1126,7 +1117,7 @@ export default function App() {
                       <span>{APP_NAME}</span>
                     </div>
                   </section>
-                </>
+                </div>
               )}
               {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialAudio(item); } : undefined} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialHtml(item); } : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
               {(view === "materials" || view === "video") && <MaterialsView library={view === "video" ? "video" : "learning"} initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${view}-${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialAudio(item); } : undefined} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialHtml(item); } : undefined} onFiles={freeMode ? (files,purpose)=>uploadMaterials(files,purpose,view === "video" ? "video" : "learning") : undefined} uploading={!!busy} />}
@@ -1217,7 +1208,6 @@ export default function App() {
           </button>
         </div>
       )}
-      {authorized && globalSearch && <WorkspaceSearch workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} onClose={() => setGlobalSearch(false)} />}
       {editor && (
         <CareerEditor
           career={editor}

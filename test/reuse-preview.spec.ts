@@ -95,7 +95,7 @@ test("isolated preview: 50 photos, submission files, matching, ZIP, search and b
   await expect(page.locator(".reuse-photo")).toHaveCount(1);
   await expect(page.locator(".reuse-photo img")).toBeVisible();
   await page.screenshot({ path: "/workspace/artifacts/reuse-photo-preview.png", fullPage: true });
-  await page.getByRole("button", { name: "모든 기록 검색 열기", exact: true }).click();
+  await page.getByRole("combobox", { name: "모든 기록 검색어", exact: true }).focus();
   await page.getByLabel("모든 기록 검색어", { exact: true }).fill("예시_연구보고서");
   await page.getByLabel("검색할 기록 종류", { exact: true }).selectOption("submission");
   await page.getByRole("option", { name: /예시_연구보고서/ }).click();

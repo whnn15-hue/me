@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, Check, ExternalLink, FileStack, FileText, LoaderCircle, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
+import { ArrowDownToLine, BookOpen, Check, ClipboardList, ExternalLink, Files, FileStack, FileText, LoaderCircle, Paperclip, PencilLine, Plus, Presentation, Search, Trash2, Upload } from "lucide-react";
 import { Modal } from "../CareerEditor";
 import { download } from "../api";
 import type { DocumentRecord } from "../types";
@@ -14,6 +14,7 @@ type Props = Omit<WorkspaceSectionProps, "onFiles" | "uploading" | "initialSubje
   documents: DocumentRecord[];
   onUploadFile: (file: File) => Promise<DocumentRecord>;
 };
+const researchTypeIcons = [ClipboardList, FileText, Presentation, Paperclip, BookOpen, Files];
 const ACCEPT = ".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.html,.htm,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp";
 export const isResearch = (item: { kind: string; purpose?: string }): item is MaterialItem => item.kind === "material" && item.purpose === "research";
 export const researchTypeOf = (item: MaterialItem): ResearchType => item.researchType || "기타";
@@ -114,7 +115,6 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
   const groups = [...filtered.reduce((map, item) => map.set(researchGroupKey(item), [...(map.get(researchGroupKey(item)) || []), item]), new Map<string, MaterialItem[]>()).entries()]
     .map(([key, rows]) => ({ key, label: researchGroupLabel(rows[0]), rows: rows.sort((a, b) => RESEARCH_TYPES.indexOf(researchTypeOf(a)) - RESEARCH_TYPES.indexOf(researchTypeOf(b)) || b.updatedAt.localeCompare(a.updatedAt)) }))
     .sort((a, b) => (year(b.rows[0]) || "0").localeCompare(year(a.rows[0]) || "0") || a.label.localeCompare(b.label, "ko"));
-  const stored = items.filter(item => findResearchOriginal(item, documents)).length;
   async function original(item: MaterialItem) {
     const doc = findResearchOriginal(item, documents);
     if (!doc || busy) return;
@@ -133,23 +133,25 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
   const status = (item: MaterialItem) => findResearchOriginal(item, documents) ? "원본 보관됨" : item.fileUrl ? "드라이브 링크" : item.sourceFile ? "원본 확인 필요" : "원본 없음";
   return <section className="research-view">
     <header className="research-heading">
-      <div><h1>연구대회 자료 <small>{items.length}</small></h1><p>내가 만든 계획서, 보고서, 발표자료를 대회와 연도별로 모아 두세요.</p></div>
+      <div><h1>연구대회 자료 <small aria-label={`전체 ${items.length}개`}>{items.length}</small></h1></div>
       <button className="button primary" onClick={() => setEditing(emptyResearch())}><Plus size={17} />자료 보관</button>
     </header>
-    <div className="research-summary" aria-label="연구대회 자료 요약">
-      <span><FileStack size={18} aria-hidden="true" /><strong>{items.length}</strong>개 자료</span>
-      <span><FileText size={18} aria-hidden="true" /><strong>{stored}</strong>개 원본 보관</span>
-      <span><strong>{contests.length}</strong>개 대회</span>
+    <div className="research-workbench">
+      <div className="research-filter-label"><span>자료 종류</span>{(query || contest || type) && <button type="button" onClick={() => { setQuery(""); setContest(""); setType(""); }}>조건 지우기</button>}</div>
+      <div className="research-type-filter" role="group" aria-label="자료 종류로 거르기">
+        <button aria-pressed={!type} onClick={() => setType("")}><FileStack size={17} aria-hidden="true" /><span>전체</span>{items.filter(matchesExceptType).length > 0 && <small>{items.filter(matchesExceptType).length}</small>}</button>
+        {RESEARCH_TYPES.map((value, index) => {
+          const Icon = researchTypeIcons[index];
+          const count = items.filter(item => matchesExceptType(item) && researchTypeOf(item) === value).length;
+          return <button key={value} aria-pressed={type === value} onClick={() => setType(type === value ? "" : value)}><Icon size={17} aria-hidden="true" /><span>{displayLabel(value)}</span>{count > 0 && <small>{count}</small>}</button>;
+        })}
+      </div>
+      <div className="research-toolbar">
+        <label className="research-search-field"><span className="research-control-label">자료 검색</span><span className="search-box"><Search size={18} aria-hidden="true" /><input aria-label="연구대회 자료 검색" placeholder="제목, 대회명, 작성자, 메모, 태그" value={query} onChange={event => setQuery(event.target.value)} /></span></label>
+        <label className="research-contest-field"><span className="research-control-label">대회와 연도</span><select aria-label="대회 거르기" value={contest} onChange={event => setContest(event.target.value)}><option value="">모든 대회</option>{contests.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+      </div>
     </div>
-    <div className="research-type-filter" role="group" aria-label="자료 종류로 거르기">
-      <button aria-pressed={!type} onClick={() => setType("")}>전체 <small>{items.filter(matchesExceptType).length}</small></button>
-      {RESEARCH_TYPES.map(value => <button key={value} aria-pressed={type === value} onClick={() => setType(type === value ? "" : value)}>{displayLabel(value)} <small>{items.filter(item => matchesExceptType(item) && researchTypeOf(item) === value).length}</small></button>)}
-    </div>
-    <div className="research-toolbar">
-      <label className="search-box"><Search size={17} aria-hidden="true" /><input aria-label="연구대회 자료 검색" placeholder="제목, 대회명, 작성자, 메모, 태그 검색" value={query} onChange={event => setQuery(event.target.value)} /></label>
-      <label className="select-wrap"><select aria-label="대회 거르기" value={contest} onChange={event => setContest(event.target.value)}><option value="">모든 대회</option>{contests.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-    </div>
-    <p className="research-count" aria-live="polite">{query || contest || type ? "찾은 자료" : "전체 자료"} {filtered.length}개</p>
+    {(items.length > 0 || query || contest || type) && <p className="research-count" aria-live="polite"><strong>{type ? displayLabel(type) : "전체 자료"}</strong><span>{filtered.length}개</span>{(query || contest) && <small>검색 결과</small>}</p>}
     {groups.length ? groups.map(group => <section className="research-group" key={group.key} aria-label={group.label}>
       <h2>{displayLabel(group.label)} <small>{group.rows.length}개</small></h2>
       <div className="research-grid">{group.rows.map(item => <article className="research-card" key={item.id}>
@@ -160,7 +162,7 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
           <span className="research-card-footer"><FileText size={15} aria-hidden="true" /><span className={findResearchOriginal(item, documents) ? "ok" : item.fileUrl ? "link" : "warn"}>{status(item)}</span>{linkedRefs(workspace, `material:${item.id}`).length > 0 && <small>관련 기록 {linkedRefs(workspace, `material:${item.id}`).length}</small>}</span>
         </button>
       </article>)}</div>
-    </section>) : <div className="research-empty"><FileStack size={36} aria-hidden="true" /><h2>{items.length ? "조건에 맞는 자료가 없어요" : "첫 연구대회 자료를 보관해 보세요"}</h2><p>{items.length ? "검색어나 거르기 조건을 바꿔 보세요." : "원본 파일만 고르면 돼요. 대회명과 연도는 나중에 적어도 됩니다."}</p>{!items.length && <button className="button secondary" onClick={() => setEditing(emptyResearch())}><Plus size={16} />자료 보관</button>}</div>}
+    </section>) : <div className="research-empty"><FileStack size={36} aria-hidden="true" /><h2>{items.length ? "조건에 맞는 자료가 없어요" : "아직 보관한 연구대회 자료가 없어요"}</h2><p>{items.length ? "검색어나 거르기 조건을 바꿔 보세요." : "계획서, 보고서, 발표자료를 파일이나 링크로 보관하세요."}</p>{!items.length && <button className="button secondary" onClick={() => setEditing(emptyResearch())}><Plus size={16} />자료 보관</button>}</div>}
     {selected && <Modal title={displayLabel(selected.title)} subtitle={displayLabel(researchGroupLabel(selected))} wide onClose={() => !busy && setSelectedId("")}>
       <div className="modal-body research-detail">
         <div className="research-detail-meta"><span className={`research-type type-${RESEARCH_TYPES.indexOf(researchTypeOf(selected))}`}>{displayLabel(researchTypeOf(selected))}</span><span>{selected.format}</span>{selected.author && <span>{displayLabel(selected.author)}</span>}</div>

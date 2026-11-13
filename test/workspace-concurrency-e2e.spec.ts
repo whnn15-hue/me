@@ -12,7 +12,7 @@ async function openTab(page: Page, name: string) {
 
 for (const record of [
   { kind: 'project', tab: '수업', title: '동시 편집 프로젝트', detail: ' 자세히 보기', edit: '수정', input: '예: 우리 동네를 바꾸는 작은 실천', save: '수업 저장' },
-  { kind: 'material', tab: '강의 자료', title: '동시 편집 강의 자료', detail: ' 상세보기', edit: '수정하기', input: '다시 찾기 쉬운 자료 제목', save: '자료 저장' },
+  { kind: 'material', tab: '교안', title: '동시 편집 강의 자료', detail: ' 상세보기', edit: '수정하기', input: '다시 찾기 쉬운 자료 제목', save: '자료 저장' },
 ]) {
   test(`${record.tab} keeps the editor revision after a conflict and does not open search over a draft`, async ({ page }) => {
     const initial = await state(page);
@@ -33,7 +33,8 @@ for (const record of [
     await title.fill('저장되지 않은 내 초안');
     await page.keyboard.press('Control+k');
     await expect(page.getByRole('dialog')).toHaveCount(1);
-    await expect(page.getByRole('dialog', { name: '모든 기록 검색', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '통합 검색 결과', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: '모든 기록 검색어', exact: true })).not.toBeFocused();
     await expect(title).toHaveValue('저장되지 않은 내 초안');
 
     const latestTitle = `${record.title} 다른 기기에서 저장`;

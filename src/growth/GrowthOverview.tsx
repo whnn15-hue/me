@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Compass, Pause, Play, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Compass, Pause, Play, Sparkles } from "lucide-react";
 import { careerCategoryLabel, careerOrganization } from "../../shared/career-organization.mjs";
 import type { Career, DocumentRecord } from "../types";
 import { displayText } from "../display";
@@ -10,6 +10,7 @@ import { useCareerCarousel } from "./useCareerCarousel";
 import "./atlas.css";
 import "./celebration.css";
 import "./carousel.css";
+import "./command-deck.css";
 
 const prefersReducedMotion = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 const session = () => { try { return window.sessionStorage; } catch { return null; } };
@@ -29,8 +30,6 @@ function smoothPath(points: { x: number; y: number }[]) {
 export default function GrowthOverview({ careers, documents, onYear, onShowCareers, onOpen, today = seoulToday() }: Props) {
   const model = useMemo(() => growthModel(careers, documents, today), [careers, documents, today]);
   const journey = useMemo(() => growthJourney(model, today), [model, today]);
-  const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem("introduce-me-growth-open") !== "false"; } catch { return true; } });
-  const [replay, setReplay] = useState(0);
   const [bannerHovered, setBannerHovered] = useState(false);
   const [bannerFocused, setBannerFocused] = useState(false);
   const [yearHovered, setYearHovered] = useState(false);
@@ -41,16 +40,16 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   const id = useId().replaceAll(":", "");
   const { points: visible, first, latest, earlier } = journey;
   const carouselRecords = useMemo(() => [...model.dated, ...model.unknown].map(entry => entry.career), [model]);
-  const carousel = useCareerCarousel(carouselRecords, expanded, bannerHovered || bannerFocused || yearHovered || yearFocused);
+  const carousel = useCareerCarousel(carouselRecords, true, bannerHovered || bannerFocused || yearHovered || yearFocused);
   const milestone = carousel.record;
   const selectedYear = model.dated.find(entry => entry.career.id === milestone?.id)?.year ?? null;
   const milestoneOrganization = milestone ? careerOrganization(milestone, documents) : "";
   const hasMilestone = Boolean(milestone);
   useEffect(() => {
-    if (expanded && hasMilestone) return;
+    if (hasMilestone) return;
     setBannerHovered(false); setBannerFocused(false);
     setYearHovered(false); setYearFocused(false); hoveredYear.current = null;
-  }, [expanded, hasMilestone]);
+  }, [hasMilestone]);
   function previewYear(year: number) {
     const point = visible.find(item => item.year === year);
     if (!point?.records.length) return;
@@ -64,12 +63,12 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   const baseline = earlier.reduce((sum, point) => sum + point.count, 0), high = visible.at(-1)?.cumulative ?? 0;
   const pins = visible.map((point, i) => ({ ...point,
     x: visible.length === 1 ? 50 : 7 + i * 86 / (visible.length - 1),
-    y: !hasVisibleRecords ? 68 : visible.length === 1 ? 48 : 76 - ((point.cumulative - baseline) / Math.max(1, high - baseline)) * 37,
+    y: !hasVisibleRecords ? 68 : visible.length === 1 ? 48 : 72 - ((point.cumulative - baseline) / Math.max(1, high - baseline)) * 49,
   }));
   const stats = useMemo(() => celebrationStats(model, documents), [model, documents]);
   const headline = celebrationHeadline(stats);
-  // A fresh random three each time home opens or the intro is replayed.
-  const achievements = useMemo(() => pickAchievements(careers, documents, today), [careers, documents, today, replay]);
+  // A fresh random three each time home opens.
+  const achievements = useMemo(() => pickAchievements(careers, documents, today), [careers, documents, today]);
   const latestPin = pins.find(point => point.year === latest) ?? pins.at(-1);
   // Once-per-session celebration; reduced motion always shows the final state.
   const [playing, setPlaying] = useState(() => shouldPlayIntro(session(), prefersReducedMotion(), hasVisibleRecords));
@@ -80,7 +79,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
     const focused = document.activeElement;
     setBannerFocused(Boolean(focused?.matches(":focus-visible") && bannerRef.current?.contains(focused)));
     setYearFocused(Boolean(rootRef.current?.querySelector(".atlas-pin:focus-visible")));
-  }, [milestone?.id, expanded, model]);
+  }, [milestone?.id, model]);
   const finish = useCallback(() => {
     setPlaying(false); setBurst(false);
     // Jump every running CSS animation to its end state instead of removing it.
@@ -94,7 +93,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
     const hidden = () => { if (document.hidden) finish(); };
     window.addEventListener("keydown", skip); window.addEventListener("pointerdown", skip); document.addEventListener("visibilitychange", hidden);
     return () => { timers.forEach(window.clearTimeout); window.removeEventListener("keydown", skip); window.removeEventListener("pointerdown", skip); document.removeEventListener("visibilitychange", hidden); };
-  }, [playing, replay, finish]);
+  }, [playing, finish]);
   const counters = [
     { label: "쌓아 온 이력", value: stats.total, unit: "건" },
     { label: "활동한 해", value: stats.years, unit: "년" },
@@ -103,20 +102,12 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   ];
   const route = smoothPath(pins.map(point => ({ x: point.x * 10, y: point.y * 4 })));
   const area = pins.length > 1 ? `${route} L${pins.at(-1)!.x * 10},400 L${pins[0].x * 10},400 Z` : "";
-  function toggleExpanded() {
-    const next = !expanded; setExpanded(next);
-    try { localStorage.setItem("introduce-me-growth-open", String(next)); } catch { /* View preference only. */ }
-  }
   return <section ref={rootRef} className={`growth-overview growth-atlas atlas-primary ${playing ? "is-celebrating" : ""}`} aria-label="나의 성장">
     <div className="atlas-heading">
       <h2>나의 성장</h2>
-      <div className="atlas-actions">
-        {expanded && hasVisibleRecords && <button className="atlas-replay" aria-label="성장 지도 모션 다시 보기" title="모션 다시 보기" onClick={() => { setReplay(value => value + 1); setBurst(false); setPlaying(!prefersReducedMotion()); }}><RotateCcw size={16}/></button>}
-        <button className="atlas-disclosure" aria-expanded={expanded} aria-controls={`${id}-panels`} onClick={toggleExpanded}>{expanded ? "접기" : "펼치기"}<ChevronDown size={16}/></button>
-      </div>
     </div>
-    {expanded && <section className={`atlas-panel ${hasVisibleRecords ? "has-hero" : ""}`} id={`${id}-panels`} aria-label="연도별 성장 지도">
-      {hasVisibleRecords ? <div className="atlas-hero" key={`hero-${replay}`}>
+    <section className={`atlas-panel ${hasVisibleRecords ? "has-hero" : ""}`} id={`${id}-panels`} aria-label="연도별 성장 지도">
+      {hasVisibleRecords ? <div className="atlas-hero">
         <div className="atlas-hero-glow" aria-hidden="true"/>
         <div className="atlas-hero-copy">
           <span className="atlas-range">{visible[0].year}<span>~</span>{visible.at(-1)!.year}<em>모든 해의 발자취</em></span>
@@ -133,6 +124,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
         <span className="atlas-range">{visible[0].year}<span>~</span>{visible.at(-1)!.year}</span>
         <span className="atlas-entire-range">모든 해의 발자취</span>
       </div>}
+      <div className="atlas-stage">
       {milestone && <div ref={bannerRef} className="atlas-milestone career-carousel" role="region" aria-roledescription="슬라이드"
         aria-label={selectedYear ? `${selectedYear}년 기록 미리보기` : "이력 미리보기"}
         data-direction={carousel.direction} data-running={carousel.running}
@@ -142,10 +134,9 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
         onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setBannerFocused(false); }}>
         <div className="career-carousel-content" aria-live={carousel.running ? "off" : "polite"} aria-atomic="true">
           <div className="career-carousel-slide" key={milestone.id}>
-            <div className="career-carousel-meta">{selectedYear && <span>{selectedYear}년</span>}<span>{careerCategoryLabel(milestone, documents)}</span></div>
+            <div className="career-carousel-meta">{selectedYear && <span>{selectedYear}년</span>}<span>{careerCategoryLabel(milestone, documents)}</span>{milestoneOrganization && milestoneOrganization !== "기관 미입력" && <span className="career-carousel-institution">{displayText(milestoneOrganization)}</span>}</div>
             <button className="atlas-milestone-record" onClick={() => onOpen?.(`career:${milestone.id}`)} disabled={!onOpen}>
               <strong>{displayText(milestone.title)}</strong>
-              {milestoneOrganization && milestoneOrganization !== "기관 미입력" && <small>{displayText(milestoneOrganization)}</small>}
             </button>
           </div>
         </div>
@@ -156,7 +147,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
           <button aria-label={carousel.wantsPlayback ? "이력 자동 넘김 일시정지" : "이력 자동 넘김 재생"} title={carousel.wantsPlayback ? "자동 넘김 일시정지" : "자동 넘김 재생"} onClick={carousel.togglePlayback}>{carousel.wantsPlayback ? <Pause size={14}/> : <Play size={14}/>}</button>
         </div>}
       </div>}
-      <div className="atlas-canvas" key={replay}>
+      <div className="atlas-canvas">
         <div className="atlas-horizon" aria-hidden="true"/>
         <svg className="atlas-contours" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
           {[0,1,2,3,4].map(index => <path key={index} d={`M-100,${300 + index * 38} C120,${180 + index * 38} 220,${415 + index * 32} 450,${305 + index * 32} S760,${115 + index * 34} 1110,${165 + index * 38}`}/>)}
@@ -184,11 +175,12 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
         </button>)}
         {!hasVisibleRecords && <div className="atlas-empty"><Compass size={32} strokeWidth={1.2}/><h3>{earlier.length ? "이곳에 다음 발자취를 이어 보세요" : "첫 발자취를 기다리고 있어요"}</h3>{onShowCareers && <button onClick={onShowCareers}>이력 열기<ArrowUpRight size={15}/></button>}</div>}
       </div>
-      {hasVisibleRecords && <AchievementReel key={`reel-${replay}`} items={achievements} play={playing} onOpen={onOpen}/>}
+      </div>
+      {hasVisibleRecords && <AchievementReel items={achievements} play={playing} onOpen={onOpen}/>}
       <footer className="atlas-footer">
         {earlier.length ? <details className="atlas-earlier"><summary>{visible[0].year}년 이전 기록<ChevronDown size={13}/></summary><div>{earlier.map(point=><button key={point.year} onClick={()=>onYear?.(point.year)} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`}><strong>{point.year}</strong><span>{point.count}개 기록</span><ArrowUpRight size={13}/></button>)}</div></details> : <span className="atlas-origin"><span className="atlas-origin-dot"/>{first ? `${first}년, 첫 기록부터` : "나의 기록"}</span>}
         {onShowCareers && <button onClick={onShowCareers}>전체 발자취<ArrowUpRight size={15}/></button>}
       </footer>
-    </section>}
+    </section>
   </section>;
 }

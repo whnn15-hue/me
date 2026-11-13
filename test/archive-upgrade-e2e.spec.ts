@@ -4,7 +4,7 @@ const data = async (page:Page) => (await page.request.get('/api/data')).json();
 const workspace = async (page:Page) => (await page.request.get('/api/workspace')).json();
 const home = (page:Page) => page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'홈',exact:true});
 
-test('archive desk connects review queues, favorites, keyboard search and selected resume without changing records',async({page})=>{
+test('archive desk connects evidence follow-up, material browsing, inline keyboard search and selected resume without changing records',async({page})=>{
   const original=await data(page), originalWorkspace=await workspace(page);
   const created:string[]=[]; let materialId='';
   const errors:string[]=[]; page.on('pageerror',error=>errors.push(error.message));
@@ -22,14 +22,14 @@ test('archive desk connects review queues, favorites, keyboard search and select
     const protectedData=await data(page),protectedWorkspace=await workspace(page);
     await page.goto('/');
     await expect(page.getByRole('button',{name:/확인 전 경력|내용 확인/})).toHaveCount(0);
-    const queue=page.getByRole('region',{name:'정리할 기록',exact:true});
-    await queue.getByRole('button',{name:/날짜 입력/}).click();
+    await page.getByRole('button',{name:/증빙 보완할 경력/}).click();
+    await page.getByLabel('경력 검색',{exact:true}).fill('업그레이드검증 날짜 없는 기록');
     await expect(page.locator('.career-row').filter({hasText:'업그레이드검증 날짜 없는 기록'})).toBeVisible();
     await expect(page.locator('.unverified-label')).toHaveCount(0);
     await expect(page.getByRole('button',{name:'확인 전만 보기'})).toHaveCount(0);
     await expect(page.locator('.career-row').filter({hasText:'업그레이드검증 수학 연수'})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'정리할 기록',exact:true})).toHaveCount(0);
-    await page.getByLabel('경력 검색',{exact:true}).fill('검증연수원 업그레이드검증');
+    await page.getByLabel('경력 검색',{exact:true}).fill('검증연수원 날짜 없는');
     await expect(page.locator('.career-row')).toHaveCount(1);
     await page.getByRole('button',{name:'이력서로 만들기',exact:true}).click();
     await expect(page.locator('.selection-count')).toHaveText('1개 선택');
@@ -37,13 +37,14 @@ test('archive desk connects review queues, favorites, keyboard search and select
     await expect(page.locator('.resume-career.selected')).not.toContainText('확인 전');
     await expect(page.locator('.unverified-label')).toHaveCount(0);
     await home(page).click();
-    await page.getByRole('region',{name:'즐겨찾는 기록'}).getByRole('button',{name:/업그레이드검증 즐겨찾는 강의안/}).click();
+    await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'교안',exact:true}).click();
+    await page.getByRole('button',{name:'업그레이드검증 즐겨찾는 강의안 상세보기',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'업그레이드검증 즐겨찾는 강의안',exact:true})).toBeVisible();
     await page.keyboard.press('Escape');
     await home(page).click();
-    await page.getByRole('button',{name:'모든 기록 검색 열기'}).click();
-    const search=page.getByRole('dialog',{name:'모든 기록 검색',exact:true});
-    const input=search.getByRole('combobox',{name:'모든 기록 검색어',exact:true});
+    const input=page.getByRole('combobox',{name:'모든 기록 검색어',exact:true});
+    await input.focus();
+    const search=page.getByRole('region',{name:'통합 검색 결과',exact:true});
     await expect(input).toBeFocused();
     await input.fill('업그레이드검증 수학 연수');
     await expect(search.getByRole('listbox',{name:'검색 결과'}).getByRole('option').first()).toContainText('업그레이드검증 수학 연수');
@@ -56,7 +57,11 @@ test('archive desk connects review queues, favorites, keyboard search and select
     await expect(page.locator('.selection-count')).toHaveText('1개 선택');
     await expect(page.locator('.resume-career.selected')).toContainText('업그레이드검증 수학 연수');
     await home(page).click(); await page.keyboard.press('Control+k');
-    await search.getByRole('navigation',{name:'빠른 작업'}).getByRole('button',{name:'경력 추가',exact:true}).click();
+    await expect(input).toBeFocused();
+    await expect(search.getByRole('navigation',{name:'빠른 작업'})).toHaveCount(0);
+    await input.press('Escape');
+    await expect(search).toHaveCount(0);
+    await page.getByRole('button',{name:'경력 추가',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'새 경력 기록하기',exact:true})).toBeVisible();
     await page.keyboard.press('Escape');
     expect(await data(page)).toEqual(protectedData); expect(await workspace(page)).toEqual(protectedWorkspace);
@@ -83,8 +88,9 @@ test('document desk filters formats, sorts, previews text safely and links origi
     }
     const before=await data(page);
     await page.goto('/');
-    await page.getByRole('region',{name:'정리할 기록'}).getByRole('button',{name:/공문 연결/}).click();
-    await expect(page.getByRole('combobox',{name:'파일 연결 필터'})).toHaveValue('미연결 파일');
+    await page.getByRole('button',{name:'보관함과 설정',exact:true}).click();
+    await page.getByRole('menuitem',{name:'공문 보관함',exact:true}).click();
+    await page.getByRole('combobox',{name:'파일 연결 필터'}).selectOption('미연결 파일');
     await page.getByLabel('공문 검색',{exact:true}).fill('업그레이드검증');
     await page.getByRole('combobox',{name:'공문 정렬'}).selectOption('name');
     await expect(page.locator('.document-row').first()).toContainText('upgrade-a.txt');

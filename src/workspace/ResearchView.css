@@ -1,23 +1,29 @@
 /* 연구대회 자료: all colours come from the shared --ui-* tokens (light and dark). */
 .research-view { --research-meta: 13px; }
-.research-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 20px; }
-.research-heading h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.04em; }
-.research-heading h1 small { font-size: 16px; font-weight: 600; color: var(--ui-muted); margin-left: 6px; }
-.research-heading p { margin: 0; color: var(--ui-muted); font-size: 14px; }
-.research-summary { display: flex; gap: 28px; align-items: center; padding: 16px 22px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 14px; margin-bottom: 18px; }
-.research-summary span { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ui-muted); }
-.research-summary strong { color: var(--ui-text); font-size: 18px; }
-
-.research-type-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.research-type-filter button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 15px; border: 1px solid var(--ui-border); border-radius: 999px; background: var(--ui-surface); color: var(--ui-text); font-size: 14px; }
-.research-type-filter button small { color: var(--ui-muted); font-size: var(--research-meta); }
-.research-type-filter button[aria-pressed=true] { background: var(--ui-solid); border-color: var(--ui-solid); color: var(--ui-on-solid); }
-.research-type-filter button[aria-pressed=true] small { color: inherit; opacity: .8; }
-
-.research-toolbar { display: flex; gap: 10px; align-items: stretch; }
-.research-toolbar .search-box { flex: 1; }
-.research-toolbar select { min-height: 44px; max-width: 280px; border: 1px solid var(--ui-border); border-radius: 10px; padding: 0 14px; color: var(--ui-text); background: var(--ui-surface); font-size: 14px; }
-.research-count { margin: 16px 0 6px; color: var(--ui-muted); font-size: 14px; }
+.app-shell .research-view .research-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.app-shell .research-view .research-heading h1 { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 30px; letter-spacing: -.04em; }
+.app-shell .research-view .research-heading h1 small { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 30px; padding: 0 9px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-muted); font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.app-shell .research-view .research-workbench { padding: 20px; border: 1px solid var(--ui-border); border-radius: 18px; background: var(--ui-surface); }
+.app-shell .research-view .research-filter-label { display: flex; align-items: center; justify-content: space-between; min-height: 24px; margin-bottom: 10px; color: var(--ui-muted); font-size: 13px; font-weight: 650; }
+.app-shell .research-view .research-filter-label button { padding: 2px 0; border: 0; color: var(--ui-accent-ink); background: transparent; font-size: 13px; }
+.app-shell .research-view .research-filter-label button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.app-shell .research-view .research-type-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.app-shell .research-view .research-type-filter button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-canvas); color: var(--ui-text); font-size: 14px; font-weight: 550; }
+.app-shell .research-view .research-type-filter button:hover { border-color: var(--ui-accent); }
+.app-shell .research-view .research-type-filter button small { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; padding: 2px 5px; border-radius: 5px; background: var(--ui-inset); color: var(--ui-muted); font-size: 12px; font-weight: 650; }
+.app-shell .research-view .research-type-filter button[aria-pressed=true] { background: var(--ui-accent); border-color: var(--ui-accent); color: #102e26; font-weight: 750; }
+.app-shell .research-view .research-type-filter button[aria-pressed=true] small { background: rgb(0 0 0 / .09); color: inherit; }
+.app-shell .research-view .research-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 270px); gap: 16px; align-items: end; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ui-border); }
+.app-shell .research-view .research-search-field, .app-shell .research-view .research-contest-field { display: grid; gap: 7px; min-width: 0; }
+.app-shell .research-view .research-control-label { color: var(--ui-muted); font-size: 13px; font-weight: 600; }
+.app-shell .research-view .research-toolbar .search-box { display: flex; align-items: center; gap: 10px; width: 100%; max-width: none; min-height: 46px; padding: 0 14px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-canvas); color: var(--ui-muted); }
+.app-shell .research-view .research-toolbar .search-box input { min-width: 0; width: 100%; height: 44px; padding: 0; border: 0; background: transparent; color: var(--ui-text); font-size: 15px; }
+.app-shell .research-view .research-toolbar .search-box:focus-within { border-color: var(--ui-accent); box-shadow: 0 0 0 2px var(--ui-accent-soft); }
+.app-shell .research-view .research-toolbar .search-box input:focus { box-shadow: none; outline: none; }
+.app-shell .research-view .research-toolbar select { width: 100%; max-width: none; min-height: 46px; padding: 0 34px 0 14px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-canvas); color: var(--ui-text); font-size: 14px; }
+.app-shell .research-view .research-count { display: flex; align-items: center; gap: 9px; margin: 24px 0 8px; color: var(--ui-muted); font-size: 14px; }
+.app-shell .research-view .research-count strong { color: var(--ui-text); font-size: 16px; font-weight: 700; }
+.app-shell .research-view .research-count small { margin-left: auto; font-size: 13px; }
 
 .research-group { margin-top: 22px; }
 .research-group h2 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 12px; font-size: 18px; letter-spacing: -.02em; color: var(--ui-text); }
@@ -40,7 +46,7 @@
 .research-card-footer .link { color: var(--ui-info-ink); font-weight: 600; }
 .research-card-footer small { margin-left: auto; font-size: var(--research-meta); }
 
-.research-empty { text-align: center; padding: 60px 20px; margin-top: 18px; border: 1px dashed var(--ui-border); border-radius: 16px; color: var(--ui-muted); background: var(--ui-surface); }
+.research-empty { text-align: center; padding: 42px 20px; margin-top: 18px; border: 1px dashed var(--ui-border); border-radius: 16px; color: var(--ui-muted); background: var(--ui-surface); }
 .research-empty h2 { color: var(--ui-text); font-size: 19px; }
 .research-empty p { font-size: 14px; margin-bottom: 22px; }
 
@@ -72,5 +78,6 @@
   .research-toolbar { flex-wrap: wrap; }
   .research-toolbar .search-box { flex-basis: 100%; }
   .research-grid { grid-template-columns: 1fr; }
-  .research-summary { flex-wrap: wrap; gap: 14px; padding: 14px 16px; }
+  .app-shell .research-view .research-workbench { padding: 16px; }
+  .app-shell .research-view .research-toolbar { grid-template-columns: 1fr; }
 }
