@@ -18,19 +18,22 @@ const output = await build({
     const initial={schemaVersion:1,revision:0,items:[
       {...common,id:'material_one',favorite:true,title:'가상 강의 자료',ownership:'created',author:'테스트 제작자',eventName:'가상 교원 연수',date:'2025-03-02',audience:['교원'],format:'PPT',fileUrl:'https://docs.google.com/presentation/d/fixture-one/edit',summary:'교원을 위한 가상 교육 실습',tags:['미디어','강의']},
       {...common,id:'material_two',title:'수집한 참고 자료',ownership:'collected',author:'가상 기관',eventName:'',date:'2024-06-01',audience:['학생'],format:'PDF',fileUrl:'https://drive.google.com/file/d/fixture-two/view',summary:'학생 활동에 참고하는 예시 자료',tags:['참고']},
-      {...common,id:'classroom_one',purpose:'classroom',title:'가상 스피치 활동',ownership:'created',author:'가상 교사',eventName:'아침 활동',date:'',audience:['학생'],format:'TXT',fileUrl:'https://drive.google.com/file/d/classroom-one/view',summary:'짝과 함께 발표하는 말하기 활동',tags:['학급운영','말하기']},
+      {...common,id:'classroom_one',favorite:true,sourceFile:{name:'스피치.txt',size:32,sha256:'b'.repeat(64)},purpose:'classroom',title:'가상 스피치 활동',ownership:'created',author:'가상 교사',eventName:'아침 활동',date:'',audience:['학생'],format:'TXT',fileUrl:'https://drive.google.com/file/d/classroom-one/view',summary:'짝과 함께 발표하는 말하기 활동',tags:['학급운영','말하기']},
       {...common,id:'classroom_two',purpose:'classroom',title:'가상 속담 활동지',ownership:'collected',author:'가상 출처',eventName:'국어',date:'',audience:['학생'],format:'HWP',fileUrl:'https://drive.google.com/file/d/classroom-two/view',summary:'속담 뜻을 살펴보는 읽기 활동',tags:['국어']},
       {...common,id:'lesson_one',purpose:'classroom',schoolSection:'lesson',title:'가상 수학 수업 파일',ownership:'created',author:'',eventName:'',date:'',audience:[],format:'TXT',fileUrl:'',summary:'수학 수업 자료',tags:['수학'],sourceFile:{name:'가상 수학 수업.txt',size:32,sha256:'a'.repeat(64)}},
       {id:'project_one',kind:'project',title:'가상 수업 프로젝트',tags:[],schoolYear:'2025',grade:'4학년'},
-    ],links:[{from:'career:career_one',to:'material:material_one'}]};
+    ],links:[{from:'career:career_one',to:'material:material_one'},{from:'career:career_one',to:'material:classroom_one'},{from:'material:classroom_one',to:'project:project_one'}]};
     const careers=[{id:'career_one',title:'가상 강의 경력',category:'강의·연수',startDate:'2025',organization:'테스트 기관',role:'강사',tags:[]}];
     globalThis.fixture={saves:[],deletes:[],deleteRevisions:[],opens:[],errors:[],conflict:false,uploads:[],downloads:[]};
     function Fixture(){
       const [workspace,setWorkspace]=useState(initial);
+      const [section,setSection]=useState(new URLSearchParams(location.search).get('section')==='lesson'?'lesson':'classroom');
+      globalThis.fixture.setSchoolSection=setSection;
+      globalThis.fixture.workspace=workspace;
       globalThis.fixture.refreshWorkspace=revision=>setWorkspace(current=>({...current,revision}));
       return <MaterialsView workspace={workspace} careers={careers}
         purpose={new URLSearchParams(location.search).get('purpose')==='classroom'?'classroom':'lecture'}
-        schoolSection={new URLSearchParams(location.search).get('section')==='lesson'?'lesson':'classroom'}
+        schoolSection={section}
         onFiles={async(files,purpose,section)=>{globalThis.fixture.uploads.push({names:files.map(file=>file.name),purpose,section});}}
         onDownloadOriginal={async(item)=>{globalThis.fixture.downloads.push(item.id);}}
         importPanel={new URLSearchParams(location.search).get('purpose')==='classroom'?<p>가져오기 패널 위치</p>:undefined}
@@ -332,4 +335,62 @@ test('school lesson files remain separate, keep their shelf when edited and expo
     await addition.waitFor({state:'hidden'});
     assert.equal(await page.evaluate(() => fixture.saves.at(-1).item.schoolSection),'lesson');
   },'classroom','lesson');
+});
+
+
+test('school shelf moves preserve the original record and every link without copying the file or creating another item', browserOptions, async () => {
+  await fixture(async page => {
+    const original = await page.evaluate(() => fixture.workspace.items.find(item => item.id === 'classroom_one'));
+    const initialCount = await page.evaluate(() => fixture.workspace.items.length);
+    await page.getByRole('button', { name: '가상 스피치 활동 수업 자료로 이동', exact:true }).click();
+    await page.getByRole('status').filter({hasText:'수업 자료로 이동했습니다.'}).waitFor();
+    const first = await page.evaluate(() => fixture.saves[0]);
+    assert.deepEqual(first.item, {...original, schoolSection:'lesson'});
+    assert.deepEqual(first.links.sort(), ['career:career_one', 'project:project_one']);
+    assert.equal(first.expectedRevision, 0);
+    assert.equal(await page.getByRole('button', {name:'가상 스피치 활동 상세보기',exact:true}).count(), 0);
+    assert.equal(await page.evaluate(() => fixture.workspace.items.length), initialCount);
+    assert.equal(await page.evaluate(() => fixture.workspace.items.filter(item => item.id === 'classroom_one').length), 1);
+    await page.evaluate(() => fixture.setSchoolSection('lesson'));
+    await page.getByRole('button', {name:'가상 스피치 활동 상세보기',exact:true}).click();
+    const detail = page.getByRole('dialog', {name:'가상 스피치 활동',exact:true});
+    await detail.getByRole('button', {name:'학급 자료로 이동',exact:true}).click();
+    await detail.waitFor({state:'hidden'});
+    const second = await page.evaluate(() => fixture.saves[1]);
+    assert.equal(second.item.id, original.id);
+    assert.equal(second.item.schoolSection, 'classroom');
+    assert.deepEqual(second.item.sourceFile, original.sourceFile);
+    assert.deepEqual(second.item.tags, original.tags);
+    assert.equal(second.item.fileUrl, original.fileUrl);
+    assert.equal(second.item.favorite, true);
+    assert.equal(second.item.createdAt, original.createdAt);
+    assert.deepEqual(second.links.sort(), first.links.sort());
+    assert.equal(second.expectedRevision, 1);
+    assert.equal(await page.evaluate(() => fixture.workspace.items.length), initialCount);
+    assert.deepEqual(await page.evaluate(() => fixture.uploads), []);
+    assert.deepEqual(await page.evaluate(() => fixture.downloads), []);
+    assert.deepEqual(await page.evaluate(() => fixture.deletes), []);
+  }, 'classroom');
+});
+
+test('a conflicted school move reports the error without replaying or replacing the newer record', browserOptions, async () => {
+  await fixture(async page => {
+    await page.evaluate(() => {fixture.conflict = true;});
+    await page.getByRole('button', {name:'가상 스피치 활동 수업 자료로 이동',exact:true}).click();
+    await page.getByRole('alert').waitFor();
+    const failed = await page.evaluate(() => fixture.saves);
+    assert.equal(failed.length, 1);
+    assert.equal(failed[0].expectedRevision, 0);
+    const fresh = await page.evaluate(() => fixture.workspace.items.find(item => item.id === 'classroom_one'));
+    assert.equal(fresh.title, '서버에서 바뀐 최신 제목');
+    assert.equal(fresh.schoolSection, undefined);
+    await page.evaluate(() => {fixture.conflict = false;});
+    await page.getByRole('button', {name:'서버에서 바뀐 최신 제목 수업 자료로 이동',exact:true}).click();
+    await page.getByRole('status').filter({hasText:'수업 자료로 이동했습니다.'}).waitFor();
+    const retry = await page.evaluate(() => fixture.saves[1]);
+    assert.equal(retry.expectedRevision, 10);
+    assert.equal(retry.item.title, fresh.title);
+    assert.equal(retry.item.schoolSection, 'lesson');
+    assert.deepEqual(retry.links.sort(), ['career:career_one', 'project:project_one']);
+  }, 'classroom');
 });

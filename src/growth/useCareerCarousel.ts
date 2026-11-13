@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Career } from "../types";
 
-export const CAREER_SLIDE_INTERVAL = 5000;
+export const CAREER_SLIDE_INTERVAL = 3500;
 const motionQuery = "(prefers-reduced-motion: reduce)";
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia(motionQuery).matches;
 
@@ -25,11 +25,6 @@ export function useCareerCarousel(records: Career[], enabled: boolean, held: boo
   const wantsPlayback = !paused && (!reduced || motionOptIn);
   const running = enabled && deck.length > 1 && wantsPlayback && !held && !hidden;
 
-  const select = useCallback((id: string) => {
-    if (deck.some(record => record.id === id)) {
-      setSelection(previous => ({ id, revision: previous.revision + 1, direction: "next" }));
-    }
-  }, [deck]);
   const step = useCallback((delta: number) => {
     if (deck.length < 2) return;
     setSelection(previous => {
@@ -61,5 +56,5 @@ export function useCareerCarousel(records: Career[], enabled: boolean, held: boo
     if (wantsPlayback) setPaused(true);
     else { setPaused(false); if (reduced) setMotionOptIn(true); }
   }
-  return { record, index, count: deck.length, running, wantsPlayback, select, step, togglePlayback, direction: selection.direction };
+  return { record, index, count: deck.length, running, wantsPlayback, step, togglePlayback, direction: selection.direction };
 }

@@ -37,12 +37,13 @@ function fixture(initial = []) {
 test('research suggestions use explicit source metadata and the visible folder overrides inferred type', () => {
   const draft = researchFileDraft('2026_수업혁신사례연구대회_계획서.txt', '대회명: 가상 연구대회\n작성연도: 2025\n작성자: 가상 작성자\n수학 활동의 설계\n참고 문헌 2019년');
   assert.equal(draft.title, '2026 수업혁신사례연구대회 계획서');
-  assert.equal(draft.researchType, '계획서'); assert.equal(draft.date, '2025');
+  assert.equal(draft.researchType, '참고자료'); assert.equal(draft.date, '2025');
   assert.equal(draft.eventName, '가상 연구대회'); assert.equal(draft.author, '가상 작성자');
   assert.ok(draft.tags.includes('수학'));
   assert.equal(researchFileDraft('보고서.txt', '참고 문헌에 2019년 연구가 있습니다.').date, '');
-  assert.equal(researchFileDraft('2026 발표자료.txt', '', '계획서').researchType, '계획서');
-  assert.equal(researchFileDraft('anonymous-deck.pptx').researchType, '발표자료');
+  assert.equal(researchFileDraft('2026 발표자료.txt', '', '보고서').researchType, '보고서');
+  assert.equal(researchFileDraft('연구보고서 양식.hwp').researchType, '참고자료');
+  assert.equal(researchFileDraft('anonymous-deck.pptx').researchType, '참고자료');
 });
 
 test('drop batch creates typed research records, keeps original identities and uses each latest revision', async () => {
@@ -69,8 +70,9 @@ test('same-folder duplicates retain edits, while a new folder gets its own entry
   assert.equal(f.state.workspace.items[1].researchType, '보고서');
   assert.equal(f.state.workspace.items[1].fileUrl, original.fileUrl);
   assert.deepEqual(f.state.workspace.items[1].sourceFile, original.sourceFile);
-  const same = await archiveDroppedFiles([file('다른이름.txt', bytes)], f.deps, { ...options, researchType: '계획서' });
+  const same = await archiveDroppedFiles([file('다른이름.txt', bytes)], f.deps, { ...options, researchType: '참고자료' });
   assert.deepEqual(same.ids, ['existing']); assert.equal(same.elsewhere, 0);
+  assert.deepEqual(f.state.workspace.items[0], original); assert.equal(f.state.workspace.items.length, 2);
 });
 
 test('all size and format validation completes before writes, including mismatched HTML extensions', async () => {

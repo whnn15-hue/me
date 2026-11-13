@@ -27,8 +27,8 @@ test('career collections separate awards, default lectures to years and retain q
   const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   for(const name of ['파견','집필','콘텐츠 제작'])await expect(menu.getByRole('button',{name,exact:true})).toHaveCount(0);
   const categories=page.getByRole('navigation',{name:'이력 분류',exact:true});
-  // The owner asked (2026-11-12) to keep the visible category tabs and list/overview tabs.
-  await expect(page.locator('.career-collections')).toHaveCount(1);await expect(page.locator('.career-mode-tabs')).toHaveCount(1);
+  // Category navigation remains, but careers now have one consistent list presentation.
+  await expect(page.locator('.career-collections')).toHaveCount(1);await expect(page.locator('.career-mode-tabs')).toHaveCount(0);
   for(const value of ['근무','연구, 수상','기타','파견'])await expect(categories.getByRole('button',{name:new RegExp(`^${value}`)})).toHaveCount(0);
   await expect(primary.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(1);
   await expect(categories.getByRole('button',{name:/^공모전 수상/})).toHaveCount(1);
@@ -56,7 +56,7 @@ test('career collections separate awards, default lectures to years and retain q
   await expect(page.getByRole('textbox',{name:'경력 검색',exact:true})).toHaveCount(0);
   await expect(page.locator('.year-heading h3').first()).toHaveText('2026년');
   await expect(page.locator('.year-heading h3').nth(1)).toHaveText('2025년');
-  await expect(row(6).locator('.lecture-institution')).toHaveText('가상 교육연수원');
+  await expect(row(6).locator('.career-row-organization')).toHaveText('가상 교육연수원');
   await expect(row(6)).not.toContainText('보존역할검증');
   await row(6).click();
   const lectureDetail=page.getByRole('dialog',{name:'경력 상세',exact:true});
@@ -184,6 +184,9 @@ test('six workspaces separate learning from video and keep tools and research un
     {kind:'material',title:'구분검증 효과음',format:'오디오'},
     {kind:'material',title:'구분검증 편집 템플릿',format:'PPT',resourceType:'template'},
     {kind:'material',title:'구분검증 학급 듣기',format:'오디오',resourceType:'sound',purpose:'classroom'},
+    {kind:'material',title:'구분검증 연구 결과 보고서',format:'HWP',purpose:'research',researchType:'보고서'},
+    {kind:'material',title:'구분검증 예전 계획서',format:'HWP',purpose:'research',researchType:'계획서'},
+    {kind:'material',title:'구분검증 예전 기타 자료',format:'PDF',purpose:'research',researchType:'기타'},
   ];
   try{
     for(const item of fixtures){
@@ -219,6 +222,13 @@ test('six workspaces separate learning from video and keep tools and research un
     await page.getByRole('textbox',{name:'교안 검색',exact:true}).fill('구분검증');
     await expect(page.locator('.material-card')).toHaveCount(2);
     await expect(card(fixtures[0].title)).toBeVisible();await expect(card(fixtures[1].title)).toBeVisible();
+    for(const row of await page.locator('.material-card').all())expect((await row.boundingBox())!.height).toBeLessThanOrEqual(72);
+    const materialSearch=page.getByRole('textbox',{name:'교안 검색',exact:true});
+    await materialSearch.click();
+    await expect(materialSearch).toHaveCSS('outline-style','none');
+    await expect(materialSearch).toHaveCSS('box-shadow','none');
+    await expect(page.locator('.materials-search')).toHaveCSS('box-shadow','none');
+    await expect(page.getByRole('combobox',{name:'과목 필터',exact:true}).getByRole('option',{name:'미분류',exact:true})).toHaveCount(0);
     await page.screenshot({path:'/workspace/artifacts/workspace-learning.png',animations:'disabled'});
     await expect(page.getByRole('combobox',{name:'자료 종류 필터',exact:true})).toHaveCount(0);
     await expect(page.locator('.audio-preview,audio')).toHaveCount(0);
@@ -245,6 +255,13 @@ test('six workspaces separate learning from video and keep tools and research un
     await menu.getByRole('button',{name:'학교에서 학급 자료 보기',exact:true}).click();
     await page.getByRole('textbox',{name:'학급 자료 검색',exact:true}).fill('구분검증');
     await expect(card(fixtures[4].title)).toBeVisible();
+    expect((await card(fixtures[4].title).boundingBox())!.height).toBeLessThanOrEqual(72);
+    const schoolSearch=page.getByRole('textbox',{name:'학급 자료 검색',exact:true});
+    await schoolSearch.click();
+    await expect(schoolSearch).toHaveCSS('outline-style','none');
+    await expect(schoolSearch).toHaveCSS('box-shadow','none');
+    await expect(page.locator('.materials-search')).toHaveCSS('box-shadow','none');
+    await page.screenshot({path:'/workspace/artifacts/polished-classroom-materials.png',animations:'disabled'});
     await expect(page.getByRole('combobox',{name:'자료 종류 필터',exact:true})).toHaveCount(0);
     await expect(page.locator('.audio-preview,audio')).toHaveCount(0);
 
@@ -252,6 +269,21 @@ test('six workspaces separate learning from video and keep tools and research un
     const research=menu.locator('#tree-research');
     await expect(research.getByRole('button')).toHaveText(['연구대회 보고서','공모전 제출본','사진 보관함']);
     await research.getByRole('button',{name:'연구대회 보고서',exact:true}).click();
+    const researchKinds=page.getByRole('group',{name:'자료 종류로 거르기',exact:true});
+    await expect(researchKinds.getByRole('button')).toHaveCount(3);
+    for(const label of ['계획서','발표자료','부록','기타'])await expect(researchKinds.getByRole('button',{name:new RegExp(`^${label}`)})).toHaveCount(0);
+    await page.getByRole('textbox',{name:'연구대회 자료 검색',exact:true}).fill('구분검증');
+    await researchKinds.getByRole('button',{name:/^참고자료/}).click();
+    await expect(page.locator('.research-card')).toHaveCount(2);
+    await expect(page.locator('.research-card').filter({hasText:fixtures[6].title})).toBeVisible();
+    await expect(page.locator('.research-card').filter({hasText:fixtures[7].title})).toBeVisible();
+    for(const row of await page.locator('.research-card').all())expect((await row.boundingBox())!.height).toBeLessThanOrEqual(96);
+    await expect(page.getByText('대회와 연도 미입력',{exact:true})).toHaveCount(0);
+    await expect(page.locator('.archive-upload-hint')).toHaveCount(0);
+    await page.screenshot({path:'/workspace/artifacts/polished-research-reference.png',animations:'disabled'});
+    await researchKinds.getByRole('button',{name:/^보고서/}).click();
+    await expect(page.locator('.research-card')).toHaveCount(1);
+    await expect(page.locator('.research-card').filter({hasText:fixtures[5].title})).toBeVisible();
     await page.locator('.research-heading').getByRole('button',{name:'자료 보관',exact:true}).click();
     const reportEditor=page.getByRole('dialog',{name:'연구대회 자료 보관',exact:true});
     let uploadRequests=0;

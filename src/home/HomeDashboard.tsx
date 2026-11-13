@@ -25,7 +25,7 @@ export default function HomeDashboard({ careers, documents, onUpload, onCreate, 
         {missing > 0 && <ArrowUpRight size={17}/>}
       </button>
     </section>
-    <div className="home-secondary-actions"><button className="home-overview-link" onClick={onOverview}><Layers3 size={16}/>이력 한눈에 보기</button><button className="home-overview-link" onClick={onUpload} disabled={busy}><CloudUpload size={16}/>공문 업로드</button><button className="button secondary" onClick={onCreate} disabled={busy}><Plus size={16}/>경력 추가</button></div>
+    <div className="home-secondary-actions"><button className="home-overview-link" onClick={onOverview}><Layers3 size={16}/>이력 보기</button><button className="home-overview-link" onClick={onUpload} disabled={busy}><CloudUpload size={16}/>공문 업로드</button><button className="button secondary" onClick={onCreate} disabled={busy}><Plus size={16}/>경력 추가</button></div>
     </div>
   </div>;
 }

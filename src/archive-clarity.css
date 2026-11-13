@@ -1,22 +1,4 @@
-/* A clear hierarchy: view mode, category, then the records and their filters. */
-.app-shell .career-mode-tabs {
-  gap: 6px;
-  padding: 5px;
-  margin-bottom: 20px;
-  background: var(--ui-inset);
-  border-radius: 12px;
-}
-.app-shell .career-mode-tabs button {
-  min-height: 42px;
-  padding: 10px 19px;
-  font-size: 15px;
-  font-weight: 550;
-}
-.app-shell .career-mode-tabs button[aria-pressed="true"] {
-  color: var(--ui-on-solid);
-  background: var(--ui-solid);
-  font-weight: 700;
-}
+/* One consistent list: categories, then aligned career records. */
 .app-shell .career-workbench {
   padding: 22px;
   border: 1px solid var(--ui-border);
@@ -85,8 +67,9 @@
   border-color: var(--ui-accent);
 }
 .app-shell .career-workbench .career-section {
-  padding-top: 6px;
-  border-top: 1px solid var(--ui-border);
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: 0;
 }
 .app-shell .career-workbench .career-row {
   background: var(--ui-inset);
@@ -131,39 +114,139 @@
   color: var(--ui-accent-ink);
   background: var(--ui-accent-soft);
 }
-/* Results remain separate by scope, but don't turn mixed-list rows into cards. */
-.app-shell .career-workbench[data-category="전체"] .recognition-row:not(.as-card) {
-  min-height: 58px;
-  padding-block: 8px;
-}
-.app-shell .career-workbench[data-category="전체"] .recognition-row:not(.as-card) .career-info {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 3px 12px;
-}
-.app-shell .career-workbench[data-category="전체"] .recognition-row:not(.as-card) .career-category { display: none; }
-.app-shell .career-workbench[data-category="전체"] .recognition-row:not(.as-card) h4 {
-  grid-column: 1;
-  grid-row: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.app-shell .career-workbench[data-category="전체"] .recognition-row:not(.as-card) .career-meta { grid-row: 2; }
-.app-shell .career-workbench[data-category="전체"] .recognition-row:not(.as-card) .recognition-badges {
-  grid-row: 1 / span 2;
-  gap: 5px;
-  max-width: 240px;
-}
-.app-shell .career-workbench[data-category="전체"] .recognition-outcome {
-  flex-direction: row;
+/* All categories share the same columns, icon treatment and row height. */
+.app-shell .career-workbench .career-list .career-row {
+  display: grid;
+  grid-template-columns: 28px 104px minmax(0, 1fr) minmax(120px, 17%) 174px 100px 18px;
   align-items: center;
-  gap: 5px;
-  min-width: 0;
-  padding: 4px 7px;
-  border-radius: 7px;
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 14px;
+  border-width: 1px;
+  border-radius: 10px;
+  box-shadow: none;
 }
-.app-shell .career-workbench[data-category="전체"] .recognition-outcome .recognition-scope { font-size: 11px; }
-.app-shell .career-workbench[data-category="전체"] .recognition-outcome strong { font-size: 13px; white-space: nowrap; }
+.app-shell .career-workbench .career-list .career-row.qualification-row {
+  grid-template-columns: 28px 104px minmax(0, 1fr) minmax(120px, 23%) 100px 18px;
+}
+.app-shell .career-workbench .career-list .career-row > .category-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-muted);
+}
+.app-shell .career-workbench .career-list .career-row > .category-icon svg { width: 18px; height: 18px; }
+.app-shell .career-workbench .career-list .career-row > .career-category {
+  display: block;
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: stretch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.app-shell .career-workbench .career-list .career-row .career-info {
+  display: block;
+  min-width: 0;
+  flex: none;
+}
+.app-shell .career-workbench .career-list .career-row .career-info h4 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.4;
+  white-space: normal;
+}
+.app-shell .career-workbench .career-list .recognition-row .career-info h4 { -webkit-line-clamp: 1; }
+.app-shell .career-workbench .career-list .career-row-organization {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-shell .career-workbench .career-list .career-row-date {
+  width: auto;
+  color: var(--ui-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-align: right;
+}
+.app-shell .career-workbench .career-list .career-row-evidence { width: auto; justify-self: end; }
+.app-shell .career-workbench .career-list .career-row .recognition-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-width: none;
+  margin: 3px 0 0;
+}
+.app-shell .career-workbench .career-list .recognition-outcome {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  line-height: 1.3;
+}
+.app-shell .career-workbench .career-list .recognition-outcome .recognition-scope { font-size: 12px; }
+.app-shell .career-workbench .career-list .recognition-outcome strong { font-size: 12px; font-weight: 650; white-space: nowrap; }
+.app-shell .detail-drawer .drawer-top { margin-bottom: 20px; }
+.app-shell .detail-identity { display: flex; align-items: flex-start; gap: 13px; }
+.app-shell .detail-identity > .category-icon { width: 32px; height: 32px; background: transparent; margin-top: 3px; }
+.app-shell .detail-identity > div { min-width: 0; }
+.app-shell .detail-identity .detail-category { margin: 0 0 5px; font-size: 12px; }
+.app-shell .detail-identity h2 { font-size: 23px; line-height: 1.45; margin: 0 0 10px; }
+.app-shell .detail-drawer .detail-fields { margin: 10px 0 16px; padding: 12px 0; gap: 8px; border-top: 0; }
+.app-shell .detail-drawer .detail-fields dt { width: 64px; }
+.app-shell .detail-drawer .detail-section { margin-top: 22px; }
+.app-shell .detail-drawer .attached-document { padding: 10px 11px; margin-bottom: 6px; }
+.app-shell .detail-drawer .attached-document > span { line-height: 1.5; }
+.app-shell .detail-more { margin-top: 20px; color: var(--ui-muted); font-size: 13px; }
+.app-shell .detail-more > summary { width: fit-content; padding: 5px 0; cursor: pointer; }
+.app-shell .detail-more > p { margin: 12px 0; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app-shell .detail-more .tags { margin-top: 10px; }
+.app-shell .detail-more .tags > span { padding: 2px 6px; border: 0; background: transparent; }
+.app-shell .detail-drawer .detail-quick-actions { margin-top: 20px; }
+.app-shell .detail-drawer .drawer-actions { margin-top: 20px; }
+@media (max-width: 1199px) and (min-width: 901px) {
+  .app-shell .career-workbench .career-list .career-row { grid-template-columns: 24px 90px minmax(0, 1fr) 124px 150px 94px 16px; gap: 8px; padding-inline: 10px; }
+  .app-shell .career-workbench .career-list .career-row.qualification-row { grid-template-columns: 24px 90px minmax(0, 1fr) 150px 94px 16px; }
+  .app-shell .career-workbench .career-list .career-row > .career-category,
+  .app-shell .career-workbench .career-list .career-row-date,
+  .app-shell .career-workbench .career-list .career-row-organization { font-size: 12px; }
+}
+@media (max-width: 900px) {
+  .app-shell .career-workbench .career-list .career-row,
+  .app-shell .career-workbench .career-list .career-row.qualification-row { grid-template-columns: 28px minmax(0, 1fr) 18px; }
+  .app-shell .career-workbench .career-list .career-row > .category-icon { grid-column: 1; grid-row: 1; }
+  .app-shell .career-workbench .career-list .career-row > .career-category { grid-column: 2; grid-row: 1; }
+  .app-shell .career-workbench .career-list .career-row .career-info { grid-column: 2; grid-row: 2; }
+  .app-shell .career-workbench .career-list .career-row-organization,
+  .app-shell .career-workbench .career-list .career-row-date,
+  .app-shell .career-workbench .career-list .career-row-evidence { grid-column: 2; justify-self: start; text-align: left; }
+  .app-shell .career-workbench .career-list .career-row .career-row-arrow { grid-column: 3; grid-row: 1; }
+}
 @media (max-width: 1199px) {
   .app-shell .career-workbench .career-collections { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

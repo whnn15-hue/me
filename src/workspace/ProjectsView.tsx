@@ -204,11 +204,16 @@ export interface ProjectsViewProps extends WorkspaceSectionProps {
 }
 
 export default function ProjectsView({ classroomImport, onSectionChange, ...props }: ProjectsViewProps) {
-  const focused = props.workspace.items.find(item => item.id === props.focusId);
+  const [handledFocusId, setHandledFocusId] = useState<string>();
+  const pendingFocusId = props.focusId !== handledFocusId ? props.focusId : undefined;
+  // Search/cross-link focus is an opening request, not a permanent instruction
+  // to follow a record when the owner moves it to another school shelf.
+  useEffect(() => { if (!props.focusId) setHandledFocusId(undefined); }, [props.focusId]);
+  const focused = props.workspace.items.find(item => item.id === pendingFocusId);
   const focusedSection = focused?.kind === "material" && focused.purpose === "classroom" ? focused.schoolSection === "lesson" ? "records" : "classroom"
     : focused?.kind === "project" ? "records" : undefined;
   const [section, setSection] = useState<"records" | "classroom">(() => focusedSection ?? (props.initialSection === "classroom" ? "classroom" : "records"));
-  useEffect(() => { if (focusedSection) setSection(focusedSection); }, [props.focusId, focusedSection]);
+  useEffect(() => { if (focusedSection) setSection(focusedSection); }, [pendingFocusId, focusedSection]);
   useEffect(() => { onSectionChange?.(section); }, [section, onSectionChange]);
   const [recordsOpen, setRecordsOpen] = useState(focused?.kind === "project");
   useEffect(() => { if (focused?.kind === "project") setRecordsOpen(true); }, [focused?.id, focused?.kind]);
@@ -228,9 +233,9 @@ export default function ProjectsView({ classroomImport, onSectionChange, ...prop
     </div>
     <div id="classroom-content" role="tabpanel" aria-labelledby={section === "records" ? "classroom-records-tab" : "classroom-materials-tab"}>
       {section === "records" ? <>
-        <MaterialsView key="lesson" {...props} purpose="classroom" schoolSection="lesson" />
+        <MaterialsView key="lesson" {...props} focusId={pendingFocusId} onFocusHandled={setHandledFocusId} purpose="classroom" schoolSection="lesson" />
         <details className="school-project-records" open={recordsOpen} onToggle={event => setRecordsOpen(event.currentTarget.open)}><summary><BookOpen size={16}/><span>수업 기록</span><small>{recordCount}</small><ChevronRight size={15}/></summary>{recordsOpen && <ProjectRecordsView {...props} />}</details>
-      </> : <MaterialsView key="classroom" {...props} purpose="classroom" schoolSection="classroom" importPanel={classroomImport} />}
+      </> : <MaterialsView key="classroom" {...props} focusId={pendingFocusId} onFocusHandled={setHandledFocusId} purpose="classroom" schoolSection="classroom" importPanel={classroomImport} />}
     </div>
   </div>;
 }
