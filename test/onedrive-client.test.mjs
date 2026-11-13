@@ -82,20 +82,19 @@ test('upload session creation recovers a Graph 401 without sending a token to th
       sessions++;
       return headers.get('Authorization') === 'Bearer stale' ? json({}, 401) : json({ uploadUrl: UPLOAD });
     }
-    if (url === UPLOAD && options.method === 'PUT') { chunks++; return json({ id: ITEM, name: 'proof.txt' }, 201); }
+    if (url === UPLOAD && options.method === 'PUT') { chunks++; return chunks === 1 ? json({}, 202) : json({ id: ITEM, name: 'proof.txt' }, 201); }
     if (url === GRAPH + '/me/drive/items/' + encodeURIComponent(ITEM) && options.method === 'PATCH') return json({ id: ITEM });
     assert.fail('Unexpected request');
   });
-  const saved = await client.uploadDriveFile(new File(['proof'], 'proof.txt'), 'document');
-  assert.equal(saved.id, ITEM); assert.equal(sessions, 2); assert.equal(chunks, 1); assert.equal(f.apiCalls.length, 2);
+  const saved = await client.uploadDriveFile(new File([new Uint8Array(client.SIMPLE_UPLOAD_BYTES + 1)], 'proof.txt'), 'document');
+  assert.equal(saved.id, ITEM); assert.equal(sessions, 2); assert.equal(chunks, 2); assert.equal(f.apiCalls.length, 2);
   assert.ok(!f.calls.some(call => call.method === 'DELETE'));
 });
 
 test('metadata 401 after upload retries only the metadata write and keeps one original', async t => {
-  let sessions = 0, chunks = 0, labels = 0;
+  let puts = 0, labels = 0;
   const f = fixture(t, (url, options, headers) => {
-    if (url.endsWith('/createUploadSession')) { sessions++; return json({ uploadUrl: UPLOAD }); }
-    if (url === UPLOAD && options.method === 'PUT') { chunks++; return json({ id: ITEM, name: 'proof.txt' }, 201); }
+    if (url.includes(':/content?') && options.method === 'PUT') { puts++; return json({ id: ITEM, name: 'proof.txt' }, 201); }
     if (url === GRAPH + '/me/drive/items/' + encodeURIComponent(ITEM) && options.method === 'PATCH') {
       labels++; return headers.get('Authorization') === 'Bearer stale' ? json({}, 401) : json({ id: ITEM });
     }
@@ -103,8 +102,73 @@ test('metadata 401 after upload retries only the metadata write and keeps one or
   });
   const saved = await client.uploadDriveFile(new File(['proof'], 'proof.txt'), 'document');
   assert.equal(saved.id, ITEM); assert.equal(saved.appProperties.archiveUid, 'owner');
-  assert.equal(sessions, 1); assert.equal(chunks, 1); assert.equal(labels, 2); assert.equal(f.apiCalls.length, 2);
+  assert.equal(puts, 1); assert.equal(labels, 2); assert.equal(f.apiCalls.length, 2);
   assert.ok(!f.calls.some(call => call.method === 'DELETE'));
+});
+
+test('small originals bypass sessions and retry rejected Graph authorization once with identical bytes', async t => {
+  const original = new File(['%PDF-proof'], '강사 위촉.pdf');
+  let puts = 0;
+  const f = fixture(t, (url, options, headers) => {
+    if (url.includes(':/content?') && options.method === 'PUT') {
+      puts++; assert.equal(options.body, original);
+      assert.equal(new URL(url).searchParams.get('@microsoft.graph.conflictBehavior'), 'fail');
+      return headers.get('Authorization') === 'Bearer stale' ? json({}, 401) : json({ id: ITEM, name: 'stored.pdf' }, 201);
+    }
+    if (options.method === 'PATCH') return json({ id: ITEM });
+    assert.fail('Unexpected request');
+  });
+  const saved = await client.uploadDriveFile(original, 'document');
+  assert.equal(saved.id, ITEM); assert.equal(puts, 2); assert.equal(f.apiCalls.length, 2);
+  assert.equal(f.calls[0].url, f.calls[1].url);
+  assert.match(decodeURIComponent(new URL(f.calls[0].url).pathname), /강사 위촉__[\da-f-]{36}\.pdf:\/content$/);
+  assert.ok(f.calls.every(call => call.url.startsWith(GRAPH + '/')));
+});
+
+test('same-name originals get different readable destinations, preserving the file title and contents', async t => {
+  const destinations = new Set(); let uploads = 0;
+  const file = new File(['%PDF-original bytes'], '공문.pdf');
+  const f = fixture(t, (url, options) => {
+    if (options.method === 'PUT') {
+      uploads++; assert.equal(options.body, file);
+      const name = decodeURIComponent(new URL(url).pathname.split(':/').at(-2));
+      assert.match(name, /^공문__[\da-f-]{36}\.pdf$/);
+      assert.ok(!destinations.has(name)); destinations.add(name);
+      return json({ id: `ABCDEF0123456789!${200 + uploads}`, name }, 201);
+    }
+    if (options.method === 'PATCH') return json({});
+    assert.fail('Unexpected request');
+  });
+  await client.uploadDriveFile(file, 'document'); await client.uploadDriveFile(file, 'document');
+  assert.equal(destinations.size, 2); assert.equal(file.name, '공문.pdf');
+  assert.equal(f.calls.filter(call => call.method === 'PUT').length, 2);
+});
+
+test('rejected or ambiguous direct uploads never create a session or restart after a network failure', async t => {
+  for (const status of [401, 503, 'network']) {
+    const f = fixture(t, (url, options) => {
+      assert.ok(url.startsWith(GRAPH + '/')); assert.ok(url.includes(':/content?'));
+      assert.equal(options.method, 'PUT');
+      if (status === 'network') throw new TypeError('Failed to fetch');
+      return json({}, status);
+    });
+    await assert.rejects(client.uploadDriveFile(new File(['proof'], 'proof.txt'), 'document'));
+    assert.equal(f.calls.length, status === 401 ? 2 : 1);
+    assert.equal(f.apiCalls.length, status === 401 ? 2 : 1);
+  }
+});
+
+test('metadata service failure removes only the newly uploaded item without repeating its bytes', async t => {
+  const f = fixture(t, (url, options) => {
+    if (options.method === 'PUT') return json({ id: ITEM, name: 'new.pdf' }, 201);
+    assert.equal(url, GRAPH + '/me/drive/items/' + encodeURIComponent(ITEM));
+    if (options.method === 'PATCH') return json({}, 503);
+    if (options.method === 'DELETE') return json({}, 204);
+    assert.fail('Unexpected request');
+  });
+  await assert.rejects(client.uploadDriveFile(new File(['proof'], 'proof.txt'), 'document'), /503/);
+  assert.deepEqual(f.calls.map(call => call.method), ['PUT', 'PATCH', 'DELETE']);
+  assert.equal(f.apiCalls.length, 1);
 });
 
 test('an expired upload session is not misreported as account expiry and never restarts the upload', async t => {
@@ -116,7 +180,7 @@ test('an expired upload session is not misreported as account expiry and never r
       if (url === UPLOAD && options.method === 'DELETE') return json({}, 204);
       assert.fail('Unexpected request');
     });
-    await assert.rejects(client.uploadDriveFile(new File(['proof'], 'proof.txt'), 'document'), error => {
+    await assert.rejects(client.uploadDriveFile(new File([new Uint8Array(client.SIMPLE_UPLOAD_BYTES + 1)], 'proof.txt'), 'document'), error => {
       assert.match(error.message, /업로드 연결/); assert.match(error.message, new RegExp(String(status)));
       assert.doesNotMatch(error.message, /인증이 만료|다시 연결|private-session/); return true;
     });
