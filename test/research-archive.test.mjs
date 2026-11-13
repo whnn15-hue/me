@@ -85,7 +85,7 @@ test('local server: research original, career link and edits survive ZIP restore
 });
 
 const browserPath = ['/usr/bin/chromium', '/opt/pw-browsers/chromium'].find(path => existsSync(path));
-test('research view groups by year and contest, filters by type without favorite controls, uploads through the archive path and keeps lecture lists separate', { skip: !browserPath }, async () => {
+test('research shelves compact rows, preserve legacy types, hide missing metadata and retain original uploads', { skip: !browserPath }, async () => {
   const sha = 'b'.repeat(64);
   const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import {useState} from 'react';import {createRoot} from 'react-dom/client';import ResearchView from './src/workspace/ResearchView';import WorkspaceTree from './src/WorkspaceTree';
@@ -97,6 +97,7 @@ const initial={schemaVersion:1,revision:0,links:[],items:[
   make('r1',{title:'2026 계획서',researchType:'계획서',eventName:'현장교육연구대회',date:'2026',sourceFile:{name:'계획서.pdf',size:2048,sha256:'${sha}'}}),
   make('r2',{title:'2026 보고서 최종',researchType:'보고서',eventName:'현장교육연구대회',date:'2026',summary:'최종 제출본'}),
   make('r3',{title:'2024 발표자료',researchType:'발표자료',eventName:'교육자료전',date:'2024',favorite:true,fileUrl:'https://drive.google.com/file/d/legacy-presentation/view'}),
+  make('r4',{title:'날짜 없는 양식',researchType:'기타',format:'HWP',fileUrl:'https://drive.google.com/file/d/legacy-template/view'}),
   normalizeWorkspaceItem({id:'lecture1',kind:'material',title:'일반 강의 자료',createdAt:stamp,updatedAt:stamp}),
 ]};
 const documents=[{id:'doc1',name:'계획서.pdf',size:2048,mime:'application/pdf',createdAt:stamp,recordIds:[],sha256:'${sha}'}];
@@ -121,38 +122,48 @@ createRoot(document.getElementById('root')).render(<Fixture/>);` }, bundle: true
     assert.equal(await page.locator('#tree').getByRole('button', { name: '교안', exact: true }).getAttribute('aria-current'), null);
     // Newest year first, grouped by contest.
     assert.deepEqual(await page.locator('.research-group h2').allTextContents(), ['2026년 현장교육연구대회 2개', '2024년 교육자료전 1개']);
-    assert.equal(await page.locator('.research-card').count(), 3);
+    assert.equal(await page.locator('.research-card').count(), 4);
     assert.doesNotMatch((await page.locator('.research-card').allTextContents()).join(' '), /일반 강의 자료/);
-    assert.match(await page.locator('.research-card').first().textContent(), /원본 보관됨/);
+    assert.match(await page.getByRole('button', { name: '2026 계획서 자세히 보기' }).textContent(), /원본 보관됨/);
+    const filters = page.getByRole('group', { name: '자료 종류로 거르기' });
+    assert.equal(await filters.getByRole('button').count(), 3);
+    assert.doesNotMatch(await page.locator('.research-view').textContent(), /기타|미분류|미입력|파일을 화면에/);
+    const rowHeights = await page.locator('.research-card').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
+    assert.ok(rowHeights.every(height => height <= 76), JSON.stringify(rowHeights));
+    await filters.getByRole('button', { name: /^참고자료/ }).click();
+    assert.equal(await page.locator('.research-card').count(), 3);
+    await filters.getByRole('button', { name: /^전체/ }).click();
     await page.getByRole('group', { name: '자료 종류로 거르기' }).getByRole('button', { name: /^보고서/ }).click();
     assert.equal(await page.locator('.research-card').count(), 1);
     await page.getByRole('group', { name: '자료 종류로 거르기' }).getByRole('button', { name: /^전체/ }).click();
     assert.equal(await page.getByRole('button', { name: /즐겨찾/ }).count(), 0);
-    assert.equal(await page.locator('.research-card').count(), 3);
+    assert.equal(await page.locator('.research-card').count(), 4);
     assert.deepEqual(await page.evaluate(() => fixture.saves), []);
     await page.getByRole('button', { name: '2024 발표자료 자세히 보기' }).click();
     await page.getByRole('button', { name: '자료 수정', exact: true }).click();
     await page.getByRole('button', { name: '자료 저장', exact: true }).click();
     await page.waitForFunction(() => fixture.saves.some(item => item.id === 'r3'));
     assert.equal(await page.evaluate(() => fixture.saves.find(item => item.id === 'r3').favorite), true);
+    assert.equal(await page.evaluate(() => fixture.saves.find(item => item.id === 'r3').researchType), '발표자료');
     // New file goes through onUploadFile and is saved as a research material with its original identity.
     await page.getByRole('button', { name: '자료 보관' }).first().click();
     await page.getByLabel('연구대회 원본 파일').setInputFiles({ name: '2025 부록.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 synthetic') });
-    await page.getByRole('radio', { name: '부록, 증빙' }).click();
+    assert.equal(await page.getByRole('radiogroup', { name: '자료 종류' }).getByRole('radio').count(), 2);
+    await page.getByRole('radio', { name: '참고자료', exact: true }).click();
     await page.getByLabel('대회명 선택').fill('현장교육연구대회');
     await page.getByLabel('연도 선택').fill('2025');
     await page.getByRole('button', { name: '자료 저장' }).click();
     await page.waitForFunction(() => fixture.saves.some(item => item.title === '2025 부록'));
     const saved = await page.evaluate(() => fixture.saves.find(item => item.title === '2025 부록'));
-    assert.equal(saved.purpose, 'research'); assert.equal(saved.researchType, '부록·증빙'); assert.equal(saved.date, '2025');
+    assert.equal(saved.purpose, 'research'); assert.equal(saved.researchType, '참고자료'); assert.equal(saved.date, '2025');
     assert.deepEqual(saved.sourceFile, { name: '2025 부록.pdf', size: 18, sha256: 'c'.repeat(64) });
     assert.deepEqual(await page.evaluate(() => fixture.uploads), ['2025 부록.pdf']);
-    assert.equal(await page.locator('.research-card').count(), 4);
+    assert.equal(await page.locator('.research-card').count(), 5);
     // Detail and delete.
     await page.getByRole('button', { name: '2024 발표자료 자세히 보기' }).click();
     await page.getByRole('button', { name: '자료 삭제' }).click();
     await page.getByRole('dialog').getByRole('button', { name: '자료 삭제' }).click();
-    await page.waitForFunction(() => document.querySelectorAll('.research-card').length === 3);
+    await page.waitForFunction(() => document.querySelectorAll('.research-card').length === 4);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });

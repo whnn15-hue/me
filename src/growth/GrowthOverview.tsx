@@ -5,7 +5,7 @@ import type { Career, DocumentRecord } from "../types";
 import { displayText } from "../display";
 import { growthJourney, growthModel, seoulToday } from "./growth-model";
 import { AchievementReel, Burst, CountUp } from "./Celebration";
-import { celebrationHeadline, celebrationStats, INTRO_TIMELINE, markIntroPlayed, pickAchievements, pickYearRecord, shouldPlayIntro } from "./celebration";
+import { celebrationHeadline, celebrationStats, INTRO_TIMELINE, markIntroPlayed, pickAchievements, shouldPlayIntro } from "./celebration";
 import { useCareerCarousel } from "./useCareerCarousel";
 import "./atlas.css";
 import "./celebration.css";
@@ -32,15 +32,11 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   const journey = useMemo(() => growthJourney(model, today), [model, today]);
   const [bannerHovered, setBannerHovered] = useState(false);
   const [bannerFocused, setBannerFocused] = useState(false);
-  const [yearHovered, setYearHovered] = useState(false);
-  const [yearFocused, setYearFocused] = useState(false);
   const bannerRef = useRef<HTMLDivElement>(null);
-  const previewIds = useRef<Record<number, string>>({});
-  const hoveredYear = useRef<number | null>(null);
   const id = useId().replaceAll(":", "");
   const { points: visible, latest, earlier } = journey;
   const carouselRecords = useMemo(() => [...model.dated, ...model.unknown].map(entry => entry.career), [model]);
-  const carousel = useCareerCarousel(carouselRecords, true, bannerHovered || bannerFocused || yearHovered || yearFocused);
+  const carousel = useCareerCarousel(carouselRecords, true, bannerHovered || bannerFocused);
   const milestone = carousel.record;
   const selectedYear = model.dated.find(entry => entry.career.id === milestone?.id)?.year ?? null;
   const milestoneOrganization = milestone ? careerOrganization(milestone, documents) : "";
@@ -48,15 +44,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
   useEffect(() => {
     if (hasMilestone) return;
     setBannerHovered(false); setBannerFocused(false);
-    setYearHovered(false); setYearFocused(false); hoveredYear.current = null;
   }, [hasMilestone]);
-  function previewYear(year: number) {
-    const point = visible.find(item => item.year === year);
-    if (!point?.records.length) return;
-    const next = pickYearRecord(point.records, selectedYear === year ? milestone?.id : previewIds.current[year])!;
-    previewIds.current[year] = next.id;
-    carousel.select(next.id);
-  }
   const hasVisibleRecords = visible.some(point => point.count > 0);
   // Every year stays visible. Height is the cumulative actual record count;
   // zero-record years stay on the same level instead of inventing growth.
@@ -78,7 +66,6 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
     // A changed slide can remove the focused title without dispatching blur.
     const focused = document.activeElement;
     setBannerFocused(Boolean(focused?.matches(":focus-visible") && bannerRef.current?.contains(focused)));
-    setYearFocused(Boolean(rootRef.current?.querySelector(".atlas-pin:focus-visible")));
   }, [milestone?.id, model]);
   const finish = useCallback(() => {
     setPlaying(false); setBurst(false);
@@ -165,7 +152,7 @@ export default function GrowthOverview({ careers, documents, onYear, onShowCaree
           <path className="atlas-trail-base" d={route}/>
           {hasVisibleRecords && <><g clipPath={`url(#${id}-reveal)`}><path className="atlas-trail-glow" d={route} stroke={`url(#${id}-trail)`}/><path className="atlas-trail" d={route} stroke={`url(#${id}-trail)`}/></g><circle className="atlas-traveler" r="3.5" fill="var(--ui-accent)"><animateMotion dur="2.4s" begin=".15s" repeatCount="1" path={route} fill="freeze"/></circle></>}
         </svg>}
-        {pins.map((point, index) => <button key={point.year} className={`atlas-pin ${latest === point.year ? "is-latest" : ""} ${!point.count ? "is-empty" : ""} ${selectedYear === point.year ? "is-selected" : ""}`} style={{ left:`${point.x}%`, top:`${point.y}%`, "--pin-delay":`${.18 + index / Math.max(1,pins.length-1) * 1.6}s` } as CSSProperties} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`} title={point.count ? `${point.year}년까지 누적 ${point.cumulative}건` : `${point.year}년 기록 없음`} disabled={!point.count} onMouseEnter={() => { hoveredYear.current = point.year; setYearHovered(true); previewYear(point.year); }} onMouseLeave={() => { hoveredYear.current = null; setYearHovered(false); }} onPointerDown={() => setYearFocused(false)} onKeyDown={() => setYearFocused(true)} onFocus={event => { setYearFocused(event.target.matches(":focus-visible")); if (hoveredYear.current !== point.year) previewYear(point.year); }} onBlur={() => setYearFocused(false)} onClick={() => onYear?.(point.year)}>
+        {pins.map((point, index) => <button key={point.year} className={`atlas-pin ${latest === point.year ? "is-latest" : ""} ${!point.count ? "is-empty" : ""} ${selectedYear === point.year ? "is-selected" : ""}`} style={{ left:`${point.x}%`, top:`${point.y}%`, "--pin-delay":`${.18 + index / Math.max(1,pins.length-1) * 1.6}s` } as CSSProperties} aria-label={`${point.year}년 이력 보기, 이 해에 시작한 기록 ${point.count}건`} title={point.count ? `${point.year}년까지 누적 ${point.cumulative}건` : `${point.year}년 기록 없음`} disabled={!point.count} onClick={() => onYear?.(point.year)}>
           <span className="atlas-pin-orbit" aria-hidden="true"/><span className="atlas-pin-core" aria-hidden="true">{latest === point.year ? <Sparkles size={18} strokeWidth={1.8}/> : <i/>}</span>
           <span className="atlas-pin-label"><strong>{point.year}</strong><small>{point.count ? <span><CountUp value={point.count} play={playing} delay={Math.round((.18 + index / Math.max(1,pins.length-1) * 1.6) * 1000) + 120} duration={650}/>개 기록</span> : "기록 없음"}<ArrowUpRight size={12}/></small></span>
           {latest === point.year && <span className="atlas-present">최근의 발자취</span>}

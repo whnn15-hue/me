@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, BookOpen, Check, ClipboardList, ExternalLink, Files, FileStack, FileText, LoaderCircle, Paperclip, PencilLine, Plus, Presentation, Search, Trash2, Upload } from "lucide-react";
+import { ArrowDownToLine, BookOpen, Check, ExternalLink, FileStack, FileText, LoaderCircle, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
 import { Modal } from "../CareerEditor";
 import { download } from "../api";
 import type { DocumentRecord } from "../types";
 import { materialFileFormat } from "../../shared/material-classification.mjs";
 import { RESEARCH_TYPES } from "../../shared/workspace.mjs";
+import { RESEARCH_SHELVES, researchShelf } from "./research-shelves";
 import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from "./WorkspaceUI";
 import type { MaterialItem, WorkspaceSectionProps } from "./types";
 import "./ResearchView.css";
@@ -17,16 +18,16 @@ type Props = Omit<WorkspaceSectionProps, "onFiles" | "uploading" | "initialSubje
   uploading?: boolean;
   onTypeChange?: (type: ResearchType | "") => void;
 };
-const researchTypeIcons = [ClipboardList, FileText, Presentation, Paperclip, BookOpen, Files];
+const researchTypeIcons = [FileText, BookOpen];
 const ACCEPT = ".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.html,.htm,.txt,.xlsx,.cell,.jpg,.jpeg,.png,.webp";
 export const isResearch = (item: { kind: string; purpose?: string }): item is MaterialItem => item.kind === "material" && item.purpose === "research";
-export const researchTypeOf = (item: MaterialItem): ResearchType => item.researchType || "기타";
+export const researchTypeOf = (item: MaterialItem) => researchShelf(item.researchType);
 // Originals are ordinary archived documents; the item keeps name/size/SHA-256.
 export const findResearchOriginal = (item: MaterialItem, documents: DocumentRecord[]) =>
   item.sourceFile ? documents.find(doc => doc.sha256 === item.sourceFile!.sha256 && doc.size === item.sourceFile!.size) : undefined;
 const year = (item: MaterialItem) => item.date.slice(0, 4);
 export const researchGroupKey = (item: MaterialItem) => JSON.stringify([year(item), item.eventName.trim()]);
-export const researchGroupLabel = (item: MaterialItem) => [year(item) ? `${year(item)}년` : "", item.eventName.trim()].filter(Boolean).join(" ") || "대회와 연도 미입력";
+export const researchGroupLabel = (item: MaterialItem) => [year(item) ? `${year(item)}년` : "", item.eventName.trim()].filter(Boolean).join(" ");
 const sizeLabel = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.ceil(bytes / 1024))} KB`;
 function emptyResearch(): MaterialItem {
   return { id: "", kind: "material", purpose: "research", researchType: "보고서", ownership: "created", title: "", eventName: "", date: "", author: "", tags: [], audience: [], format: "PDF", fileUrl: "", summary: "", createdAt: "", updatedAt: "" };
@@ -61,7 +62,8 @@ function ResearchEditor({ item, workspace, careers, onSave, onUploadFile, onClos
     }
     saving.current = true; setBusy(true);
     try {
-      let next: MaterialItem = { ...draft, purpose: "research", researchType: draft.researchType || "기타", fileUrl: draft.fileUrl.trim() };
+      // Editing a title or note must not rewrite a legacy document type.
+      let next: MaterialItem = { ...draft, purpose: "research", fileUrl: draft.fileUrl.trim() };
       if (file) {
         const original = await onUploadFile(file);
         if (!original.sha256) throw new Error("원본 파일 확인 정보를 받지 못했습니다. 다시 시도해 주세요.");
@@ -84,7 +86,7 @@ function ResearchEditor({ item, workspace, careers, onSave, onUploadFile, onClos
       </label>
       <label className="field"><span>자료 제목 *</span><input required maxLength={300} value={draft.title} onChange={event => change("title", event.target.value)} placeholder="예: 2026 현장교육연구대회 보고서 최종본" /></label>
       <div className="field research-type-field"><span id="research-type-label">자료 종류</span><div className="research-type-picker" role="radiogroup" aria-labelledby="research-type-label">
-        {RESEARCH_TYPES.map(type => <button type="button" role="radio" key={type} aria-checked={(draft.researchType || "기타") === type} onClick={() => change("researchType", type)}>{displayLabel(type)}</button>)}
+        {RESEARCH_SHELVES.map(type => <button type="button" role="radio" key={type} aria-checked={researchTypeOf(draft) === type} onClick={() => change("researchType", type)}>{type}</button>)}
       </div></div>
       <div className="field-grid">
         <label className="field"><span>대회명 <small>선택</small></span><input maxLength={300} list="research-contests" value={draft.eventName} onChange={event => change("eventName", event.target.value)} placeholder="예: 교육자료전, 현장교육연구대회" /><datalist id="research-contests">{contests.map(name => <option key={name} value={name} />)}</datalist></label>
@@ -103,7 +105,7 @@ function ResearchEditor({ item, workspace, careers, onSave, onUploadFile, onClos
 export default function ResearchView({ workspace, documents, careers, onSave, onDelete, onOpen, onError, onUploadFile, onFiles, uploading, onTypeChange, focusId, initialSection }: Props) {
   const items = useMemo(() => workspace.items.filter(isResearch), [workspace.items]);
   const [query, setQuery] = useState(""), [contest, setContest] = useState("");
-  const [type, setType] = useState<ResearchType | "">(RESEARCH_TYPES.includes(initialSection as ResearchType) ? initialSection as ResearchType : "");
+  const [type, setType] = useState<ResearchType | "">(RESEARCH_TYPES.includes(initialSection as ResearchType) ? researchShelf(initialSection) : "");
   const filePicker = useRef<HTMLInputElement>(null);
   useEffect(() => { onTypeChange?.(type); }, [type, onTypeChange]);
   const [selectedId, setSelectedId] = useState(""), [editing, setEditing] = useState<MaterialItem | null>(null);
@@ -111,14 +113,14 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const selected = items.find(item => item.id === selectedId);
   useEffect(() => { if (focusId && items.some(item => item.id === focusId)) setSelectedId(focusId); }, [focusId, items]);
-  const contests = useMemo(() => [...new Map(items.map(item => [researchGroupKey(item), researchGroupLabel(item)])).entries()].sort((a, b) => b[1].localeCompare(a[1], "ko")), [items]);
+  const contests = useMemo(() => [...new Map(items.map(item => [researchGroupKey(item), researchGroupLabel(item)])).entries()].filter(([, label]) => label).sort((a, b) => b[1].localeCompare(a[1], "ko")), [items]);
   const words = query.trim().normalize("NFC").toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const matchesExceptType = (item: MaterialItem) => (!contest || researchGroupKey(item) === contest)
     && words.every(word => [item.title, item.eventName, item.author, item.summary, item.sourceFile?.name || "", researchTypeOf(item), ...item.tags].join(" ").normalize("NFC").toLocaleLowerCase().includes(word));
   const filtered = items.filter(item => matchesExceptType(item) && (!type || researchTypeOf(item) === type));
   // Newest year first; inside a contest, by document type order then latest edit.
   const groups = [...filtered.reduce((map, item) => map.set(researchGroupKey(item), [...(map.get(researchGroupKey(item)) || []), item]), new Map<string, MaterialItem[]>()).entries()]
-    .map(([key, rows]) => ({ key, label: researchGroupLabel(rows[0]), rows: rows.sort((a, b) => RESEARCH_TYPES.indexOf(researchTypeOf(a)) - RESEARCH_TYPES.indexOf(researchTypeOf(b)) || b.updatedAt.localeCompare(a.updatedAt)) }))
+    .map(([key, rows]) => ({ key, label: researchGroupLabel(rows[0]), rows: rows.sort((a, b) => RESEARCH_SHELVES.indexOf(researchTypeOf(a)) - RESEARCH_SHELVES.indexOf(researchTypeOf(b)) || b.updatedAt.localeCompare(a.updatedAt)) }))
     .sort((a, b) => (year(b.rows[0]) || "0").localeCompare(year(a.rows[0]) || "0") || a.label.localeCompare(b.label, "ko"));
   async function original(item: MaterialItem) {
     const doc = findResearchOriginal(item, documents);
@@ -139,14 +141,14 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
   return <section className="research-view">
     <header className="research-heading">
       <div><h1>연구대회 자료 <small aria-label={`전체 ${items.length}개`}>{items.length}</small></h1></div>
-      <button className="button primary" onClick={() => setEditing(emptyResearch())}><Plus size={17} />자료 보관</button>
+      <div className="research-heading-actions">{onFiles && <button type="button" className="button secondary" disabled={uploading} onClick={() => filePicker.current?.click()}><Upload size={16}/>{uploading ? "저장 중" : "파일 추가"}</button>}<button className="button primary" onClick={() => setEditing({ ...emptyResearch(), ...(type ? { researchType: type } : {}) })}><Plus size={17} />자료 보관</button></div>
     </header>
-    {onFiles && <><button type="button" className="archive-upload-hint" disabled={uploading} onClick={() => filePicker.current?.click()} title="최대 10개, 파일당 25 MB"><Upload size={16} aria-hidden="true"/><span>파일을 화면에 놓으면 {type ? displayLabel(type) : "연구 자료"}에 추가</span></button><input ref={filePicker} className="visually-hidden" type="file" multiple accept={ACCEPT} aria-label="연구대회 파일 추가" disabled={uploading} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) void onFiles(files); }}/></>}
+    {onFiles && <input ref={filePicker} type="file" hidden multiple accept={ACCEPT} aria-label="연구대회 파일 추가" disabled={uploading} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) void onFiles(files); }}/>}
     <div className="research-workbench">
       <div className="research-filter-label"><span>자료 종류</span>{(query || contest || type) && <button type="button" onClick={() => { setQuery(""); setContest(""); setType(""); }}>조건 지우기</button>}</div>
       <div className="research-type-filter" role="group" aria-label="자료 종류로 거르기">
         <button aria-pressed={!type} onClick={() => setType("")}><FileStack size={17} aria-hidden="true" /><span>전체</span>{items.filter(matchesExceptType).length > 0 && <small>{items.filter(matchesExceptType).length}</small>}</button>
-        {RESEARCH_TYPES.map((value, index) => {
+        {RESEARCH_SHELVES.map((value, index) => {
           const Icon = researchTypeIcons[index];
           const count = items.filter(item => matchesExceptType(item) && researchTypeOf(item) === value).length;
           return <button key={value} aria-pressed={type === value} onClick={() => setType(type === value ? "" : value)}><Icon size={17} aria-hidden="true" /><span>{displayLabel(value)}</span>{count > 0 && <small>{count}</small>}</button>;
@@ -158,20 +160,20 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
       </div>
     </div>
     {(items.length > 0 || query || contest || type) && <p className="research-count" aria-live="polite"><strong>{type ? displayLabel(type) : "전체 자료"}</strong><span>{filtered.length}개</span>{(query || contest) && <small>검색 결과</small>}</p>}
-    {groups.length ? groups.map(group => <section className="research-group" key={group.key} aria-label={group.label}>
-      <h2>{displayLabel(group.label)} <small>{group.rows.length}개</small></h2>
+    {groups.length ? groups.map(group => <section className="research-group" key={group.key} aria-label={group.label || undefined}>
+      {group.label && <h2>{displayLabel(group.label)} <small>{group.rows.length}개</small></h2>}
       <div className="research-grid">{group.rows.map(item => <article className="research-card" key={item.id}>
         <button className="research-card-open" onClick={() => setSelectedId(item.id)} aria-label={`${item.title} 자세히 보기`}>
-          <span className="research-card-meta"><span className={`research-type type-${RESEARCH_TYPES.indexOf(researchTypeOf(item))}`}>{displayLabel(researchTypeOf(item))}</span><small>{item.format}</small></span>
-          <h3>{displayLabel(item.title)}</h3>
-          {(item.summary || item.sourceFile?.name) && <p>{displayLabel(item.summary || item.sourceFile?.name || "")}</p>}
-          <span className="research-card-footer"><FileText size={15} aria-hidden="true" /><span className={findResearchOriginal(item, documents) ? "ok" : item.fileUrl ? "link" : "warn"}>{status(item)}</span>{linkedRefs(workspace, `material:${item.id}`).length > 0 && <small>관련 기록 {linkedRefs(workspace, `material:${item.id}`).length}</small>}</span>
+          <span className="research-file-icon" aria-hidden="true">{researchTypeOf(item) === "보고서" ? <FileText size={20}/> : <BookOpen size={20}/>}</span>
+          <h3 title={displayLabel(item.title)}>{displayLabel(item.title)}</h3>
+          <span className="research-card-meta"><span className={`research-type type-${RESEARCH_SHELVES.indexOf(researchTypeOf(item))}`}>{researchTypeOf(item)}</span><small>{item.format === "기타" ? "" : item.format}</small></span>
+          <span className="research-card-footer"><span className={findResearchOriginal(item, documents) ? "ok" : item.fileUrl ? "link" : "warn"}>{status(item)}</span></span>
         </button>
       </article>)}</div>
-    </section>) : <div className="research-empty"><FileStack size={36} aria-hidden="true" /><h2>{items.length ? "조건에 맞는 자료가 없어요" : "아직 보관한 연구대회 자료가 없어요"}</h2><p>{items.length ? "검색어나 거르기 조건을 바꿔 보세요." : "계획서, 보고서, 발표자료를 파일이나 링크로 보관하세요."}</p>{!items.length && <button className="button secondary" onClick={() => setEditing(emptyResearch())}><Plus size={16} />자료 보관</button>}</div>}
+    </section>) : <div className="research-empty"><FileStack size={36} aria-hidden="true" /><h2>{items.length ? "조건에 맞는 자료가 없어요" : "아직 보관한 연구대회 자료가 없어요"}</h2>{!items.length && <button className="button secondary" onClick={() => setEditing(emptyResearch())}><Plus size={16} />자료 보관</button>}</div>}
     {selected && <Modal title={displayLabel(selected.title)} subtitle={displayLabel(researchGroupLabel(selected))} wide onClose={() => !busy && setSelectedId("")}>
       <div className="modal-body research-detail">
-        <div className="research-detail-meta"><span className={`research-type type-${RESEARCH_TYPES.indexOf(researchTypeOf(selected))}`}>{displayLabel(researchTypeOf(selected))}</span><span>{selected.format}</span>{selected.author && <span>{displayLabel(selected.author)}</span>}</div>
+        <div className="research-detail-meta"><span className={`research-type type-${RESEARCH_SHELVES.indexOf(researchTypeOf(selected))}`}>{researchTypeOf(selected)}</span>{selected.format !== "기타" && <span>{selected.format}</span>}{selected.author && <span>{displayLabel(selected.author)}</span>}</div>
         <section className="research-original"><FileText size={24} aria-hidden="true" /><div><strong>{displayLabel(selected.sourceFile?.name || (selected.fileUrl ? "구글 드라이브 링크" : "원본 파일 없음"))}</strong><small>{selected.sourceFile ? sizeLabel(selected.sourceFile.size) : selected.fileUrl ? "링크로 열 수 있어요." : "자료 수정에서 원본을 추가할 수 있어요."}</small></div>
           {findResearchOriginal(selected, documents) && <button className="button secondary" disabled={busy} onClick={() => void original(selected)}><ArrowDownToLine size={16} />원본 받기</button>}
           {selected.fileUrl && <a className="button secondary" href={selected.fileUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} />드라이브에서 열기</a>}

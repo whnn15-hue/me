@@ -3,6 +3,7 @@ import { materialLibrary, resourceType, videoResourceTypes, type ResourceType } 
 import { prepareMaterialFiles } from "../free/material-files";
 import type { DocumentRecord } from "../types";
 import type { MaterialItem, WorkspaceData } from "./types";
+import { researchShelf } from "./research-shelves";
 
 type ResearchType = NonNullable<MaterialItem["researchType"]>;
 export type DroppedArchiveOptions = {
@@ -37,16 +38,12 @@ export function researchFileDraft(name: string, text = "", selectedType?: Resear
   const normalizedName = name.normalize("NFC"), normalizedText = text.normalize("NFC").slice(0, 60000);
   const draft = materialDraft(normalizedName, normalizedText, "lecture") as MaterialItem;
   const typeSource = `${normalizedName} ${explicit(normalizedText, "자료 종류|문서 종류")}`;
-  const inferred: ResearchType = /부록|증빙|첨부/.test(typeSource) ? "부록·증빙"
-    : /참고자료|참고문헌/.test(typeSource) ? "참고자료"
-    : /계획서|계획안/.test(typeSource) ? "계획서"
-    : /보고서|결과보고|연구보고/.test(typeSource) ? "보고서"
-    : /발표|프레젠테이션/i.test(typeSource) || /\.pptx?$/i.test(normalizedName) ? "발표자료" : "기타";
+  const inferred: ResearchType = /보고서|결과보고|연구보고/.test(typeSource) && !/참고자료|참고문헌|양식|예시|견본/.test(typeSource) ? "보고서" : "참고자료";
   const yearSource = explicit(normalizedText, "대회연도|대회 연도|연도|학년도|작성연도|제작연도") || normalizedName;
   const year = /(?:^|\D)((?:19|20)\d{2})(?=\D|$)/.exec(yearSource)?.[1] || "";
   const contest = explicit(normalizedText, "대회명|공모전명|연구대회명")
     || /수업혁신사례연구대회|교실수업개선(?:실천)?사례연구대회|교육방송연구대회|현장교육연구대회|교육자료전|[가-힣]{2,20}공모전/.exec(normalizedName)?.[0] || "";
-  return { ...draft, purpose: "research", ownership: "created", researchType: selectedType || inferred,
+  return { ...draft, purpose: "research", ownership: "created", researchType: selectedType ? researchShelf(selectedType) : inferred,
     eventName: contest, date: year, audience: [], resourceType: "lecture" };
 }
 
@@ -56,7 +53,7 @@ function sameOriginal(item: MaterialItem, hash: string, size: number) {
 function sameDestination(item: MaterialItem, options: DroppedArchiveOptions) {
   if ((item.purpose || "lecture") !== options.purpose) return false;
   if (options.purpose === "classroom") return (item.schoolSection || "classroom") === (options.schoolSection || "classroom");
-  if (options.purpose === "research") return !options.researchType || (item.researchType || "기타") === options.researchType;
+  if (options.purpose === "research") return !options.researchType || researchShelf(item.researchType) === researchShelf(options.researchType);
   return materialLibrary(item) === (options.library || "learning") && (!options.resourceType || resourceType(item) === options.resourceType);
 }
 const matchingMaterial = (workspace: WorkspaceData, hash: string, size: number, options: DroppedArchiveOptions) => workspace.items

@@ -89,16 +89,16 @@ async function focusRecordWithKeyboard(page) {
   }
   assert.fail('The shown career must be reachable with the keyboard');
 }
-async function advance(page, milliseconds = 5000) {
+async function advance(page, milliseconds = 3500) {
   await page.clock.runFor(milliseconds);
   await page.evaluate(() => Promise.resolve());
 }
 
-test('growth preview advances every five seconds through actual careers and opens the shown record', browserOptions, async () => {
+test('growth preview advances every three and a half seconds through actual careers and opens the shown record', browserOptions, async () => {
   await fixture(async page => {
     await pause(page).waitFor();
     const first = await title(page).innerText();
-    await advance(page, 4999); await expect(title(page)).toHaveText(first);
+    await advance(page, 3499); await expect(title(page)).toHaveText(first);
     await advance(page, 1); await expect(title(page)).not.toHaveText(first);
     const seen = [first, await title(page).innerText()];
     for (let index = 0; index < 3; index++) { await advance(page); await expect(title(page)).not.toHaveText(seen.at(-1)); seen.push(await title(page).innerText()); }
@@ -114,7 +114,7 @@ test('growth preview advances every five seconds through actual careers and open
   });
 });
 
-test('reading and explicit pause hold the preview while year pins retain their random scoped preview', browserOptions, async () => {
+test('reading and explicit pause hold the preview while year hover and focus never select or pause a slide', browserOptions, async () => {
   await fixture(async page => {
     await page.locator('.atlas-milestone').hover();
     const hovered = await title(page).innerText();
@@ -123,36 +123,41 @@ test('reading and explicit pause hold the preview while year pins retain their r
     await focusRecordWithKeyboard(page);
     await advance(page, 10000); await expect(title(page)).toHaveText(hovered);
     await away(page); await advance(page); await expect(title(page)).not.toHaveText(hovered);
-    const pin = page.getByRole('button', { name: '2021년 이력 보기, 이 해에 시작한 기록 2건', exact: true });
-    await pin.hover();
-    await expect(page.locator('.atlas-milestone')).toHaveAttribute('aria-label', '2021년 기록 미리보기');
-    const yearTitle = await title(page).innerText();
-    assert.ok(['함께하는 수업','배움 나눔 연수'].includes(yearTitle));
-    await advance(page, 15000); await expect(title(page)).toHaveText(yearTitle);
-    await pin.focus(); await expect(title(page)).toHaveText(yearTitle);
-    await away(page); await pin.hover(); await expect(title(page)).not.toHaveText(yearTitle);
+
+    // Year navigation has no ownership of the main slide, even while playback is paused.
     await pause(page).click(); await away(page);
     const paused = await title(page).innerText();
+    const pin = page.getByRole('button', { name: '2021년 이력 보기, 이 해에 시작한 기록 2건', exact: true });
+    await pin.hover(); await expect(title(page)).toHaveText(paused);
+    await pin.focus(); await expect(title(page)).toHaveText(paused);
     await advance(page, 15000); await expect(title(page)).toHaveText(paused);
+    await pin.click(); await expect(title(page)).toHaveText(paused);
+    assert.deepEqual(await page.evaluate(() => fixture.years), [2021]);
     await next(page).click(); await expect(title(page)).not.toHaveText(paused);
     await away(page); const manuallyChanged = await title(page).innerText();
     await advance(page, 10000); await expect(title(page)).toHaveText(manuallyChanged);
+
     await play(page).click();
     await page.locator('#outside').hover();
     assert.equal(await pause(page).evaluate(element => element === document.activeElement), true, 'Pointer playback leaves focus on its control');
     await expect(page.locator('.atlas-milestone')).toHaveAttribute('data-running', 'true');
-    await advance(page);
-    await expect(title(page)).not.toHaveText(manuallyChanged);
+    // Hovering a year does not replace the slide or prevent the next timed transition.
+    await pin.hover(); await expect(title(page)).toHaveText(manuallyChanged);
+    await advance(page, 3499); await expect(title(page)).toHaveText(manuallyChanged);
+    await advance(page, 1); await expect(title(page)).not.toHaveText(manuallyChanged);
+    const afterHover = await title(page).innerText();
+    await pin.focus(); await expect(title(page)).toHaveText(afterHover);
+    await expect(page.locator('.atlas-milestone')).toHaveAttribute('data-running', 'true');
+    await advance(page); await expect(title(page)).not.toHaveText(afterHover);
+
+    // Reading the title with the keyboard still pauses playback, including mouse movement to a year.
     await focusRecordWithKeyboard(page);
     const focusedRecord = await title(page).innerText();
+    await pin.hover(); await expect(title(page)).toHaveText(focusedRecord);
     await advance(page, 10000); await expect(title(page)).toHaveText(focusedRecord);
-    await pin.hover();
-    await expect(title(page)).not.toHaveText(focusedRecord);
-    const replacement = await title(page).innerText();
-    assert.equal(await page.locator('.atlas-milestone-record').evaluate(element => element === document.activeElement), false, 'The previous focused slide was replaced');
-    await page.locator('#outside').hover();
-    await expect(page.locator('.atlas-milestone')).toHaveAttribute('data-running', 'true');
-    await advance(page); await expect(title(page)).not.toHaveText(replacement);
+    assert.equal(await page.locator('.atlas-milestone-record').evaluate(element => element === document.activeElement), true);
+    await away(page); await expect(page.locator('.atlas-milestone')).toHaveAttribute('data-running', 'true');
+    await advance(page); await expect(title(page)).not.toHaveText(focusedRecord);
   });
 });
 
@@ -167,7 +172,7 @@ test('maps stay visible despite old collapse preferences, hidden tabs pause, and
     await page.evaluate(() => fixture.visibility(true));
     const hidden = await title(page).innerText(); await advance(page, 20000); await expect(title(page)).toHaveText(hidden);
     await page.evaluate(() => fixture.visibility(false));
-    await advance(page, 4999); await expect(title(page)).toHaveText(hidden);
+    await advance(page, 3499); await expect(title(page)).toHaveText(hidden);
     await advance(page, 1); await expect(title(page)).not.toHaveText(hidden);
     await expect(page.getByRole('button', { name: '접기', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '성장 지도 모션 다시 보기', exact: true })).toHaveCount(0);

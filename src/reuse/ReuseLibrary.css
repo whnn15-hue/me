@@ -4,6 +4,5 @@
 
 .modal.wide:has(.submission-editor){width:min(1120px,calc(100vw - 72px));max-width:1120px}.modal.wide:has(.reuse-photo-editor){width:min(1000px,calc(100vw - 72px));max-width:1000px}.reuse-editor-footer .button{white-space:nowrap}.submission-editor .reuse-notice{background:var(--ui-accent-soft);color:var(--ui-accent-ink)}
 
-.app-shell .reuse-library .reuse-upload-hint{display:flex;align-items:center;gap:8px;min-height:28px;margin:10px 0 14px;color:var(--ui-muted);font-size:13px;line-height:1.5}
-.app-shell .reuse-library .reuse-upload-hint>svg{color:var(--ui-accent-ink);flex-shrink:0}
-.app-shell .reuse-library .reuse-upload-hint .text-button{margin-left:4px;font-size:13px;color:var(--ui-accent-ink);padding:3px 6px}
+
+.app-shell .reuse-library .reuse-heading-actions { display:flex; align-items:center; gap:8px; }

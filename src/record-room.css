@@ -78,3 +78,17 @@ button, input, select, textarea { font:inherit; }
 .app-shell .library-list .library-card-actions { flex-direction:row; justify-content:flex-end; }
 .app-shell .materials-grid.library-list .library-card-actions a, .app-shell .materials-grid.library-list .library-card-actions button { padding:0; }
 .app-shell .library-list .library-card-actions { width:auto; min-width:180px; }
+
+/* Inputs already show their caret. Avoid a second rectangular focus frame
+   inside search fields; keep keyboard focus indicators on action controls. */
+.app-shell :is(input, textarea, select):focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--ui-border) !important;
+}
+.app-shell :is(.materials-search, .search-box, .project-search, .grad-search, .overview-search, .header-search-field):focus-within,
+.app-shell .header-search-field.is-open {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: var(--ui-border) !important;
+}
