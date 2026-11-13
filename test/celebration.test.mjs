@@ -40,10 +40,18 @@ test('achievements are real award/competition records, started already, newest f
     career('future-award', '2026-12-31', { category: '표창', title: '예정' }),
     career('contest-2', '2024-02-01', { category: '연구·수상', title: '교육자료전', description: '우수상 수상' }),
   ];
-  const picked = pickAchievements(careers, [], today);
-  assert.deepEqual(picked.map(item => item.id), ['new-contest', 'contest-2', 'mid-award', 'old-award']);
-  assert.equal(picked[0].grade, '1등급'); assert.equal(picked[0].year, 2025);
-  assert.deepEqual(pickAchievements(careers, [], today, 2).map(item => item.id), ['new-contest', 'contest-2']);
+  const all = pickAchievements(careers, [], today, 10);
+  assert.deepEqual(all.map(item => item.id), ['new-contest', 'contest-2', 'mid-award', 'old-award'], 'every eligible record, newest first');
+  assert.equal(all[0].grade, '1등급'); assert.equal(all[0].year, 2025);
+  const three = pickAchievements(careers, [], today);
+  assert.equal(three.length, 3, 'three by default');
+  assert.ok(three.every(item => all.some(entry => entry.id === item.id)));
+  assert.deepEqual(three.map(item => item.year), [...three.map(item => item.year)].sort((a, b) => b - a), 'shown in date order');
+  // Different random draws pick different subsets.
+  const seq = values => { let i = 0; return () => values[i++ % values.length]; };
+  const a = pickAchievements(careers, [], today, 3, seq([0, 0, 0])).map(item => item.id).sort();
+  const b = pickAchievements(careers, [], today, 3, seq([.99, .99, .99])).map(item => item.id).sort();
+  assert.notDeepEqual(a, b);
   assert.deepEqual(pickAchievements([career('lecture', '2026-01-01')], [], today), []);
 });
 
