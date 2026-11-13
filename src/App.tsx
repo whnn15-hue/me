@@ -52,6 +52,7 @@ import AiConnection from "./AiConnection";
 import HomeDashboard from "./home/HomeDashboard";
 import { APP_NAME, ArchiveMark } from "./branding";
 import { evidenceCodeFromHash, useEvidenceLink } from "./evidence-link";
+import { useOneDriveOAuthRecovery } from "./onedrive-oauth-recovery";
 import ReuseLibrary from "./reuse/ReuseLibrary";
 import { careerSection, careerOrganization, careerNavigationChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
 import { materialDraft } from "../shared/material-classification.mjs";
@@ -194,6 +195,7 @@ export function Evidence({ career, documents, compact = false }: { career: Caree
 
 export default function App() {
   const [evidenceLinkCode, clearEvidenceLink] = useEvidenceLink();
+  const oneDriveOAuthError = useOneDriveOAuthRecovery();
   const [status, setStatus] = useState<Status | null>(null),
     [careers, setCareers] = useState<Career[]>([]),
     [documents, setDocuments] = useState<DocumentRecord[]>([]),
@@ -221,6 +223,9 @@ export default function App() {
   useEffect(() => {
     if (evidenceLinkCode) setView("settings");
   }, [evidenceLinkCode]);
+  useEffect(() => {
+    if (oneDriveOAuthError) setView("settings");
+  }, [oneDriveOAuthError]);
   const [editor, setEditor] = useState<Career | null>(null),
     [queue, setQueue] = useState<Career[]>([]),
     [analysisNote, setAnalysisNote] = useState(""),
@@ -1173,6 +1178,7 @@ export default function App() {
               {view === "settings" && status && (
                 <BackupSettings
                   status={status}
+                  oneDriveOAuthError={oneDriveOAuthError}
                   initialEvidenceCode={evidenceLinkCode ?? undefined}
                   onEvidenceCodeConsumed={clearEvidenceLink}
                   onRefresh={refresh}

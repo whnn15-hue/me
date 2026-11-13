@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createFreeOneDrive, UPLOAD_CHUNK_BYTES, decodeArchiveDescription, oneDriveName } from '../server/free/onedrive.mjs';
+import { createFreeOneDrive, SIMPLE_UPLOAD_BYTES, UPLOAD_CHUNK_BYTES, decodeArchiveDescription, oneDriveName } from '../server/free/onedrive.mjs';
 import { readDriveFile } from '../server/free/files.mjs';
 import { validGoogleDriveId, validOneDriveItemId, validStorageFileId } from '../shared/storage-id.mjs';
 // Same encoding real OneDrive Personal applies to descriptions it returns.
@@ -45,6 +45,14 @@ function fixture(overrides = {}) {
     }
     if (url.includes('/v1.0/me?')) return json({ id: overrides.accountId || 'ms-account-1', userPrincipalName: 'Personal@Outlook.com' });
     if (url.includes('/special/approot')) return json({ id: FOLDER, name: 'Apps' });
+    if (url.includes(':/content?') && options.method === 'PUT') {
+      const name = decodeURIComponent(new URL(url).pathname.split(':/').at(-2));
+      assert.equal(new URL(url).searchParams.get('@microsoft.graph.conflictBehavior'), 'fail');
+      if ([...items.values()].some(item => item.name === name)) return json({}, 409);
+      const id = `ABCDEF0123456789!${200 + ++sequence}`, content = Buffer.from(options.body);
+      items.set(id, { id, name, size: content.length, file: { mimeType: options.headers['Content-Type'] }, parentReference: { id: FOLDER }, content });
+      return json({ id, name }, 201);
+    }
     if (url.endsWith(':/createUploadSession')) {
       const name = decodeURIComponent(url.split(':/').at(-2));
       const uploadUrl = `https://api.onedrive.com/rup/session-${++sequence}`;
@@ -79,7 +87,7 @@ function fixture(overrides = {}) {
   });
   const refreshFirebaseOwner = async (refreshToken, { uid }) => ({ uid, email: config.ownerEmail, idToken: 'refreshed-id-token', refreshToken: 'firebase-refresh-token' });
   const options = { vault, config: { ...config, ...overrides.config }, fetcher, refreshFirebaseOwner,
-    captureSnapshot: overrides.captureSnapshot, captureBackup: async () => Buffer.from('ZIP-private-originals') };
+    captureSnapshot: overrides.captureSnapshot, captureBackup: overrides.captureBackup || (async () => Buffer.from('ZIP-private-originals')) };
   return { records, items, sessions, calls, options, create: () => createFreeOneDrive(options) };
 }
 
@@ -139,17 +147,17 @@ test('a reused or Google-provider OAuth state is rejected', async () => {
   const { drive, authorization } = await connect(f);
   const replay = response();
   await drive.callback({ query: { state: authorization.searchParams.get('state'), code: 'authorization-code' } }, replay);
-  assert.equal(replay.statusCode, 400);
+  assert.equal(replay.redirectURL, 'https://career.example.app/?onedriveError=state_missing#settings');
   f.records.set(`oauthStates/${createHash('sha256').update('a'.repeat(64)).digest('hex')}`, { uid: 'owner-uid', email: config.ownerEmail, verifier: 'v', expiresAt: Date.now() + 60000 });
   const google = response();
   await drive.callback({ query: { state: 'a'.repeat(64), code: 'c' } }, google);
-  assert.equal(google.statusCode, 400);
+  assert.equal(google.redirectURL, 'https://career.example.app/?onedriveError=request_invalid#settings');
 });
 
 test('callback refuses a missing app-folder grant, a different owner, and switching Microsoft accounts', async () => {
   const noScope = fixture({ scope: 'User.Read openid' });
   const { result } = await connect(noScope, undefined, false);
-  assert.equal(result.statusCode, 403);
+  assert.equal(result.redirectURL, 'https://career.example.app/?onedriveError=scope_missing#settings');
   assert.equal(noScope.records.has('oneDriveTokens/owner-uid'), false);
 
   const stranger = fixture();
@@ -162,8 +170,7 @@ test('callback refuses a missing app-folder grant, a different owner, and switch
   const other = fixture({ accountId: 'ms-account-2' });
   for (const [key, value] of f.records) other.records.set(key, value);
   const switched = await connect(other, undefined, false);
-  assert.equal(switched.result.statusCode, 403);
-  assert.match(switched.result.body, /처음 연결한 마이크로소프트 계정/);
+  assert.equal(switched.result.redirectURL, 'https://career.example.app/?onedriveError=account_mismatch#settings');
 });
 
 test('expired access tokens are refreshed and the rotated refresh token is kept', async () => {
@@ -236,11 +243,74 @@ test('rejected upload-session creation refreshes Graph once before sending any o
   let starts = 0;
   const f = fixture({ intercept: (url) => url.endsWith(':/createUploadSession') && ++starts === 1 ? json({}, 401) : undefined });
   const { drive } = await connect(f);
-  const stored = await drive.upload('owner-uid', Buffer.from('original'), 'original.pdf', 'application/pdf', 'document');
+  const stored = await drive.upload('owner-uid', Buffer.alloc(SIMPLE_UPLOAD_BYTES + 1, 7), 'original.pdf', 'application/pdf', 'document');
   assert.equal(starts, 2); assert.equal(f.sessions.size, 1); assert.equal(f.items.size, 1);
   assert.equal(f.calls.filter(call => call.url.startsWith('https://api.onedrive.com/rup/') && call.options.method === 'PUT').length, 1);
   assert.equal(f.items.get(stored.driveFileId).description.includes('document'), true);
   assert.equal(f.calls.filter(call => call.url.endsWith('/token')).length, 2);
+});
+
+test('small upload retries only a rejected Graph PUT with the same unique destination and original bytes', async () => {
+  let puts = 0;
+  const f = fixture({ intercept: (url, options) => url.includes(':/content?') && options.method === 'PUT' && ++puts === 1 ? json({}, 401) : undefined });
+  const { drive } = await connect(f);
+  const original = Buffer.from('%PDF-original');
+  const stored = await drive.upload('owner-uid', original, '강사 위촉.pdf', 'application/pdf', 'document');
+  const attempts = f.calls.filter(call => call.options.method === 'PUT');
+  assert.equal(attempts.length, 2); assert.equal(attempts[0].url, attempts[1].url);
+  assert.equal(attempts[1].options.headers.Authorization, 'Bearer graph-access-2');
+  assert.ok(attempts.every(call => call.url.startsWith('https://graph.microsoft.com/') && call.options.body.equals(original)));
+  assert.deepEqual(f.items.get(stored.driveFileId).content, original);
+  assert.equal(f.items.size, 1); assert.equal(f.sessions.size, 0);
+});
+
+test('same-name small originals never replace existing files or each other', async () => {
+  const f = fixture(); const { drive } = await connect(f);
+  const prior = { id: 'ABCDEF0123456789!9999', name: 'original.pdf', content: Buffer.from('prior') };
+  f.items.set(prior.id, prior);
+  const first = await drive.upload('owner-uid', Buffer.from('one'), 'original.pdf', 'application/pdf', 'document');
+  const second = await drive.upload('owner-uid', Buffer.from('two'), 'original.pdf', 'application/pdf', 'document');
+  assert.equal(f.items.size, 3); assert.deepEqual(f.items.get(prior.id), prior);
+  assert.equal(first.fileName, 'original.pdf'); assert.equal(second.fileName, 'original.pdf');
+  assert.notEqual(f.items.get(first.driveFileId).name, f.items.get(second.driveFileId).name);
+  assert.match(f.items.get(first.driveFileId).name, /^original__[\da-f-]{36}\.pdf$/);
+  assert.deepEqual(f.items.get(first.driveFileId).content, Buffer.from('one'));
+  assert.deepEqual(f.items.get(second.driveFileId).content, Buffer.from('two'));
+});
+
+test('failed direct uploads preserve last successful backup and never fall back or blindly repeat', async () => {
+  for (const status of [401, 503, 507]) {
+    const f = fixture({ captureSnapshot: async () => Buffer.from('{"careers":[]}'), intercept: (url, options) => url.includes(':/content?') && options.method === 'PUT' ? json({ secret: 'private provider body' }, status) : undefined });
+    const { drive } = await connect(f);
+    f.records.set('lastBackup/owner-uid', 'previous-success'); f.records.set('lastBackupKind/owner-uid', 'snapshot');
+    await assert.rejects(drive.backup(owner), error => !error.message.includes('private') && (status === 507 ? error.status === 507 : error.message.includes(`HTTP ${status}`)));
+    assert.equal(f.records.get('lastBackup/owner-uid'), 'previous-success');
+    assert.equal(f.records.get('lastBackupKind/owner-uid'), 'snapshot');
+    assert.equal(f.calls.filter(call => call.options.method === 'PUT').length, status === 401 ? 2 : 1);
+    assert.equal(f.sessions.size, 0); assert.equal(f.items.size, 0);
+    assert.equal(f.records.has('oneDriveAuthState/owner-uid'), false);
+  }
+});
+
+test('a maximum-size JSON snapshot uses authenticated direct upload and retains its bytes', async () => {
+  const snapshot = Buffer.from('{"careers":[]}' + ' '.repeat(SIMPLE_UPLOAD_BYTES - 14));
+  assert.equal(snapshot.length, SIMPLE_UPLOAD_BYTES);
+  const f = fixture({ captureSnapshot: async () => snapshot }); const { drive } = await connect(f);
+  const done = await drive.backup(owner);
+  assert.equal(done.ok, true); assert.equal(f.sessions.size, 0);
+  assert.deepEqual(f.items.get(done.driveFileId).content, snapshot);
+});
+
+test('failed label cleanup deletes only the newly uploaded file and never retries the original', async () => {
+  const f = fixture({ intercept: (_url, options) => options.method === 'PATCH' ? json({}, 503) : undefined });
+  const { drive } = await connect(f);
+  const old = { id: 'ABCDEF0123456789!9999', name: 'same.pdf', content: Buffer.from('keep') };
+  f.items.set(old.id, old);
+  await assert.rejects(drive.upload('owner-uid', Buffer.from('new'), 'same.pdf', 'application/pdf', 'document'), /파일 정보 저장, HTTP 503/);
+  assert.deepEqual([...f.items.values()], [old]);
+  assert.equal(f.calls.filter(call => call.options.method === 'PUT').length, 1);
+  const deletes = f.calls.filter(call => call.options.method === 'DELETE');
+  assert.equal(deletes.length, 1); assert.ok(!deletes[0].url.includes(encodeURIComponent(old.id)));
 });
 
 test('a metadata PATCH 401 renews credentials without creating or uploading another file', async () => {
@@ -248,7 +318,7 @@ test('a metadata PATCH 401 renews credentials without creating or uploading anot
   const f = fixture({ intercept: (_url, options) => options.method === 'PATCH' && ++labels === 1 ? json({}, 401) : undefined });
   const { drive } = await connect(f);
   const stored = await drive.upload('owner-uid', Buffer.from('original'), 'original.pdf', 'application/pdf', 'document');
-  assert.equal(labels, 2); assert.equal(f.sessions.size, 1); assert.equal(f.items.size, 1);
+  assert.equal(labels, 2); assert.equal(f.sessions.size, 0); assert.equal(f.items.size, 1);
   assert.equal(f.calls.filter(call => call.options.method === 'PUT').length, 1);
   assert.equal(f.calls.filter(call => call.options.method === 'DELETE').length, 0);
   assert.equal(f.calls.filter(call => call.options.method === 'PATCH').at(-1).options.headers.Authorization, 'Bearer graph-access-2');
@@ -257,7 +327,7 @@ test('a metadata PATCH 401 renews credentials without creating or uploading anot
 
 test('expired upload sessions are distinct from account authorization and preserve the last backup', async () => {
   for (const status of [401, 404, 410]) {
-    const f = fixture({ captureSnapshot: async () => Buffer.from('{"careers":[]}'), intercept: (url, options) => url.startsWith('https://api.onedrive.com/rup/') && options.method === 'PUT' ? json({ private: 'provider upload token' }, status) : undefined });
+    const f = fixture({ captureBackup: async () => Buffer.alloc(SIMPLE_UPLOAD_BYTES + 1, 7), intercept: (url, options) => url.startsWith('https://api.onedrive.com/rup/') && options.method === 'PUT' ? json({ private: 'provider upload token' }, status) : undefined });
     const { drive } = await connect(f);
     f.records.set('lastBackup/owner-uid', 'previous-success');
     f.records.set('lastBackupKind/owner-uid', 'snapshot');
@@ -276,7 +346,7 @@ test('expired upload sessions are distinct from account authorization and preser
 
 test('upload timeouts retain a useful stage and never invalidate a working account', async () => {
   for (const failure of [Object.assign(new Error('private URL'), { name: 'TimeoutError' }), Object.assign(new Error('private URL'), { status: 504 })]) {
-    const f = fixture({ captureSnapshot: async () => Buffer.from('{"careers":[]}'), intercept: (url, options) => { if (url.startsWith('https://api.onedrive.com/rup/') && options.method === 'PUT') throw failure; } });
+    const f = fixture({ captureSnapshot: async () => Buffer.from('{"careers":[]}'), intercept: (url, options) => { if (url.includes(':/content?') && options.method === 'PUT') throw failure; } });
     const { drive } = await connect(f);
     f.records.set('lastBackup/owner-uid', 'previous-success');
     await assert.rejects(drive.backup(owner), error => error.status === 504 && /대기 시간이 초과.*파일 전송/.test(error.message));
@@ -358,13 +428,15 @@ test('full backup reads renew inside the existing lease and later upload reuses 
   assert.equal(f.records.get('oneDriveTokens/owner-uid').refresh_token, 'ms-refresh-2');
 });
 
-test('small and large uploads use one upload session with archive metadata, and reads verify integrity', async () => {
+test('small originals use direct Graph PUT, large files use chunks, and reads verify original bytes', async () => {
   const f = fixture();
   const { drive } = await connect(f);
   const small = Buffer.from('%PDF-1.7 small document');
   const stored = await drive.upload('owner-uid', small, '공문:1?.pdf', 'application/pdf', 'document');
   assert.match(stored.driveFileId, /!/);
-  assert.equal(f.items.get(stored.driveFileId).name, '공문_1_.pdf');
+  assert.match(f.items.get(stored.driveFileId).name, /^공문_1___[\da-f-]{36}\.pdf$/);
+  assert.equal(f.sessions.size, 0);
+  assert.deepEqual(f.items.get(stored.driveFileId).content, small);
   const meta = decodeArchiveDescription(f.items.get(stored.driveFileId).description);
   assert.deepEqual(meta, { archiveUid: 'owner-uid', kind: 'document', sha256: createHash('sha256').update(small).digest('hex') });
 

@@ -24,6 +24,7 @@ import AiConnection from "./AiConnection";
 import OneDriveMigration from "./OneDriveMigration";
 import ThemeControl from "./ThemeControl";
 import { type Status } from "./types";
+import { type OneDriveOAuthError } from "../shared/onedrive-oauth-recovery.mjs";
 
 function GoogleMark() {
   return (
@@ -57,6 +58,7 @@ export default function BackupSettings({
   jsonBackup,
   initialEvidenceCode,
   onEvidenceCodeConsumed,
+  oneDriveOAuthError,
 }: {
   status: Status;
   onRefresh: () => Promise<void>;
@@ -68,6 +70,7 @@ export default function BackupSettings({
   jsonBackup?: ReactNode;
   initialEvidenceCode?: string;
   onEvidenceCodeConsumed?: () => void;
+  oneDriveOAuthError?: OneDriveOAuthError | null;
 }) {
   const [busy, setBusy] = useState(""),
     [restore, setRestore] = useState<File | null>(null),
@@ -200,23 +203,30 @@ export default function BackupSettings({
       setBusy("");
     }
   }
-  async function connectDrive() {
-    setBusy(`${storageName} 연결 준비 중`);
+  async function startStorageConnection(path: string, name: string) {
+    if (busy) return;
+    setBusy(`${name} 연결 준비 중`);
     try {
-      const result = await api<{ url: string }>("/auth/drive/start", {
+      const result = await api<{ url: string }>(path, {
         method: "POST",
         ...(freeMode ? {
           body: JSON.stringify({ firebaseRefreshToken: await cloudRefreshToken() }),
         } : {}),
       });
       if (new URL(result.url).protocol !== "https:")
-        throw new Error(`${storageName} 연결 주소를 확인하지 못했습니다.`);
+        throw new Error(`${name} 연결 주소를 확인하지 못했습니다.`);
       window.location.assign(result.url);
     } catch (e) {
       onError(e);
     } finally {
       setBusy("");
     }
+  }
+  async function connectDrive() {
+    await startStorageConnection("/auth/drive/start", storageName);
+  }
+  async function restartOneDriveConnection() {
+    await startStorageConnection(status.storageProvider === "onedrive" ? "/auth/drive/start" : "/migration/onedrive/start", "OneDrive");
   }
   const configured = cloudMode
     ? status.firebaseConfigured
@@ -337,6 +347,22 @@ export default function BackupSettings({
               {status.storageReconnectRequired ? "재연결 필요" : status.driveConnected ? "연결됨" : "미연결"}
             </span>
           </div>
+          {oneDriveOAuthError && (
+            <div className="notice" role="alert" aria-label="OneDrive 연결 안내">
+              <Info size={18} />
+              <div>
+                <p>{oneDriveOAuthError.message}</p>
+                <small className="muted">오류 코드: {oneDriveOAuthError.code}</small>
+                <div className="settings-actions">
+                  <button className="button secondary" onClick={restartOneDriveConnection}
+                    disabled={!!busy || !freeMode || !status.user || !(status.storageProvider === "onedrive" ? driveConfigured : status.oneDriveMigrationAvailable)}>
+                    <RefreshCw size={16} />OneDrive 연결 다시 시작
+                  </button>
+                </div>
+                {!status.user && <p className="muted">본인 구글 계정으로 로그인한 뒤 새 연결을 시작해 주세요.</p>}
+              </div>
+            </div>
+          )}
           <div className="backup-state">
             <div>
               <span>마지막 백업</span>

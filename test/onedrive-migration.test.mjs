@@ -22,7 +22,7 @@ const response = () => ({ statusCode: 200, headers: {}, set(key, value) { this.h
 
 function fixture({ files = 3, onOneDrive = 1, corrupt = [], clock } = {}) {
   const records = new Map(), leases = new Map(), items = new Map(), sessions = new Map();
-  const stats = { sessions: 0, googleReads: 0 }; let sequence = 0, tokenCount = 0;
+  const stats = { uploads: 0, googleReads: 0 }; let sequence = 0, tokenCount = 0;
   const vault = {
     getJSON: async key => structuredClone(records.get(key) ?? null),
     setJSON: async (key, value) => { records.set(key, structuredClone(value)); },
@@ -52,8 +52,17 @@ function fixture({ files = 3, onOneDrive = 1, corrupt = [], clock } = {}) {
     if (url.includes('/v1.0/me?')) return json({ id: 'ms-account-1', userPrincipalName: 'person@example.com' });
     if (url.includes('/special/approot')) return json({ id: FOLDER, name: 'Apps' });
     if (url.includes('/children?')) return json({ value: [...items.values()].map(({ content, ...item }) => item) });
+    if (url.includes(':/content?') && options.method === 'PUT') {
+      stats.uploads++;
+      const name = decodeURIComponent(new URL(url).pathname.split(':/').at(-2));
+      assert.equal(new URL(url).searchParams.get('@microsoft.graph.conflictBehavior'), 'fail');
+      if ([...items.values()].some(item => item.name === name)) return json({}, 409);
+      const id = `AF91D1708B3A5395!s${String(++sequence).padStart(32, '0')}`, content = Buffer.from(options.body);
+      items.set(id, { id, name, size: content.length, file: { mimeType: options.headers['Content-Type'] }, parentReference: { id: FOLDER }, content });
+      return json({ id, name }, 201);
+    }
     if (url.endsWith(':/createUploadSession')) {
-      stats.sessions++; const uploadUrl = `https://api.onedrive.com/rup/session-${++sequence}`;
+      stats.uploads++; const uploadUrl = `https://api.onedrive.com/rup/session-${++sequence}`;
       if (JSON.parse(options.body).item?.description !== undefined) return json({ error: { code: 'invalidRequest', message: 'Invalid request' } }, 400);
       sessions.set(uploadUrl, { name: decodeURIComponent(url.split(':/').at(-2)), item: JSON.parse(options.body).item, chunks: [] }); return json({ uploadUrl });
     }
@@ -93,7 +102,7 @@ test('full migration copies, verifies and maps every Google original exactly onc
   const before = await migration.status(owner);
   assert.deepEqual(before.counts, { total: 4, onOneDrive: 1, copied: 0, pending: 3, failed: 0 }); assert.equal(before.connected, true);
   const step = await migration.step(owner);
-  assert.equal(step.processed, 3); assert.equal(Object.keys(step.mapping).length, 3); assert.equal(f.stats.sessions, 3);
+  assert.equal(step.processed, 3); assert.equal(Object.keys(step.mapping).length, 3); assert.equal(f.stats.uploads, 3);
   for (const [googleId, target] of Object.entries(step.mapping)) {
     assert.ok(validOneDriveItemId(target.id)); const document = f.state.documents.find(item => item.driveFileId === googleId);
     assert.equal(target.sha256, document.sha256); assert.equal(sha(f.items.get(target.id).content), document.sha256);
@@ -101,7 +110,7 @@ test('full migration copies, verifies and maps every Google original exactly onc
   assert.equal(f.apply(step.mapping), 3);
   const after = await migration.step(owner);
   assert.equal(after.done, true); assert.equal(after.processed, 0); assert.deepEqual(after.counts, { total: 4, onOneDrive: 4, copied: 0, pending: 0, failed: 0 });
-  assert.equal(f.stats.sessions, 3, 'no file is uploaded twice');
+  assert.equal(f.stats.uploads, 3, 'no file is uploaded twice');
   assert.ok(!JSON.stringify([...f.records.entries()].filter(([key]) => key.startsWith('migration/'))).includes('original 0'), 'ledger holds no file content');
 });
 
@@ -111,15 +120,15 @@ test('a crash after upload or before the record update resumes without a second 
   const upload = f.oneDrive.upload; let crashOnce = true;
   f.oneDrive.upload = async (...args) => { const result = await upload(...args); if (crashOnce) { crashOnce = false; throw new Error('process died'); } return result; };
   const crashed = await migration.step(owner);
-  assert.equal(crashed.counts.failed, 1); assert.equal(f.stats.sessions, 2);
+  assert.equal(crashed.counts.failed, 1); assert.equal(f.stats.uploads, 2);
   const ledger = f.records.get('migration/onedrive/owner-uid');
   assert.equal(Object.values(ledger.files).filter(entry => entry.state === 'uploading').length, 1, 'ledger only knows the upload started');
   const resumed = await migration.step(owner, { retryFailed: true });
-  assert.equal(f.stats.sessions, 2, 'the interrupted copy is found in the app folder by SHA-256, not uploaded again');
+  assert.equal(f.stats.uploads, 2, 'the interrupted copy is found in the app folder by SHA-256, not uploaded again');
   assert.equal(Object.keys(resumed.mapping).length, 2);
   // The browser never applied the mapping (tab closed): the next step only re-reports it.
   const again = await migration.step(owner);
-  assert.equal(again.processed, 0); assert.deepEqual(again.mapping, resumed.mapping); assert.equal(f.stats.sessions, 2);
+  assert.equal(again.processed, 0); assert.deepEqual(again.mapping, resumed.mapping); assert.equal(f.stats.uploads, 2);
   assert.equal(f.apply(again.mapping), 2); assert.equal((await migration.step(owner)).done, true);
 });
 
@@ -152,7 +161,7 @@ test('integrity mismatch is recorded as a failure and keeps the Google ID', asyn
 test('a second tab cannot run a step at the same time', async () => {
   const f = fixture(); const migration = await connectOneDrive(f);
   const release = await f.vault.acquireLease('migration/owner-uid');
-  await assert.rejects(migration.step(owner), { status: 409 }); assert.equal(f.stats.sessions, 0);
+  await assert.rejects(migration.step(owner), { status: 409 }); assert.equal(f.stats.uploads, 0);
   await release(); assert.equal((await migration.step(owner)).processed, 3);
 });
 
@@ -184,7 +193,8 @@ test('API exposes migration only while Google Drive is active and routes the One
   const status = await (await google.handle(new Request('https://career.example.app/api/status'))).json();
   assert.equal(status.oneDriveMigrationAvailable, true); assert.equal(status.storageProvider, 'google');
   const callback = await google.handle(new Request('https://career.example.app/api/auth/onedrive/callback?state=bad'));
-  assert.equal(callback.status, 400, 'the callback is handled by the migration connection, not a 404');
+  assert.equal(callback.status, 302, 'the callback returns to the application recovery screen');
+  assert.equal(callback.headers.get('Location'), 'https://career.example.app/?onedriveError=request_invalid#settings');
   const switched = createFreeApi({ config: { ...config, storageProvider: 'onedrive' }, vault, auth, fetcher: async () => { throw new Error('no network'); } });
   assert.equal((await (await switched.handle(new Request('https://career.example.app/api/status'))).json()).oneDriveMigrationAvailable, false);
   const noMicrosoft = createFreeApi({ config: { ...config, microsoftClientId: '' }, vault, auth, fetcher: async () => { throw new Error('no network'); } });

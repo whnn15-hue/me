@@ -103,7 +103,11 @@ export function createFreeApi({ config, vault, fetcher = networkFetch, auth, log
             const file = await readDriveFile(drive, fetcher, user.uid, body.templateFileId || body.driveFileId, { kind: 'template' });
             if (extname(file.name).toLowerCase() !== '.hwpx') throw fault('HWPX 양식을 올려 주세요.');
             const output = await fillHwpx(file.buffer, body.mappings || {});
-            response = json(await drive.upload(user.uid, output, `작성-${safeName(file.name)}`, 'application/vnd.hancom.hwpx', 'output'));
+            // The owned, verified template may have a unique storage suffix.
+            // A client title is only a download-name hint, never file identity.
+            const titleHint = typeof body.name === 'string' && body.name.length <= 300 ? safeName(body.name.trim()) : '';
+            const outputName = titleHint && extname(titleHint).toLowerCase() === '.hwpx' ? titleHint : safeName(file.name);
+            response = json(await drive.upload(user.uid, output, `작성-${outputName}`, 'application/vnd.hancom.hwpx', 'output'));
           } else if (path === '/api/backup/drive' && request.method === 'POST') response = json(await drive.backup({ uid: user.uid, email: user.email, idToken: user.token }));
           else if (path === '/api/backup/export' && request.method === 'GET') response = json(await drive.upload(user.uid, await captureBackup(user.uid, { idToken: user.token }), `career-backup-${new Date().toISOString().slice(0, 10)}.zip`, 'application/zip', 'backup'));
           else if (path === '/api/resume/evidence' && request.method === 'POST') response = json(await drive.upload(user.uid, await captureBackup(user.uid, { idToken: user.token, selectedIds: body.careerIds }), `경력-증빙-${new Date().toISOString().slice(0, 10)}.zip`, 'application/zip', 'output'));

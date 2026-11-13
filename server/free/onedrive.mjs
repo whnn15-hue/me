@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { networkFetch } from '../auth.mjs';
 import { validOneDriveItemId, decodeHtmlEntities } from '../../shared/storage-id.mjs';
+import { readOneDriveOAuthError, oneDriveOAuthRecoveryURL } from '../../shared/onedrive-oauth-recovery.mjs';
 
 // Microsoft OneDrive (personal accounts) storage provider. It implements the same
 // interface as createFreeDrive so the API, backups and document reads stay the
@@ -12,6 +13,8 @@ export const ONEDRIVE_SCOPES = `openid profile offline_access User.Read ${ONEDRI
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const MAX_BACKUP_BYTES = 200 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
+// Small originals and JSON snapshots do not need a temporary upload-session URL.
+export const SIMPLE_UPLOAD_BYTES = 5 * 1024 * 1024;
 // Upload-session fragments must be multiples of 320 KiB and at most 60 MiB.
 export const UPLOAD_CHUNK_BYTES = 320 * 1024 * 32;
 const KINDS = ['document', 'template', 'export', 'output', 'backup'];
@@ -146,37 +149,56 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
   }
 
   async function callback(req, res) {
+    const oauthFault = (code, status = 400) => Object.assign(fault(readOneDriveOAuthError(code).message, status), { oneDriveOAuthError: code });
+    const checkedState = (saved, consumed = false) => {
+      if (!saved) throw oauthFault(consumed ? 'state_used' : 'state_missing');
+      if (saved.consumed) throw oauthFault('state_used');
+      if (saved.provider !== 'onedrive' || !Number.isFinite(saved.expiresAt) || !validUid(saved.uid) || saved.email !== ownerEmail
+        || typeof saved.verifier !== 'string' || !saved.verifier || typeof saved.version !== 'string' || !saved.version) throw oauthFault('request_invalid');
+      if (saved.expiresAt < Date.now()) throw oauthFault('state_expired');
+      return saved;
+    };
     try {
       requireConfigured();
       const state = typeof req.query?.state === 'string' ? req.query.state : '';
-      if (!/^[a-f0-9]{64}$/.test(state)) throw fault('OneDrive 연결 요청이 올바르지 않습니다. 다시 시도해 주세요.');
-      const saved = await vault.consumeJSON(`oauthStates/${createHash('sha256').update(state).digest('hex')}`);
-      if (typeof req.query?.error === 'string') throw fault('OneDrive 연결이 취소되었거나 권한이 허용되지 않았습니다. 다시 시도해 주세요.', 403);
-      if (!saved || saved.provider !== 'onedrive' || !Number.isFinite(saved.expiresAt) || saved.expiresAt < Date.now() || !validUid(saved.uid) || saved.email !== ownerEmail
-        || typeof saved.verifier !== 'string' || !saved.verifier
-        || typeof req.query?.code !== 'string' || !req.query.code || req.query.code.length > 4096) {
-        throw fault('OneDrive 연결 요청이 만료되었거나 올바르지 않습니다. 다시 시도해 주세요.');
+      if (!/^[a-f0-9]{64}$/.test(state)) throw oauthFault('request_invalid');
+      const declined = typeof req.query?.error === 'string' && Boolean(req.query.error);
+      if (declined && req.query?.code !== undefined) throw oauthFault('request_invalid');
+      // Incomplete/browser-reloaded requests must not burn a pending flow.
+      if (!declined && (typeof req.query?.code !== 'string' || !req.query.code || req.query.code.length > 4096)) throw oauthFault('callback_incomplete');
+      const stateKey = `oauthStates/${createHash('sha256').update(state).digest('hex')}`;
+      const pending = checkedState(await vault.getJSON(stateKey));
+      try { await boundOwner(pending.uid); }
+      catch (error) { if (error.status === 403) throw oauthFault('request_invalid', 403); throw error; }
+      if (declined) {
+        checkedState(await vault.consumeJSON(stateKey), true);
+        throw oauthFault('permission_declined', 403);
       }
-      await boundOwner(saved.uid);
-      const release = await vault.acquireLease(`drive/${saved.uid}`);
+      let release;
+      try { release = await vault.acquireLease(`drive/${pending.uid}`); }
+      catch (error) { if (error.status === 409) throw oauthFault('busy', 409); throw error; }
       try {
-        if (await vault.getJSON(`oneDriveConnectionVersion/${saved.uid}`) !== saved.version) throw fault('OneDrive 연결이 취소되었습니다. 다시 연결해 주세요.', 409);
+        // Atomic consumption is still mandatory. A concurrent/replayed callback
+        // cannot exchange this code, even after it passed the initial read.
+        const saved = checkedState(await vault.consumeJSON(stateKey), true);
+        if (saved.uid !== pending.uid || saved.verifier !== pending.verifier || saved.version !== pending.version) throw oauthFault('request_invalid');
+        if (await vault.getJSON(`oneDriveConnectionVersion/${saved.uid}`) !== saved.version) throw oauthFault('connection_cancelled', 409);
         const response = await tokenRequest({ code: req.query.code, redirect_uri: callbackURL, grant_type: 'authorization_code', code_verifier: saved.verifier });
-        if (!response.ok) throw fault('OneDrive 인증을 완료하지 못했습니다. 다시 연결해 주세요.', 502);
+        if (!response.ok) throw oauthFault('exchange_failed', 502);
         const tokens = await response.json();
-        if (typeof tokens.access_token !== 'string' || !tokens.access_token || !grantedScope(tokens.scope, ONEDRIVE_SCOPE)) throw fault('OneDrive 앱 폴더 사용 권한을 허용해 주세요.', 403);
+        if (typeof tokens.access_token !== 'string' || !tokens.access_token || !grantedScope(tokens.scope, ONEDRIVE_SCOPE)) throw oauthFault('scope_missing', 403);
         const profileResponse = await fetcher(`${GRAPH}/me?$select=id,userPrincipalName,mail`, { headers: tokenHeaders(tokens.access_token), signal: AbortSignal.timeout(20000) });
-        if (!profileResponse.ok) throw fault('마이크로소프트 계정을 확인하지 못했습니다. 다시 연결해 주세요.', 502);
+        if (!profileResponse.ok) throw oauthFault('account_check_failed', 502);
         const profile = await profileResponse.json();
-        if (typeof profile.id !== 'string' || !profile.id) throw fault('마이크로소프트 계정을 확인하지 못했습니다.', 502);
+        if (typeof profile.id !== 'string' || !profile.id) throw oauthFault('account_check_failed', 502);
         const previous = await vault.getJSON(`oneDriveTokens/${saved.uid}`);
         // Reconnecting a different Microsoft account would orphan stored file IDs.
         if (previous?.accountId && previous.accountId !== profile.id && await vault.getJSON(`oneDriveFolder/${saved.uid}`)) {
-          throw fault('처음 연결한 마이크로소프트 계정으로 다시 연결해 주세요. 다른 계정의 OneDrive에서는 기존 원본을 찾을 수 없습니다.', 403);
+          throw oauthFault('account_mismatch', 403);
         }
         const refreshToken = typeof tokens.refresh_token === 'string' && tokens.refresh_token ? tokens.refresh_token
           : previous?.accountId === profile.id ? previous.refresh_token : null;
-        if (!refreshToken) throw fault('자동 백업 권한을 허용하고 OneDrive를 다시 연결해 주세요.', 409);
+        if (!refreshToken) throw oauthFault('offline_permission_missing', 409);
         await vault.setJSON(`oneDriveTokens/${saved.uid}`, { access_token: tokens.access_token, refresh_token: refreshToken,
           expiresAt: expiration(tokens.expires_in), accountId: profile.id,
           accountEmail: normalizedEmail(profile.mail || profile.userPrincipalName) || null });
@@ -185,7 +207,9 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
         return res.redirect(`${appURL.origin}/?connected=drive`);
       } finally { await release(); }
     } catch (error) {
-      return res.status(error.status || 502).send(error.status ? error.message : 'OneDrive 연결을 완료하지 못했습니다. 설정을 확인하고 다시 시도해 주세요.');
+      const code = readOneDriveOAuthError(error?.oneDriveOAuthError)?.code || 'unavailable';
+      if (configured) return res.redirect(oneDriveOAuthRecoveryURL(appURL.origin, code));
+      return res.status(503).send(readOneDriveOAuthError('unavailable').message);
     }
   }
 
@@ -312,33 +336,49 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
     if (!name || !KINDS.includes(kind)) throw fault('파일 이름 또는 종류가 올바르지 않습니다.');
     const contentType = typeof mime === 'string' && /^[\w.+-]+\/[\w.+-]+$/.test(mime) ? mime : 'application/octet-stream';
     const description = encodeArchiveDescription({ archiveUid: uid, kind, sha256: createHash('sha256').update(buffer).digest('hex') });
-    // OneDrive Personal rejects a description in createUploadSession (400
-    // invalidRequest, verified 2026-11-11), so it is set right after the upload.
-    // Fragments go to the pre-authorized URL without the token.
-    const session = await graphRequest(uid, context, `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename', name } }), signal: AbortSignal.timeout(20000),
-    }, '업로드 시작', true);
-    if (!session.ok) throw graphFailure('업로드 시작', session.status);
-    const { uploadUrl } = await session.json();
-    let uploadOrigin;
-    try { uploadOrigin = new URL(uploadUrl); } catch { /* checked below */ }
-    if (uploadOrigin?.protocol !== 'https:') throw fault('OneDrive 업로드 주소가 올바르지 않습니다.', 502);
     let item = null;
-    try {
-      for (let offset = 0; offset < buffer.length; offset += UPLOAD_CHUNK_BYTES) {
-        const chunk = buffer.subarray(offset, Math.min(buffer.length, offset + UPLOAD_CHUNK_BYTES));
-        const end = offset + chunk.length - 1;
-        const response = await fetcher(uploadUrl, { method: 'PUT', headers: { 'Content-Length': String(chunk.length),
-          'Content-Range': `bytes ${offset}-${end}/${buffer.length}`, 'Content-Type': contentType }, body: chunk, signal: AbortSignal.timeout(120000) });
-        if (response.status === 202) continue;
-        if (!response.ok) throw uploadSessionFailure(response.status);
-        item = await response.json();
-        break;
+    if (buffer.length <= SIMPLE_UPLOAD_BYTES) {
+      // Graph's content PUT normally replaces an item with the same name. Give
+      // each new original its own readable storage name, even if a provider
+      // ignores the additional conflict flag. The archive keeps its display name.
+      const extension = /\.[^.]{1,20}$/.exec(name)?.[0] || '';
+      const suffix = `__${randomUUID()}`;
+      const storageName = `${name.slice(0, extension ? -extension.length : undefined).slice(0, 240 - suffix.length - extension.length)}${suffix}${extension}`;
+      const response = await graphRequest(uid, context,
+        `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(storageName)}:/content?%40microsoft.graph.conflictBehavior=fail`, {
+          method: 'PUT', headers: { 'Content-Type': contentType }, body: buffer, signal: AbortSignal.timeout(120000),
+        }, '파일 전송', true);
+      if (!response.ok) throw graphFailure('파일 전송', response.status);
+      item = await response.json();
+    } else {
+      // OneDrive Personal rejects a description in createUploadSession (400
+      // invalidRequest, verified 2026-11-11), so it is set after the upload.
+      // Fragments go to the pre-authorized URL without the token. Never fall
+      // back to another upload after a fragment may already have been accepted.
+      const session = await graphRequest(uid, context, `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(name)}:/createUploadSession`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename', name } }), signal: AbortSignal.timeout(20000),
+      }, '업로드 시작', true);
+      if (!session.ok) throw graphFailure('업로드 시작', session.status);
+      const { uploadUrl } = await session.json();
+      let uploadOrigin;
+      try { uploadOrigin = new URL(uploadUrl); } catch { /* checked below */ }
+      if (uploadOrigin?.protocol !== 'https:') throw fault('OneDrive 업로드 주소가 올바르지 않습니다.', 502);
+      try {
+        for (let offset = 0; offset < buffer.length; offset += UPLOAD_CHUNK_BYTES) {
+          const chunk = buffer.subarray(offset, Math.min(buffer.length, offset + UPLOAD_CHUNK_BYTES));
+          const end = offset + chunk.length - 1;
+          const response = await fetcher(uploadUrl, { method: 'PUT', headers: { 'Content-Length': String(chunk.length),
+            'Content-Range': `bytes ${offset}-${end}/${buffer.length}`, 'Content-Type': contentType }, body: chunk, signal: AbortSignal.timeout(120000) });
+          if (response.status === 202) continue;
+          if (!response.ok) throw uploadSessionFailure(response.status);
+          item = await response.json();
+          break;
+        }
+      } catch (error) {
+        await fetcher(uploadUrl, { method: 'DELETE', signal: AbortSignal.timeout(10000) }).catch(() => {});
+        throw error.status && error.status !== 504 ? error : networkFailure('파일 전송', error);
       }
-    } catch (error) {
-      await fetcher(uploadUrl, { method: 'DELETE', signal: AbortSignal.timeout(10000) }).catch(() => {});
-      throw error.status && error.status !== 504 ? error : networkFailure('파일 전송', error);
     }
     if (!validOneDriveItemId(item?.id)) throw fault('OneDrive 업로드 응답이 올바르지 않습니다.', 502);
     const itemURL = `${GRAPH}/me/drive/items/${encodeURIComponent(item.id)}`;
@@ -350,7 +390,9 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
       await fetcher(itemURL, { method: 'DELETE', headers: tokenHeaders(context.accessToken), signal: AbortSignal.timeout(10000) }).catch(() => {});
       throw labelError || graphFailure('파일 정보 저장', labelled.status);
     }
-    return { driveFileId: item.id, fileName: item.name || name, mime: contentType };
+    // The private storage name prevents collisions; downloads retain the title
+    // supplied by the document/export caller rather than exposing its UUID.
+    return { driveFileId: item.id, fileName: name, mime: contentType };
   }
   async function upload(uid, buffer, fileName, mime, kind = 'export') {
     requireConfigured();
