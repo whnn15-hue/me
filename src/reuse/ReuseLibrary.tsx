@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, Download, FileText, Image, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, CloudUpload, Download, FileText, Image, Plus, Search, Trash2, X } from "lucide-react";
 import { api, download, loadDocumentBlob, saveBlob } from "../api";
 import { Modal } from "../CareerEditor";
 import FileDropzone from "../FileDropzone";
@@ -8,10 +8,13 @@ import type { DocumentRecord } from "../types";
 import type { PhotoItem, SubmissionItem, WorkspaceData, WorkspaceSectionProps } from "../workspace/types";
 import { buildPhotoPackage, extractBrief } from "./files";
 import { newSubmission, photoUsage, rankPhotos, safeFilename, sceneGroups, slotsFromBrief, submissionStatus, suggestSceneTags } from "./model";
+import { archiveSubmissionFiles } from "./submission-drop";
 import "./ReuseLibrary.css";
 
 interface Props extends WorkspaceSectionProps {
   documents: DocumentRecord[]; onRefresh: () => Promise<void>; mode: "photos" | "submissions";
+  onDropHandlerChange?: (handler: ((files: File[]) => Promise<void>) | null) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export function PhotoThumbnail({ document }: { document?: DocumentRecord }) {
@@ -51,7 +54,15 @@ export default function ReuseLibrary(props: Props) {
   const [query, setQuery] = useState(""), [filter, setFilter] = useState("all"), [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false), [progress, setProgress] = useState(""), [error, setError] = useState("");
   const [editing, setEditing] = useState<PhotoItem | SubmissionItem | null>(null), [bulkTag, setBulkTag] = useState("쓰기");
-  const stop = useRef(false), active = useRef(false);
+  const stop = useRef(false), active = useRef(false), fileInput = useRef<HTMLInputElement>(null);
+  const screenDrop = useRef<(files: File[]) => Promise<void>>(async () => {});
+  screenDrop.current = mode === "photos" ? uploadPhotos : uploadSubmissions;
+  useEffect(() => {
+    props.onDropHandlerChange?.(editing ? null : files => screenDrop.current(files));
+    return () => props.onDropHandlerChange?.(null);
+  }, [editing, mode, props.onDropHandlerChange]);
+  useEffect(() => { props.onBusyChange?.(busy); }, [busy, props.onBusyChange]);
+  useEffect(() => () => { props.onBusyChange?.(false); }, [props.onBusyChange]);
   useEffect(() => { if (props.focusId) setEditing(workspace.items.find(item => item.id === props.focusId && (item.kind === "photo" || item.kind === "submission")) as PhotoItem | SubmissionItem || null); }, [props.focusId]);
   async function uploadPhotos(files: File[]) {
     if (active.current) return;
@@ -84,6 +95,30 @@ export default function ReuseLibrary(props: Props) {
     } catch (reason) { setError(`${saved}장 저장됨. ${reason instanceof Error ? reason.message : "업로드에 실패했습니다."} 같은 파일을 다시 넣어도 저장된 사진은 중복 추가하지 않습니다.`); }
     finally { active.current = false; setBusy(false); await onRefresh().catch(onError); }
   }
+  async function uploadSubmissions(files: File[]) {
+    if (active.current) return;
+    active.current = true; stop.current = false; setBusy(true); setError("");
+    let saved = 0;
+    try {
+      const { validateDriveUploadFile } = await import("../free/drive");
+      const result = await archiveSubmissionFiles(files, {
+        validate: validateDriveUploadFile,
+        readWorkspace: () => api<WorkspaceData>("/workspace"),
+        readDocuments: async () => (await api<{ documents: DocumentRecord[] }>("/data")).documents,
+        upload: async file => {
+          const form = new FormData(); form.append("files", file);
+          const result = await api<{ documents: DocumentRecord[] }>("/documents", { method: "POST", body: form });
+          if (!result.documents[0]) throw new Error("원본 파일을 저장하지 못했습니다.");
+          return result.documents[0];
+        },
+        save: async (item, revision) => { await api<WorkspaceData>("/workspace/items", { method: "POST", body: JSON.stringify({ item, links: [], expectedRevision: revision }) }); },
+        stopped: () => stop.current,
+        progress: state => { saved = state.saved; setProgress(`${state.completed}/${state.total} ${state.name}`); },
+      });
+      setProgress(`${result.saved}개 추가, 동일 파일 ${result.duplicates}개 제외${stop.current ? ", 중단됨" : ""}`);
+    } catch (reason) { setError(`${saved}개 저장됨. ${reason instanceof Error ? reason.message : "파일을 저장하지 못했습니다."} 저장된 원본은 유지됩니다.`); }
+    finally { active.current = false; setBusy(false); await onRefresh().catch(onError); }
+  }
   async function batch() {
     if (active.current) return;
     active.current = true; setBusy(true); setError("");
@@ -103,7 +138,8 @@ export default function ReuseLibrary(props: Props) {
     <header className="reuse-heading"><div><span className="eyebrow">{mode === "photos" ? "수업과 활동 사진" : "공모전 제출 기록"}</span><h1>{mode === "photos" ? "사진 보관함" : "공모전 제출본"}<small>{mode === "photos" ? photos.length : submissions.length}</small></h1></div>{mode === "submissions" && <button className="button primary" onClick={() => setEditing(newSubmission())}><Plus size={17}/>제출본 추가</button>}</header>
     <div className="reuse-metrics">{mode === "photos" ? <><span>보관한 사진 <b>{photos.length}</b></span><span>제출에 사용한 사진 <b>{photos.filter(photo => photoUsage(photo.id, submissions).some(usage => usage.submission.status !== "preparing")).length}</b></span></> : <><span>준비 중 <b>{submissions.filter(item => item.status === "preparing").length}</b></span><span>제출 완료 <b>{submissions.filter(item => item.status !== "preparing").length}</b></span></>}</div>
     {error && <p role="alert" className="alert error">{error}</p>}
-    {mode === "photos" && <><FileDropzone onFiles={uploadPhotos} busy={busy} label="사진 끌어 놓기" accept=".jpg,.jpeg,.png,.webp" hint="최대 50장, JPG, PNG, WEBP, 파일당 25 MB"/>{progress && <div className="reuse-progress" role="status">{progress}{busy && <button className="text-button" onClick={() => { stop.current = true; }}>현재 파일까지 저장하고 중단</button>}</div>}</>}
+    <div className="reuse-upload-hint"><CloudUpload size={16} aria-hidden="true"/><span>{mode === "photos" ? "화면에 사진을 놓으면 사진 보관함에 저장" : "화면에 파일을 놓으면 공모전 제출본에 저장"}</span><button className="text-button" disabled={busy} onClick={() => fileInput.current?.click()}>파일 선택</button><input ref={fileInput} type="file" hidden multiple aria-label={mode === "photos" ? "사진 파일 선택" : "제출본 파일 선택"} accept={mode === "photos" ? ".jpg,.jpeg,.png,.webp" : ".pdf,.ppt,.pptx,.hwp,.hwpx,.docx,.txt,.html,.htm,.xlsx,.cell,.jpg,.jpeg,.png,.webp"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) void screenDrop.current(files); }}/></div>
+    {progress && <div className="reuse-progress" role="status">{progress}{busy && <button className="text-button" onClick={() => { stop.current = true; }}>현재 파일까지 저장하고 중단</button>}</div>}
     <div className="reuse-toolbar"><label className="search-box"><Search size={17}/><input aria-label={mode === "photos" ? "사진 검색" : "제출본 검색"} placeholder={mode === "photos" ? "장면, 태그, 파일명 검색" : "공모전, 제목, 결과 검색"} value={query} onChange={event => setQuery(event.target.value)}/></label>{mode === "photos" && <select aria-label="사진 필터" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">전체 사진</option><option value="unused">제출에 사용하지 않음</option><option value="star">별표 사진</option></select>}</div>
     {mode === "photos" && <><div className="reuse-bulk"><button className="button secondary" disabled={busy || !visible.length} onClick={() => setSelected(selected.length ? [] : visible.map(photo => photo.id))}>{selected.length ? "선택 해제" : "표시된 사진 선택"}</button><span>{selected.length}장 선택</span><select aria-label="일괄 적용 태그" value={bulkTag} onChange={event => setBulkTag(event.target.value)}>{Object.entries(sceneGroups).map(([group, tags]) => <optgroup label={group} key={group}>{tags.map(tag => <option key={tag}>{tag}</option>)}</optgroup>)}</select><button className="button secondary" disabled={busy || !selected.length} onClick={() => void batch()}>태그 추가</button></div>
       <div className="reuse-grid">{visible.map(photo => <article className="reuse-photo" key={photo.id}><PhotoThumbnail document={documents.find(document => document.id === photo.documentId)}/><label className="reuse-photo-check"><input type="checkbox" aria-label={`${photo.title} 선택`} checked={selected.includes(photo.id)} disabled={busy} onChange={event => setSelected(event.target.checked ? [...selected, photo.id] : selected.filter(id => id !== photo.id))}/></label><div className="reuse-photo-body"><button className="reuse-title" disabled={busy} onClick={() => setEditing(photo)}>{displayLabel(photo.title)}</button>{photo.star > 0 && <span className="reuse-stars">{"★".repeat(photo.star)}</span>}<p>{displayLabel(photo.caption) || "설명 미입력"}</p><div className="tags">{photo.tags.map(tag => <span key={tag}>{displayLabel(tag)}</span>)}</div><div className="reuse-usage">{photoUsage(photo.id, submissions).map(({ submission, slot }) => <button key={`${submission.id}-${slot.id}`} onClick={() => onOpen(`submission:${submission.id}`)}><FileText size={12}/>{displayLabel(submission.competition || submission.title)} <small>{submissionStatus[submission.status]}</small></button>)}</div></div></article>)}</div>

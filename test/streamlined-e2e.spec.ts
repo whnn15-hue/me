@@ -32,10 +32,13 @@ test('career collections separate awards, default lectures to years and retain q
   for(const value of ['근무','연구, 수상','기타','파견'])await expect(categories.getByRole('button',{name:new RegExp(`^${value}`)})).toHaveCount(0);
   await expect(primary.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(1);
   await expect(categories.getByRole('button',{name:/^공모전 수상/})).toHaveCount(1);
-  const choose=async(name:string)=>{await categories.getByRole('button',{name:new RegExp(`^${name}`)}).first().click();const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')!==null)await details.locator('summary').click();};
-  const moreFilters=async()=>{const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')===null)await details.locator('summary').click();};
+  const choose=async(name:string)=>{await categories.getByRole('button',{name:new RegExp(`^${name}`)}).first().click();};
   const row=(index:number)=>page.locator('.career-row').filter({hasText:fixtures[index].title});
   await choose('전체');await expect(row(10)).toBeVisible();
+  const ordinaryHeight=(await row(6).boundingBox())!.height;
+  expect((await row(13).boundingBox())!.height).toBeLessThanOrEqual(ordinaryHeight+24);
+  await expect(row(13).locator('.recognition-badges')).toContainText('시도');
+  await expect(row(13).locator('.recognition-badges')).toContainText('전국');
   await choose('위원회, 지원단');await expect(row(9)).toBeVisible();await expect(row(10)).toHaveCount(0);
   await choose('연구대회');await expect(row(2)).toBeVisible();await expect(row(4)).toHaveCount(0);await expect(row(11)).toHaveCount(0);
   await expect(row(13).locator('.recognition-outcome')).toHaveCount(2);
@@ -44,15 +47,13 @@ test('career collections separate awards, default lectures to years and retain q
   await choose('공모전 수상');await expect(row(11)).toBeVisible();await expect(row(2)).toHaveCount(0);await expect(row(4)).toHaveCount(0);
   await choose('표창');await expect(row(4)).toBeVisible();await expect(row(2)).toHaveCount(0);
   await expect(row(4).locator('.award-unknown')).toHaveCount(0);
-  await choose('전체');
-  await moreFilters();
-  await page.getByRole('combobox',{name:'활동 맥락',exact:true}).selectOption({label:'파견 업무'});
+  await choose('활동 경력');
   await expect(row(0)).toBeVisible();await expect(row(5)).toBeVisible();await expect(row(1)).toHaveCount(0);
   await choose('집필');await expect(row(3)).toBeVisible();await expect(row(1)).toHaveCount(0);await expect(row(5)).toHaveCount(0);
   await choose('콘텐츠 제작');await expect(row(1)).toBeVisible();await expect(row(3)).toHaveCount(0);await expect(row(5)).toHaveCount(0);
   await choose('강의, 연수');
-  await expect(page.getByRole('combobox',{name:'이력 묶어보기',exact:true})).toHaveValue('year');
-  await page.getByRole('textbox',{name:'경력 검색',exact:true}).fill('구성검증');
+  await expect(page.getByRole('combobox',{name:'이력 묶어보기',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('textbox',{name:'경력 검색',exact:true})).toHaveCount(0);
   await expect(page.locator('.year-heading h3').first()).toHaveText('2026년');
   await expect(page.locator('.year-heading h3').nth(1)).toHaveText('2025년');
   await expect(row(6).locator('.lecture-institution')).toHaveText('가상 교육연수원');
@@ -67,10 +68,7 @@ test('career collections separate awards, default lectures to years and retain q
   await lectureEditor.getByRole('button',{name:'확인하고 저장',exact:true}).click();
   await expect(lectureEditor).toHaveCount(0);
   await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
-  await moreFilters();
-  await page.getByRole('combobox',{name:'기관 필터',exact:true}).selectOption('가상 교육연수원');
-  await expect(page.locator('.career-row')).toHaveCount(1);await expect(row(6)).toBeVisible();
-  await page.getByRole('combobox',{name:'기관 필터',exact:true}).selectOption('기관 미입력');await expect(row(8)).toBeVisible();
+  await expect(row(8)).toBeVisible();
   await choose('자격증');
   await expect(row(12)).toBeVisible();
   await expect(page.getByRole('combobox',{name:'연도 필터',exact:true})).toHaveCount(0);
@@ -79,9 +77,7 @@ test('career collections separate awards, default lectures to years and retain q
   await row(12).click();
   await expect(page.getByRole('dialog',{name:'경력 상세',exact:true}).locator('.detail-fields')).toContainText('2023.07.14');
   await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
-  await choose('연구대회');await moreFilters();await expect(page.getByRole('combobox',{name:'기관 필터',exact:true})).toHaveValue('전체 기관');
-  await page.locator('.career-extra-filters > summary').click();
-  await page.getByRole('textbox',{name:'경력 검색',exact:true}).fill(fixtures[2].title);
+  await choose('연구대회');
   const award=row(2);
   for(const text of ['전국','1등급','예선','본선'])await expect(award.locator('.recognition-badges')).toContainText(text);
   await award.click();const detail=page.getByRole('dialog',{name:'경력 상세',exact:true});
@@ -117,7 +113,7 @@ test('career collections separate awards, default lectures to years and retain q
     await page.locator('.sidebar').evaluate(element=>Promise.all(element.getAnimations().map(animation=>animation.finished)));
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   }
-  await primary.getByRole('button',{name:'수업',exact:true}).click();await expect(page.getByRole('heading',{name:'수업 기록',exact:true})).toBeVisible();
+  await primary.getByRole('button',{name:'학교',exact:true}).click();await expect(page.getByRole('heading',{name:/^수업 자료/})).toBeVisible();
   await primary.getByRole('button',{name:'교안',exact:true}).click();await expect(page.getByRole('heading',{name:/^교안/})).toBeVisible();
   await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'교안',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   const material=page.getByRole('dialog',{name:'자료 추가',exact:true});
@@ -198,7 +194,7 @@ test('six workspaces separate learning from video and keep tools and research un
     const seeded=await (await page.request.get('/api/workspace')).json();
     await page.goto('/#home');
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','연구 자료','교안','영상 작업']);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','학교','연구 자료','교안','영상 작업']);
     await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
     await expect(page.getByText('작업 공간',{exact:true})).toHaveCount(0);
     await page.evaluate(()=>document.fonts.ready);
@@ -245,8 +241,8 @@ test('six workspaces separate learning from video and keep tools and research un
     await expect(editor.getByRole('combobox',{name:'자료 종류',exact:true})).toHaveValue('template');
     await editor.getByRole('button',{name:'취소',exact:true}).click();
 
-    await menu.getByRole('button',{name:'수업',exact:true}).click();
-    await menu.getByRole('button',{name:'수업에서 학급 자료 보기',exact:true}).click();
+    await menu.getByRole('button',{name:'학교',exact:true}).click();
+    await menu.getByRole('button',{name:'학교에서 학급 자료 보기',exact:true}).click();
     await page.getByRole('textbox',{name:'학급 자료 검색',exact:true}).fill('구분검증');
     await expect(card(fixtures[4].title)).toBeVisible();
     await expect(page.getByRole('combobox',{name:'자료 종류 필터',exact:true})).toHaveCount(0);

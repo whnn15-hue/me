@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   Eye,
@@ -24,12 +24,10 @@ import {
   FolderOpen,
   GraduationCap,
   Layers3,
-  LayoutGrid,
   Link2,
   Trash2,
   List,
   LoaderCircle,
-  LockKeyhole,
   Menu,
   Plus,
   Search,
@@ -50,15 +48,15 @@ import CareerOverview from "./CareerOverview";
 import Recognition from "./Recognition";
 import AiConnection from "./AiConnection";
 import HomeDashboard from "./home/HomeDashboard";
-import { APP_NAME, ArchiveMark } from "./branding";
+import { APP_NAME, ArchiveMark, ArchiveWordmark } from "./branding";
 import { evidenceCodeFromHash, useEvidenceLink } from "./evidence-link";
 import { useOneDriveOAuthRecovery } from "./onedrive-oauth-recovery";
 import ReuseLibrary from "./reuse/ReuseLibrary";
 import { careerSection, careerOrganization, careerNavigationChoices, careerCategoryLabel, matchesCareerCategory, recognitionDetails } from "../shared/career-organization.mjs";
-import { materialDraft } from "../shared/material-classification.mjs";
-import { materialDestination, placeUploadedMaterial, uploadedMaterialFocus } from "./workspace/material-destination";
+import { materialDestination } from "./workspace/material-destination";
+import { videoResourceTypes, type ResourceType } from "../shared/resources.mjs";
 import ArchiveTools from "./ArchiveTools";
-import { api, download } from "./api";
+import { api, download, loadDocumentBlob } from "./api";
 import {
   cloudMode,
   previewMode,
@@ -89,6 +87,8 @@ import WorkspaceSearch from "./workspace/WorkspaceSearch";
 import WorkspaceBackup from "./workspace/WorkspaceBackup";
 import { displayLabel, RelatedLinks } from "./workspace/WorkspaceUI";
 import type { WorkspaceData, WorkspaceItem, WorkspaceImportResult } from "./workspace/types";
+import type { MaterialItem } from "./workspace/types";
+import "./screen-file-drop.css";
 const emptyWorkspace = (): WorkspaceData => ({ schemaVersion: 1, items: [], links: [], revision: 0 });
 
 const categoryIcons = {
@@ -115,7 +115,7 @@ const navItems: {
     icon: Layers3,
     description: "나의 모든 경험",
   },
-  { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
+  { view: "projects", label: "학교", icon: Folder, description: "" },
   { view: "materials", label: "교안", icon: BookOpen, description: "" },
   { view: "video", label: "영상 작업", icon: Clapperboard, description: "" },
   {
@@ -203,6 +203,16 @@ export default function App() {
     [workspaceFocus, setWorkspaceFocus] = useState<string | undefined>(),
     [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0);
   const materialUploading = useRef(false);
+  const fileDropRunning = useRef(false);
+  const dragDepth = useRef(0);
+  const [fileDragging, setFileDragging] = useState(false);
+  const [schoolSection, setSchoolSection] = useState<"records" | "classroom">("records");
+  const [researchType, setResearchType] = useState<NonNullable<MaterialItem["researchType"]> | "">("");
+  const [videoResource, setVideoResource] = useState<ResourceType | "">("");
+  const reuseDropHandler = useRef<((files: File[]) => Promise<void>) | null>(null);
+  const registerReuseDrop = useCallback((handler: ((files: File[]) => Promise<void>) | null) => { reuseDropHandler.current = handler; }, []);
+  const updateReuseBusy = useCallback((active: boolean) => { setReuseBusy(active); }, []);
+  const [reuseBusy, setReuseBusy] = useState(false);
   const evidenceSaving = useRef(false);
   const storageName = status?.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
   const [workspaceTarget, setWorkspaceTarget] = useState<{section?: string; subject?: string}>({});
@@ -245,7 +255,6 @@ export default function App() {
     [linkId, setLinkId] = useState(""),
     [linkQuery, setLinkQuery] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null),
-    searchRef = useRef<HTMLInputElement>(null),
     drawerRef = useRef<HTMLElement>(null),
     refreshVersion = useRef(0);
   useEffect(() => {
@@ -360,37 +369,15 @@ export default function App() {
         )
       ) {
         e.preventDefault();
-        searchRef.current?.focus();
+        document.querySelector<HTMLInputElement>('.header-search input')?.focus();
       }
     };
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
   }, []);
-  const years = useMemo(
-    () =>
-      [
-        ...new Set(
-          careers.flatMap((c) => {
-            const start = Number(c.startDate?.slice(0, 4)),
-              end = Number(c.endDate?.slice(0, 4)) || start;
-            if (!start || end < start) return [];
-            return Array.from(
-              { length: Math.min(150, end - start + 1) },
-              (_, i) => String(start + i),
-            );
-          }),
-        ),
-      ]
-        .sort()
-        .reverse(),
-    [careers],
-  );
   const isCareerView = view === "careers";
   const qualificationsOnly = category === "자격증";
   const growthToday = seoulToday();
-  const careerViewLabel = category === "전체" ? "전체 기록" : category === "파견" ? "파견 업무" : displayLabel(category);
-  const scopedCareers = useMemo(() => careers.filter(c => matchesCareerCategory(c, category, documents)), [careers, category, documents]);
-  const institutions = useMemo(() => [...new Set(scopedCareers.map(c => careerOrganization(c, documents)))].sort((a,b) => a.localeCompare(b,"ko")), [scopedCareers, documents]);
   const filtered = useMemo(
     () =>
       careers
@@ -417,7 +404,6 @@ export default function App() {
     ? careerOrganization(c, documents) : c.startDate.slice(0, 4) || "날짜 미입력"))
     .sort(([a], [b]) => groupBy === "organization" ? a === "기관 미입력" ? 1 : b === "기관 미입력" ? -1 : a.localeCompare(b,"ko")
       : a === "날짜 미입력" ? 1 : b === "날짜 미입력" ? -1 : b.localeCompare(a)), [filtered, groupBy, documents, qualificationsOnly]);
-  const hasFilters = !!query || category !== "전체" || year !== "전체 연도" || institution !== "전체 기관" || evidenceFilter !== "전체 증빙" || undatedOnly;
   const clearFilters = () => {
     setQuery(""); setCategory("전체"); setYear("전체 연도"); setYearStartOnly(false); setInstitution("전체 기관"); setGroupBy("year");
     setEvidenceFilter("전체 증빙"); setUndatedOnly(false);
@@ -613,7 +599,7 @@ export default function App() {
       setBusy("");
     }
   }
-  async function analyzeDocuments(docs: DocumentRecord[]) {
+  async function analyzeDocuments(docs: DocumentRecord[], destination?: Category) {
     const drafts: Career[] = [];
     const notes: string[] = [];
     for (let i = 0; i < docs.length; i++) {
@@ -633,6 +619,7 @@ export default function App() {
             ...c,
             id: "",
             verified: true,
+            ...(destination ? { category: destination } : {}),
             documentIds: [docs[i].id],
             evidenceStatus: "attached" as const,
           })),
@@ -662,41 +649,60 @@ export default function App() {
     setDocuments(current => [...current.filter(doc => doc.id !== original.id), original]);
     return original;
   }
-  async function uploadMaterials(files: File[], purpose: "lecture" | "classroom", library: "learning" | "video" = "learning") {
-    if (materialUploading.current || busy) return;
-    if (!status?.driveConnected) { setError(`백업 및 설정에서 ${storageName}를 먼저 연결해 주세요.`); return; }
-    materialUploading.current = true; setBusy("자료 자동 정리 중"); setError("");
-    const warnings: string[] = [];
+  async function archiveFilesInCurrentSection(files: File[], options: {
+    purpose: "lecture" | "classroom" | "research";
+    schoolSection?: "lesson" | "classroom";
+    library?: "learning" | "video";
+    researchType?: MaterialItem["researchType"];
+    resourceType?: ResourceType;
+  }) {
+    if (materialUploading.current || busy || reuseBusy) return;
+    if (freeMode && !previewMode && !status?.driveConnected) { setError(`백업 및 설정에서 ${storageName}를 먼저 연결해 주세요.`); return; }
+    materialUploading.current = true; setBusy("파일 정리 중"); setError("");
     try {
-      const { prepareMaterialFiles } = await import("./free/material-files");
-      const { applyMaterialImport } = await import("./free/material-import");
-      const prepared = await prepareMaterialFiles(files, purpose);
-      // The destination gives educational videos a home distinct from editing assets.
-      const placeInLibrary = (item: typeof prepared.materials[number]["item"]) => placeUploadedMaterial(item, library);
-      prepared.materials = prepared.materials.map(entry => ({ ...entry, item: placeInLibrary(entry.item) }));
-      const result = await applyMaterialImport(prepared, {
-        approvedMaterialIds: prepared.materials.map(entry => entry.item.id),
-        onProgress: progress => setBusy(progress.phase === "saving" ? "자료 저장 중" : `자료 자동 정리 (${progress.completed}/${progress.total})`),
-        enrich: async (item, file, driveFileId, digest) => {
-          if (/\.(html?|mp3|wav|ogg|m4a|flac|potx|dotx|xltx)$/i.test(file.name)) return item;
-          if (/\.(txt|pptx|docx|hwpx)$/i.test(file.name) && item.summary.trim()) return item;
-          try {
-            const extraction = await api<{text?:string}>("/documents/extract", {method:"POST",body:JSON.stringify({driveFileId,name:file.name,size:file.size,sha256:digest})});
-            return extraction.text?.trim() ? placeInLibrary({ ...item, ...materialDraft(file.name, extraction.text, purpose) }) : item;
-          } catch { warnings.push(file.name); return item; }
+      const { archiveDroppedFiles } = await import("./workspace/research-file-import");
+      const result = await archiveDroppedFiles(files, {
+        readState: async () => {
+          const [currentWorkspace, currentData] = await Promise.all([
+            api<WorkspaceData>("/workspace"), api<{ documents: DocumentRecord[] }>("/data"),
+          ]);
+          return { workspace: currentWorkspace, documents: currentData.documents };
         },
-      });
+        uploadOriginal: uploadResearchFile,
+        saveItem: async (item, expectedRevision) => {
+          const next = await api<WorkspaceData>("/workspace/items", { method: "POST", body: JSON.stringify({ item, links: [], expectedRevision }) });
+          setWorkspace(next); return next;
+        },
+        onProgress: (completed, total) => setBusy(`파일 정리 중 (${completed}/${total})`),
+      }, options);
       await refresh();
-      const latestWorkspace = await api<WorkspaceData>("/workspace");
-      const savedItem = uploadedMaterialFocus(latestWorkspace.items, prepared.materials.map(entry=>entry.item.id), workspace.items.map(item=>item.id));
-      changeView(savedItem ? materialDestination(savedItem) : purpose === "classroom" ? "projects" : library === "video" ? "video" : "materials");
-      setWorkspaceFocus(savedItem?.id); setWorkspaceFocusVersion(version=>version+1);
-      setToast(`${result.added === 0 && savedItem ? "이미 등록된 자료를 열었습니다" : `자료 ${result.added}개 자동 정리, 중복 ${result.duplicates}개`}${warnings.length ? ", 일부 파일은 파일명으로 분류했습니다" : ""}`);
-    } catch (cause) { fail(cause); await refresh().catch(()=>{}); }
+      setToast(`현재 위치에 자료 ${result.added}개 추가${result.duplicates ? `, 중복 ${result.duplicates}개 제외` : ""}`);
+    } catch (cause) { fail(cause); await refresh().catch(() => {}); }
     finally { materialUploading.current = false; setBusy(""); }
+  }
+  async function uploadMaterials(files: File[], purpose: "lecture" | "classroom", schoolSection?: "lesson" | "classroom", resourceType?: ResourceType, library: "learning" | "video" = "learning") {
+    await archiveFilesInCurrentSection(files, { purpose, schoolSection: purpose === "classroom" ? schoolSection ?? "classroom" : undefined, library, resourceType: library === "video" ? resourceType : undefined });
+  }
+  async function downloadMaterialOriginal(item: MaterialItem) {
+    const original = item.sourceFile && documents.find(document => document.sha256 === item.sourceFile!.sha256 && document.size === item.sourceFile!.size);
+    if (!original) { setError("보관된 원본을 찾지 못했습니다. 백업 및 설정에서 원본 연결을 확인해 주세요."); return; }
+    await downloadDocument(original);
+  }
+  async function previewMaterialHtml(item: MaterialItem) {
+    const { materialHtmlPreview } = await import("./workspace/material-original");
+    return materialHtmlPreview(item, documents, loadDocumentBlob, freeMode ? async () => {
+      const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialHtml(item);
+    } : undefined);
+  }
+  async function previewMaterialAudio(item: MaterialItem) {
+    const { materialAudioPreview } = await import("./workspace/material-original");
+    return materialAudioPreview(item, documents, loadDocumentBlob, freeMode ? async () => {
+      const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialAudio(item);
+    } : undefined);
   }
   async function uploadFiles(files: FileList | File[] | null) {
     if (!files?.length) return;
+    if (busy || materialUploading.current || reuseBusy) return;
     if (files.length > 10) {
       setError("한 번에 최대 10개의 파일을 올려주세요.");
       return;
@@ -705,9 +711,13 @@ export default function App() {
       setError("공문은 파일당 최대 25 MB까지 보관할 수 있습니다.");
       return;
     }
+    if (Array.from(files).some(file => !file.size) || Array.from(files).reduce((sum, file) => sum + file.size, 0) > 200 * 1024 * 1024) {
+      setError("비어 있지 않은 파일을 합계 200 MB 이하로 넣어 주세요."); return;
+    }
     setBusy("공문 업로드 중");
     setError("");
     const knownIds = new Set(documents.map((d) => d.id));
+    const destination = view === "careers" && category !== "전체" ? category : undefined;
     try {
       type Uploaded = {
         documents: DocumentRecord[];
@@ -750,13 +760,12 @@ export default function App() {
         ).values(),
       ];
       await refresh();
-      changeView("documents");
       if (result.duplicates.length)
         setToast(
           `중복 파일 ${result.duplicates.length}개는 추가하지 않았습니다.`,
         );
       else setToast(`공문 ${added.length}개를 보관했습니다.`);
-      if (added.length) await analyzeDocuments(added);
+      if (added.length) await analyzeDocuments(added, destination);
       if (uploadWarnings.length) setError(uploadWarnings.join("\n"));
     } catch (e) {
       fail(e);
@@ -802,15 +811,48 @@ export default function App() {
     }
   }
   const authorized = status && (status.mode === "local" || !!status.user);
+  const screenDropLabel = view === "projects" ? schoolSection === "records" ? "수업 자료" : "학급 자료"
+    : view === "research" ? `연구대회 ${researchType ? displayLabel(researchType) : "자료"}`
+    : view === "materials" ? "교안" : view === "video" ? videoResourceTypes.find(type => type.id === videoResource)?.label || "영상 작업" : view === "photos" ? "사진 보관함"
+    : view === "submissions" ? "공모전 제출본" : view === "careers" && category !== "전체" ? displayLabel(category) : "이력 공문";
+  const screenAcceptsFiles = ["home", "careers", "documents", "projects", "materials", "video", "research", "photos", "submissions"].includes(view);
+  const canDropFiles = () => Boolean(authorized && screenAcceptsFiles && !busy && !reuseBusy && !materialUploading.current && !fileDropRunning.current && !document.querySelector('[role="dialog"]'));
+  const resetFileDrag = () => { dragDepth.current = 0; setFileDragging(false); };
+  useEffect(() => {
+    window.addEventListener("dragend", resetFileDrag); window.addEventListener("drop", resetFileDrag);
+    return () => { window.removeEventListener("dragend", resetFileDrag); window.removeEventListener("drop", resetFileDrag); };
+  }, []);
+  useEffect(() => { resetFileDrag(); }, [view, schoolSection, researchType]);
+  async function receiveScreenFiles(files: File[]) {
+    if (!files.length || !canDropFiles()) return;
+    fileDropRunning.current = true;
+    try {
+      if (view === "research") await archiveFilesInCurrentSection(files, { purpose: "research", researchType: researchType || undefined });
+      else if (view === "materials" || view === "video") await uploadMaterials(files, "lecture", undefined, view === "video" ? videoResource || undefined : undefined, view === "video" ? "video" : "learning");
+      else if (view === "projects") await uploadMaterials(files, "classroom", schoolSection === "records" ? "lesson" : "classroom");
+      else if (view === "photos" || view === "submissions") await reuseDropHandler.current?.(files);
+      else if (isCareerView || view === "home" || view === "documents") await uploadFiles(files);
+    } catch (cause) { fail(cause); }
+    finally { fileDropRunning.current = false; resetFileDrag(); }
+  }
   return (
-    <div className={`app-shell ${view === "home" ? "is-home" : ""}`} onDragOver={event=>{if(event.dataTransfer.types.includes("Files"))event.preventDefault();}} onDrop={event=>{
-      if (!event.dataTransfer.files.length) return;
-      event.preventDefault(); if(busy || document.querySelector("[role=dialog] form"))return;
-      const files=Array.from(event.dataTransfer.files);
-      if(view==="materials" || view==="video")void uploadMaterials(files,"lecture", view === "video" ? "video" : "learning");
-      else if(view==="projects")void uploadMaterials(files,"classroom");
-      else if(isCareerView || view==="home" || view==="documents")void uploadFiles(files);
+    <div className={`app-shell ${view === "home" ? "is-home" : ""}`} onDragEnter={event => {
+      if (!event.dataTransfer.types.includes("Files") || !canDropFiles()) return;
+      event.preventDefault(); dragDepth.current++; setFileDragging(true);
+    }} onDragLeave={event => {
+      if (!event.dataTransfer.types.includes("Files")) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setFileDragging(false);
+    }} onDragOver={event => {
+      if (!event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = canDropFiles() ? "copy" : "none";
+    }} onDrop={event => {
+      resetFileDrag();
+      if (!event.dataTransfer.types.includes("Files") && !event.dataTransfer.files.length) return;
+      const alreadyHandled = event.defaultPrevented;
+      event.preventDefault();
+      if (!alreadyHandled && event.dataTransfer.files.length) void receiveScreenFiles(Array.from(event.dataTransfer.files));
     }}>
+      {fileDragging && <div className="screen-file-drop-overlay" role="status"><CloudUpload size={24}/><strong>{screenDropLabel}에 추가</strong><span>여기에 파일을 놓으세요</span></div>}
       <aside className={`sidebar ${mobileNav ? "is-open" : ""}`}>
         <a
           className="brand"
@@ -825,7 +867,7 @@ export default function App() {
             <ArchiveMark />
           </span>
           <span>
-            <strong>{APP_NAME}</strong>
+            <ArchiveWordmark />
           </span>
         </a>
         <WorkspaceTree view={view} careers={careers} documents={documents} workspace={workspace} category={category}
@@ -925,7 +967,7 @@ export default function App() {
           ) : (
             <>
               {previewMode && <div className="preview-banner" role="status">테스트 미리보기, 파일과 변경 내용은 이 브라우저에만 저장됩니다. 실제 계정과 실제 저장소에는 연결하지 않습니다.</div>}
-              {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh}/>}
+              {(view === "photos" || view === "submissions") && <ReuseLibrary key={`${view}-${workspaceFocus || "list"}`} mode={view} workspace={workspace} careers={careers} documents={documents} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onRefresh={refresh} onDropHandlerChange={registerReuseDrop} onBusyChange={updateReuseBusy}/>}
               {view === "home" && status && <HomeDashboard onOverview={() => {changeView("careers");setCareerMode("overview");}} overview={<>
                   <GrowthOverview careers={careers} documents={documents} onOpen={openWorkspaceRef} onShowCareers={() => changeView("careers")} onYear={next=>{changeView("careers");chooseCategory("전체");setYear(String(next));setYearStartOnly(true);requestAnimationFrame(()=>document.getElementById("career-records")?.scrollIntoView({block:"start"}));}}/>
 </>} careers={careers} documents={documents} workspace={workspace} status={status} onOpen={openWorkspaceRef} onView={changeView} onAttention={focusArchive} busy={!!busy} onUpload={() => uploadRef.current?.click()} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}}/>}
@@ -988,7 +1030,7 @@ export default function App() {
               {isCareerView && <nav className="career-mode-tabs" aria-label="이력 화면"><button aria-pressed={careerMode === "manage"} onClick={()=>setCareerMode("manage")}><List size={16}/>목록 관리</button><button aria-pressed={careerMode === "overview"} onClick={()=>setCareerMode("overview")}><Layers3 size={16}/>한눈에 보기</button></nav>}
               {isCareerView && careerMode === "overview" && <CareerOverview careers={careers} documents={documents} onOpen={openWorkspaceRef}/>}
               {isCareerView && careerMode === "manage" && (
-                <div className="career-workbench">
+                <div className="career-workbench" data-category={category}>
                   <p className="career-classification-label">분류</p>
                   <nav className="category-tabs career-collections" aria-label="이력 분류">
                     {(["전체", ...careerNavigationChoices] as const).map(c => {
@@ -1001,44 +1043,13 @@ export default function App() {
                     })}
                   </nav>
                   <section className="career-section" id="career-records">
-                    <div className="section-heading">
-                      <h2>
-                        {careerViewLabel} <span>{filtered.length}</span>
-                      </h2>
-                      <button
-                        className="text-button"
-                        onClick={() => { changeView("resume"); setResumeSelection(filtered.map(item => item.id)); }}
-                        disabled={!filtered.length}
-                      >
-                        이력서로 만들기
-                        <ArrowUpRight size={15} />
-                      </button>
-                    </div>
-                    <div className="career-search-toolbar">
-                                            <label className="search-box"><Search size={18}/><input ref={searchRef} aria-label="경력 검색" placeholder="활동명, 기관, 태그 검색" value={query} onChange={event=>setQuery(event.target.value)}/>{query && <button aria-label="검색 지우기" onClick={()=>setQuery("")}><X size={14}/></button>}</label>
-                      {!qualificationsOnly && <label className="select-wrap"><select aria-label="연도 필터" value={year} onChange={event=>{setYear(event.target.value);setYearStartOnly(false);}}><option>전체 연도</option>{years.map(value=><option key={value}>{value}</option>)}</select><ChevronDown size={13}/></label>}
-                      <details className="career-extra-filters"><summary><Settings2 size={16}/>필터</summary><div className="career-filter-panel">
-                        {(category === "전체" || category === "파견") && <label><span>활동 맥락</span><select aria-label="활동 맥락" value={category} onChange={event=>chooseCategory(event.target.value as "전체" | "파견")}><option value="전체">모든 활동</option><option value="파견">파견 업무</option></select></label>}
-                        <label><span>기관</span><select aria-label="기관 필터" value={institution} onChange={event=>setInstitution(event.target.value)}><option>전체 기관</option>{institutions.map(name=><option key={name}>{name}</option>)}</select></label>
-                        <label><span>증빙 서류</span><select aria-label="증빙 필터" value={evidenceFilter} onChange={event=>setEvidenceFilter(event.target.value)}><option>전체 증빙</option><option>증빙 있음</option><option>증빙 미첨부</option><option>증빙 확보 어려움</option><option>증빙 불필요</option></select></label>
-                        <div className="view-switch"><button aria-label="목록 보기" className={layout === "list" ? "active" : ""} aria-pressed={layout === "list"} onClick={()=>setLayout("list")}><List size={17}/></button><button aria-label="카드 보기" className={layout === "grid" ? "active" : ""} aria-pressed={layout === "grid"} onClick={()=>setLayout("grid")}><LayoutGrid size={16}/></button></div>
-                      </div></details>
-                    </div>
-                    {hasFilters && <div className="active-filter-chips" aria-label="적용 중인 이력 필터">
-                      {query && <button onClick={() => setQuery("")}>검색: {query}<X size={12}/></button>}
-                      {category !== "전체" && <button onClick={() => setCategory("전체")}>{displayLabel(category)}<X size={12}/></button>}
-                      {year !== "전체 연도" && <button onClick={() => {setYear("전체 연도");setYearStartOnly(false);}}>{year}년{yearStartOnly ? " 시작" : ""}<X size={12}/></button>}
-                      {institution !== "전체 기관" && <button onClick={() => setInstitution("전체 기관")}>{institution}<X size={12}/></button>}
-                      {evidenceFilter !== "전체 증빙" && <button onClick={() => setEvidenceFilter("전체 증빙")}>{evidenceFilter}<X size={12}/></button>}
-                      {undatedOnly && <button onClick={() => setUndatedOnly(false)}>날짜 미입력<X size={12}/></button>}
+                    <button className="archive-upload-hint" type="button" onClick={() => uploadRef.current?.click()} disabled={!!busy} title="최대 10개, 파일당 25 MB">
+                      <CloudUpload size={16} aria-hidden="true"/><span>공문을 화면에 놓으면 현재 이력에 추가</span>
+                    </button>
+                    {(year !== "전체 연도" || evidenceFilter !== "전체 증빙" || undatedOnly || query || institution !== "전체 기관") && <div className="career-context-filter" role="status">
+                      <span>{[year !== "전체 연도" && `${year}년${yearStartOnly ? " 시작한 이력" : ""}`, evidenceFilter !== "전체 증빙" && evidenceFilter, undatedOnly && "날짜 미입력", query && `검색: ${query}`, institution !== "전체 기관" && institution].filter(Boolean).join(", ")}</span>
+                      <button type="button" onClick={clearFilters}>전체 이력 보기<X size={13}/></button>
                     </div>}
-                    <div className="archive-result-bar">
-                      <span aria-live="polite">{filtered.length}건{qualificationsOnly ? ", 자격명순" : groupBy === "organization" ? `, ${groups.length}개 기관` : ", 최근 활동순"}</span>
-                      <div>
-                        {!qualificationsOnly && <label className="group-select"><select aria-label="이력 묶어보기" value={groupBy} onChange={e=>setGroupBy(e.target.value as "year" | "organization")}><option value="year">연도별 보기</option><option value="organization">기관별 보기</option></select><ChevronDown size={12}/></label>}
-                        {hasFilters && <button className="reset-filters" onClick={clearFilters}><X size={13} />필터 초기화</button>}
-                      </div>
-                    </div>
                     {!filtered.length ? (
                       <EmptyState
                         icon={<Search size={29} />}
@@ -1112,16 +1123,12 @@ export default function App() {
                         </div>
                       ))
                     )}
-                    <div className="list-footer">
-                      <LockKeyhole size={12} />이 기록은 본인만 볼 수 있어요.
-                      <span>{APP_NAME}</span>
-                    </div>
                   </section>
                 </div>
               )}
-              {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialAudio(item); } : undefined} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialHtml(item); } : undefined} onFiles={freeMode ? uploadMaterials : undefined} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
-              {(view === "materials" || view === "video") && <MaterialsView library={view === "video" ? "video" : "learning"} initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${view}-${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialAudio(item); } : undefined} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={freeMode ? async item => { const preview = await import("./free/material-preview"); preview.setKnownOriginals(documents); return preview.loadMaterialHtml(item); } : undefined} onFiles={freeMode ? (files,purpose)=>uploadMaterials(files,purpose,view === "video" ? "video" : "learning") : undefined} uploading={!!busy} />}
-              {view === "research" && <ResearchView key={`research-${workspaceFocus || "list"}-${workspaceFocusVersion}`} initialSection={workspaceTarget.section} workspace={workspace} documents={documents} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onUploadFile={uploadResearchFile} />}
+              {view === "projects" && <ProjectsView initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={previewMaterialAudio} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={previewMaterialHtml} onSectionChange={setSchoolSection} onDownloadOriginal={downloadMaterialOriginal} onFiles={uploadMaterials} uploading={!!busy} classroomImport={freeMode ? <MaterialImport driveConnected={Boolean(status?.driveConnected)} disabled={Boolean(busy)} onBusyChange={active => setBusy(active ? "학급 자료 가져오는 중" : "")} onRefresh={refresh} onToast={setToast} /> : undefined} />}
+              {(view === "materials" || view === "video") && <MaterialsView library={view === "video" ? "video" : "learning"} initialSection={workspaceTarget.section} initialSubject={workspaceTarget.subject} key={`${view}-${workspaceFocus || "list"}-${workspaceFocusVersion}`} workspace={workspace} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} loadAudioPreview={previewMaterialAudio} readDriveStorage={freeMode ? async () => (await import("./free/drive")).readDriveStorage() : undefined} loadHtmlPreview={previewMaterialHtml} onDownloadOriginal={downloadMaterialOriginal} onResourceChange={setVideoResource} onFiles={(files,purpose,section,resource)=>uploadMaterials(files,purpose,section,resource,view === "video" ? "video" : "learning")} uploading={!!busy} />}
+              {view === "research" && <ResearchView key={`research-${workspaceFocus || "list"}-${workspaceFocusVersion}`} initialSection={workspaceTarget.section} workspace={workspace} documents={documents} careers={careers} onSave={saveWorkspaceItem} onDelete={deleteWorkspaceItem} onOpen={openWorkspaceRef} focusId={workspaceFocus} onError={fail} onUploadFile={uploadResearchFile} onTypeChange={setResearchType} onFiles={files=>archiveFilesInCurrentSection(files,{purpose:"research",researchType:researchType || undefined})} uploading={!!busy} />}
               {view === "documents" && (
                 <DocumentsView
                   filter={documentFilter} setFilter={setDocumentFilter}

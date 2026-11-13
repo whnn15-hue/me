@@ -175,3 +175,4 @@
   .materials-view .materials-select-filters > select { min-width:0; max-width:none; }
   .materials-advanced-filters > summary { padding:0 9px; }
 }
+.app-shell .material-heading-actions { display:flex; align-items:center; gap:8px; }

@@ -20,15 +20,19 @@ const output = await build({
       {...common,id:'material_two',title:'수집한 참고 자료',ownership:'collected',author:'가상 기관',eventName:'',date:'2024-06-01',audience:['학생'],format:'PDF',fileUrl:'https://drive.google.com/file/d/fixture-two/view',summary:'학생 활동에 참고하는 예시 자료',tags:['참고']},
       {...common,id:'classroom_one',purpose:'classroom',title:'가상 스피치 활동',ownership:'created',author:'가상 교사',eventName:'아침 활동',date:'',audience:['학생'],format:'TXT',fileUrl:'https://drive.google.com/file/d/classroom-one/view',summary:'짝과 함께 발표하는 말하기 활동',tags:['학급운영','말하기']},
       {...common,id:'classroom_two',purpose:'classroom',title:'가상 속담 활동지',ownership:'collected',author:'가상 출처',eventName:'국어',date:'',audience:['학생'],format:'HWP',fileUrl:'https://drive.google.com/file/d/classroom-two/view',summary:'속담 뜻을 살펴보는 읽기 활동',tags:['국어']},
+      {...common,id:'lesson_one',purpose:'classroom',schoolSection:'lesson',title:'가상 수학 수업 파일',ownership:'created',author:'',eventName:'',date:'',audience:[],format:'TXT',fileUrl:'',summary:'수학 수업 자료',tags:['수학'],sourceFile:{name:'가상 수학 수업.txt',size:32,sha256:'a'.repeat(64)}},
       {id:'project_one',kind:'project',title:'가상 수업 프로젝트',tags:[],schoolYear:'2025',grade:'4학년'},
     ],links:[{from:'career:career_one',to:'material:material_one'}]};
     const careers=[{id:'career_one',title:'가상 강의 경력',category:'강의·연수',startDate:'2025',organization:'테스트 기관',role:'강사',tags:[]}];
-    globalThis.fixture={saves:[],deletes:[],deleteRevisions:[],opens:[],errors:[],conflict:false};
+    globalThis.fixture={saves:[],deletes:[],deleteRevisions:[],opens:[],errors:[],conflict:false,uploads:[],downloads:[]};
     function Fixture(){
       const [workspace,setWorkspace]=useState(initial);
       globalThis.fixture.refreshWorkspace=revision=>setWorkspace(current=>({...current,revision}));
       return <MaterialsView workspace={workspace} careers={careers}
         purpose={new URLSearchParams(location.search).get('purpose')==='classroom'?'classroom':'lecture'}
+        schoolSection={new URLSearchParams(location.search).get('section')==='lesson'?'lesson':'classroom'}
+        onFiles={async(files,purpose,section)=>{globalThis.fixture.uploads.push({names:files.map(file=>file.name),purpose,section});}}
+        onDownloadOriginal={async(item)=>{globalThis.fixture.downloads.push(item.id);}}
         importPanel={new URLSearchParams(location.search).get('purpose')==='classroom'?<p>가져오기 패널 위치</p>:undefined}
         onSave={async(item,links,expectedRevision)=>{
           globalThis.fixture.saves.push({item:JSON.parse(JSON.stringify(item)),links:[...links],expectedRevision});
@@ -49,7 +53,7 @@ const output = await build({
   ` },
 });
 
-async function fixture(run, purpose = "lecture") {
+async function fixture(run, purpose = "lecture", section = "classroom") {
   const bundle = output.outputFiles.find(file => file.path.endsWith('.js')).text;
   const ownCss = output.outputFiles.find(file => file.path.endsWith('.css'))?.text || '';
   const sharedCssPath = new URL('../src/workspace/Workspace.css', import.meta.url);
@@ -72,7 +76,7 @@ async function fixture(run, purpose = "lecture") {
       if (new URL(route.request().url()).origin === origin) return route.continue();
       external.push(route.request().url()); return route.abort();
     });
-    await page.goto(origin + '/fixture?purpose=' + purpose);
+    await page.goto(origin + '/fixture?purpose=' + purpose + '&section=' + section);
     await run(page);
     assert.deepEqual(errors, []);
     // Third-party fonts may be requested by the pre-existing global stylesheet;
@@ -141,7 +145,7 @@ test('material editor validates Drive links and saves simplified fields with cho
     assert.deepEqual(saved.item.audience, []); assert.deepEqual(saved.item.tags, ['수업 설계']);
     assert.equal(saved.item.resourceType, 'lecture', 'educational videos remain in the learning library');
     assert.equal(saved.item.summary, '프로젝트에서 다시 활용할 내용');
-    assert.equal(await page.locator('input[type=file]').count(), 0);
+    assert.equal(await page.getByLabel('교안 파일 선택', {exact:true}).count(), 1);
     await page.getByRole('button', { name: '새로운 가상 자료 상세보기', exact: true }).click();
     const detail = page.getByRole('dialog', { name: '새로운 가상 자료', exact: true });
     const open = detail.getByRole('link', { name: '드라이브에서 열기', exact: true });
@@ -299,4 +303,33 @@ test('gallery and list keep all materials visible without favorite controls and 
     await page.reload();
     assert.equal(await page.getByRole('button',{name:'목록 보기',exact:true}).getAttribute('aria-pressed'),'true');
   });
+});
+
+test('school lesson files remain separate, keep their shelf when edited and expose archived originals', browserOptions, async () => {
+  await fixture(async page => {
+    assert.equal(await page.getByRole('heading', {name: '수업 자료', exact:true}).count(), 1);
+    assert.equal(await page.locator('.material-card').count(), 1);
+    assert.equal(await page.locator('.file-dropzone').count(), 0);
+    assert.match(await page.locator('.material-card').innerText(), /가상 수학 수업 파일/);
+    await page.getByRole('button', {name: '가상 수학 수업 파일 원본 내려받기', exact:true}).click();
+    assert.deepEqual(await page.evaluate(() => fixture.downloads), ['lesson_one']);
+    await page.getByLabel('수업 자료 파일 선택', {exact:true}).setInputFiles({name:'새 학급 운영 파일.txt',mimeType:'text/plain',buffer:Buffer.from('현재 수업 자료 위치를 유지')});
+    assert.deepEqual(await page.evaluate(() => fixture.uploads), [{names:['새 학급 운영 파일.txt'],purpose:'classroom',section:'lesson'}]);
+    await page.getByRole('button', {name:'가상 수학 수업 파일 수정',exact:true}).click();
+    const editor=page.getByRole('dialog',{name:'수업 자료 수정',exact:true});
+    await editor.getByLabel('제목',{exact:false}).fill('학급이라는 단어가 들어간 수업 파일');
+    await editor.getByRole('button',{name:'자료 저장',exact:true}).click();
+    await editor.waitFor({state:'hidden'});
+    const saved=await page.evaluate(() => fixture.saves[0].item);
+    assert.equal(saved.purpose,'classroom');
+    assert.equal(saved.schoolSection,'lesson');
+    assert.equal(saved.sourceFile.sha256,'a'.repeat(64));
+    assert.equal(await page.locator('.material-card').count(),1);
+    await page.getByRole('button',{name:'자료 추가',exact:true}).click();
+    const addition=page.getByRole('dialog',{name:'수업 자료 추가',exact:true});
+    await addition.getByLabel('제목',{exact:false}).fill('새 수업 자료');
+    await addition.getByRole('button',{name:'자료 저장',exact:true}).click();
+    await addition.waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(() => fixture.saves.at(-1).item.schoolSection),'lesson');
+  },'classroom','lesson');
 });

@@ -14,6 +14,7 @@ async function tab(page:Page,name:string) {
   const tabs = page.getByRole('navigation',{name:'주 메뉴',exact:true});
   if (await tabs.isVisible()) await tabs.getByRole('button',{name,exact:true}).click();
   else await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name,exact:true}).click();
+  if (name === '학교' && await page.locator('.school-project-records').count() && await page.locator('.school-project-records').getAttribute('open') === null) await page.locator('.school-project-records > summary').click();
 }
 async function tag(dialog:ReturnType<Page['getByRole']>,value:string) {
   await dialog.getByRole('textbox',{name:'태그 추가',exact:true}).fill(value);
@@ -33,7 +34,7 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
     expect(response.ok()).toBeTruthy();target=await response.json();
   }
   const protectedData=await careerData(page);await page.reload();
-  await tab(page,'수업');
+  await tab(page,'학교');
   await page.getByRole('button',{name:'수업 추가',exact:true}).click();
   let dialog=page.getByRole('dialog');
   await dialog.getByPlaceholder('예: 우리 동네를 바꾸는 작은 실천').fill('통합검증 생태 수업 프로젝트');
@@ -150,7 +151,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   const project=current.items.find((i:any)=>i.title==='학급검증 말하기 수업');
   const legacy=current.items.find((i:any)=>i.title==='학급검증 기존 교원 강의안');
   expect(legacy.purpose).toBeUndefined();
-  await page.goto('/');await tab(page,'수업');
+  await page.goto('/');await tab(page,'학교');
   await page.getByRole('tab',{name:/^학급 자료/}).click();
   await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   let dialog=page.getByRole('dialog',{name:'학급 자료 추가',exact:true});
@@ -178,7 +179,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await dialog.locator('.workspace-related').getByRole('button',{name:new RegExp(project.title)}).click();
   dialog=page.getByRole('dialog',{name:project.title,exact:true});
-  await expect(page.getByRole('tab',{name:/^수업 기록/})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:/^수업 자료/})).toHaveAttribute('aria-selected','true');
   await expect(dialog.locator('.workspace-related')).toContainText(material.title);
   await dialog.locator('.workspace-related').getByRole('button',{name:new RegExp(material.title)}).click();
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
@@ -192,7 +193,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await page.getByRole('combobox',{name:'모든 기록 검색어',exact:true}).focus();
   let search=page.getByRole('region',{name:'통합 검색 결과',exact:true});
   await page.getByRole('combobox',{name:'모든 기록 검색어',exact:true}).fill('학급검증');
-  await search.getByRole('combobox',{name:'검색할 기록 종류',exact:true}).selectOption({label:'수업 전체'});
+  await search.getByRole('combobox',{name:'검색할 기록 종류',exact:true}).selectOption({label:'학교 전체'});
   await expect(search.locator('.global-search-results')).toContainText(material.title);
   await expect(search.locator('.global-search-results')).toContainText(project.title);
   await expect(search.locator('.global-search-results')).not.toContainText(legacy.title);
@@ -201,7 +202,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await expect(search.locator('.global-search-results')).not.toContainText(legacy.title);
   await expect(search.locator('.global-search-results')).not.toContainText(project.title);
   await search.locator('.global-search-result').filter({hasText:material.title}).click();
-  await expect(page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'수업',exact:true})).toHaveAttribute('aria-current','page');
+  await expect(page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'학교',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.getByRole('tab',{name:/^학급 자료/})).toHaveAttribute('aria-selected','true');
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await dialog.getByRole('button',{name:'수정하기',exact:true}).click();
@@ -212,7 +213,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await dialog.getByRole('button',{name:'자료 저장',exact:true}).click();
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await expect(dialog).toContainText('다음 수업에는 한 문장 발표로 시작하기');
-  await expect(dialog).toContainText('교안 / TXT');
+  await expect(dialog).toContainText('학급 자료 / TXT');
   await dialog.getByRole('button',{name:'닫기',exact:true}).first().click();
   const beforeBackup=await workspace(page);
   expect(beforeBackup.items.find((i:any)=>i.id===legacy.id)).toEqual(legacy);
@@ -226,7 +227,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   expect(backup.careers).toEqual(originalCareers.careers);
   expect(backup.workspace.items.find((i:any)=>i.id===material.id)).toEqual(updated);
 
-  await page.getByRole('navigation',{name:'주 메뉴'}).getByRole('button',{name:'수업',exact:true}).click();
+  await page.getByRole('navigation',{name:'주 메뉴'}).getByRole('button',{name:'학교',exact:true}).click();
   await page.getByRole('tab',{name:/^학급 자료/}).click();
   if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
@@ -250,7 +251,147 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   expect(saved.items.find((i:any)=>i.id===legacy.id)).toEqual(legacy);
   expect(saved.links).toEqual(beforeBackup.links);
   expect(await careerData(page)).toEqual(originalCareers);
-  await page.reload();await tab(page,'수업');await page.getByRole('tab',{name:/^학급 자료/}).click();
+  await page.reload();await tab(page,'학교');await page.getByRole('tab',{name:/^학급 자료/}).click();
   await expect(page.getByRole('button',{name:`${material.title} 상세보기`,exact:true})).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('screen-wide drops stay in the selected library and type, retain originals and never run behind an editor',async({page})=>{
+  test.setTimeout(120000);
+  const before=await careerData(page), initialWorkspace=await workspace(page);
+  const originalIds=new Set(before.documents.map((doc:{id:string})=>doc.id));
+  const itemIds=new Set(initialWorkspace.items.map((item:{id:string})=>item.id));
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  const fixture=(name:string,body:string)=>({name,body});
+  const research=fixture('2024 화면배치검증 계획서.txt','2024년 연구대회 계획서\n제목: 화면배치검증 연구 결과\n이 문서는 선택한 보고서 보관함에 남아야 합니다.');
+  const lesson=fixture('화면배치검증 연구대회 보고서 수업자료.txt','국어 수업을 위한 이야기 만들기 활동지\n수업 자료 보관함에 남깁니다.');
+  const classroom=fixture('화면배치검증 배경음악 학급운영.txt','학급에서 사용하는 배경음악 목록과 아침 활동 순서');
+  const lecture=fixture('화면배치검증 효과음 교안.txt','교사 연수 강의에 사용할 효과음 소개와 설명 자료');
+  const submission=fixture('2026 화면배치검증 강의자료 제출본.txt','파일 내용과 상관없이 선택한 공모전 제출본으로 보관');
+  const photo={name:'화면배치검증 사진.png',body:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',mime:'image/png',encoded:true};
+  const editorOnly=fixture('화면배치검증 편집 중 임시 파일.txt','아직 저장하지 않은 원본');
+  async function drop(selector:string,file:{name:string;body:string;mime?:string;encoded?:boolean}) {
+    const transfer=await page.evaluateHandle(file=>{const data=new DataTransfer();const body=file.encoded?Uint8Array.from(atob(file.body),character=>character.charCodeAt(0)):file.body;data.items.add(new File([body],file.name,{type:file.mime??'text/plain'}));return data;},file);
+    await page.locator(selector).dispatchEvent('dragover',{dataTransfer:transfer});
+    await page.locator(selector).dispatchEvent('drop',{dataTransfer:transfer});
+    await transfer.dispose();
+  }
+  async function saved(file:{name:string;body:string}) {
+    await expect.poll(async()=>Boolean((await workspace(page)).items.find((item:any)=>item.sourceFile?.name===file.name))).toBe(true);
+    await expect(page.locator('.busy-indicator')).toHaveCount(0);
+    const state=await workspace(page), item=state.items.find((row:any)=>row.sourceFile?.name===file.name);
+    const doc=(await careerData(page)).documents.find((row:any)=>row.sha256===item.sourceFile.sha256);
+    expect(doc).toBeTruthy();expect(doc.size).toBe(Buffer.byteLength(file.body));
+    const original=await page.request.get(`/api/documents/${doc.id}/file`);
+    expect(original.ok()).toBeTruthy();expect((await original.body()).toString('utf8')).toBe(file.body);
+    expect((await careerData(page)).careers).toEqual(before.careers);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    return item;
+  }
+  try {
+    await page.goto('/');
+    const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
+    await menu.getByRole('button',{name:'연구 자료',exact:true}).click();
+    await page.getByRole('group',{name:'자료 종류로 거르기',exact:true}).getByRole('button',{name:/^보고서/}).click();
+    await drop('main',research);
+    const researchItem=await saved(research);
+    expect(researchItem.purpose).toBe('research');expect(researchItem.researchType).toBe('보고서');expect(researchItem.date).toMatch(/^2024/);
+    await expect(page.getByRole('heading',{name:/^연구대회 자료/})).toBeVisible();
+    const afterFirst=await workspace(page), docsAfterFirst=(await careerData(page)).documents;
+    await drop('main',research);
+    await expect(page.locator('.toast')).toContainText('중복');
+    await expect(page.locator('.busy-indicator')).toHaveCount(0);
+    expect((await workspace(page)).items).toEqual(afterFirst.items);
+    expect((await careerData(page)).documents).toEqual(docsAfterFirst);
+
+    await page.getByRole('button',{name:'자료 보관',exact:true}).first().click();
+    const editor=page.getByRole('dialog',{name:'연구대회 자료 보관',exact:true});
+    await editor.getByPlaceholder('예: 2026 현장교육연구대회 보고서 최종본').fill('저장 전 초안 유지');
+    await drop('.app-shell',editorOnly);
+    await expect(editor.getByPlaceholder('예: 2026 현장교육연구대회 보고서 최종본')).toHaveValue('저장 전 초안 유지');
+    expect((await workspace(page)).items).toEqual(afterFirst.items);
+    expect((await careerData(page)).documents).toEqual(docsAfterFirst);
+    await drop('.research-file-picker',editorOnly);
+    await expect(editor.locator('.research-file-picker')).toContainText(editorOnly.name);
+    expect((await careerData(page)).documents).toEqual(docsAfterFirst);
+    await editor.getByRole('button',{name:'취소',exact:true}).click();
+
+    await menu.getByRole('button',{name:'학교',exact:true}).click();
+    await page.getByRole('tab',{name:/^수업 자료/}).click();
+    await drop('main',lesson);
+    const lessonItem=await saved(lesson);
+    expect(lessonItem.purpose).toBe('classroom');expect(lessonItem.schoolSection).toBe('lesson');
+    await expect(page.getByRole('tab',{name:/^수업 자료/})).toHaveAttribute('aria-selected','true');
+    await expect(page.getByRole('button',{name:`${lessonItem.title} 상세보기`,exact:true})).toBeVisible();
+    // An original already used in research can be placed here too, without moving
+    // its research record or uploading another copy of the original bytes.
+    const documentsBeforeReuse=(await careerData(page)).documents;
+    await drop('main',research);
+    await expect.poll(async()=>(await workspace(page)).items.some((item:any)=>item.purpose==='classroom'&&item.schoolSection==='lesson'&&item.sourceFile?.sha256===researchItem.sourceFile.sha256)).toBe(true);
+    await expect(page.locator('.busy-indicator')).toHaveCount(0);
+    const sharedOriginal=(await workspace(page)).items.filter((item:any)=>item.sourceFile?.sha256===researchItem.sourceFile.sha256);
+    expect(sharedOriginal).toHaveLength(2);
+    expect(sharedOriginal.find((item:any)=>item.id===researchItem.id)).toEqual(researchItem);
+    expect((await careerData(page)).documents).toEqual(documentsBeforeReuse);
+    await expect(page.getByRole('tab',{name:/^수업 자료/})).toHaveAttribute('aria-selected','true');
+
+    await page.getByRole('tab',{name:/^학급 자료/}).click();
+    await drop('main',classroom);
+    const classroomItem=await saved(classroom);
+    expect(classroomItem.purpose).toBe('classroom');expect(classroomItem.schoolSection).toBe('classroom');
+    await expect(page.getByRole('tab',{name:/^학급 자료/})).toHaveAttribute('aria-selected','true');
+    await expect(page.getByRole('button',{name:`${lessonItem.title} 상세보기`,exact:true})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:`${classroomItem.title} 상세보기`,exact:true})).toBeVisible();
+
+    await menu.getByRole('button',{name:'교안',exact:true}).click();
+    await drop('main',lecture);
+    const lectureItem=await saved(lecture);
+    expect(lectureItem.purpose??'lecture').toBe('lecture');expect(lectureItem.resourceType).toBe('lecture');
+    await expect(menu.getByRole('button',{name:'교안',exact:true})).toHaveAttribute('aria-current','page');
+    await expect(page.getByRole('button',{name:`${lectureItem.title} 상세보기`,exact:true})).toBeVisible();
+    await expect(page.locator('.file-dropzone')).toHaveCount(0);
+
+    await menu.getByRole('button',{name:'연구 자료',exact:true}).click();
+    await menu.getByRole('button',{name:'공모전 제출본',exact:true}).click();
+    await expect(page.getByRole('region',{name:'공모전 제출본',exact:true})).toBeVisible();
+    await drop('main',submission);
+    await expect.poll(async()=>(await workspace(page)).items.some((item:any)=>item.kind==='submission'&&item.title===submission.name.replace(/\.txt$/,''))).toBe(true);
+    await expect(page.locator('.busy-indicator')).toHaveCount(0);
+    const submissionItem=(await workspace(page)).items.find((item:any)=>item.kind==='submission'&&item.title===submission.name.replace(/\.txt$/,''));
+    expect(submissionItem.status).toBe('preparing');expect(submissionItem.year).toBe('');expect(submissionItem.documentIds).toHaveLength(1);
+    const submissionBytes=await page.request.get(`/api/documents/${submissionItem.documentIds[0]}/file`);
+    expect((await submissionBytes.body()).toString('utf8')).toBe(submission.body);
+    await expect(page.getByRole('region',{name:'공모전 제출본',exact:true})).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    await menu.getByRole('button',{name:'사진 보관함',exact:true}).click();
+    await expect(page.getByRole('region',{name:'사진 보관함',exact:true})).toBeVisible();
+    await drop('main',photo);
+    await expect.poll(async()=>(await workspace(page)).items.some((item:any)=>item.kind==='photo'&&item.title===photo.name)).toBe(true);
+    await expect(page.locator('.busy-indicator')).toHaveCount(0);
+    const photoItem=(await workspace(page)).items.find((item:any)=>item.kind==='photo'&&item.title===photo.name);
+    const photoBytes=await page.request.get(`/api/documents/${photoItem.documentId}/file`);
+    expect(await photoBytes.body()).toEqual(Buffer.from(photo.body,'base64'));
+    expect((await careerData(page)).careers).toEqual(before.careers);
+    await expect(page.getByRole('region',{name:'사진 보관함',exact:true})).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    await menu.getByRole('button',{name:'경력 아카이브',exact:true}).click();
+    await page.getByRole('navigation',{name:'이력 분류',exact:true}).getByRole('button',{name:/^표창/}).click();
+    await drop('main',fixture('화면배치검증 강사 위촉 공문.txt','활동명: 화면배치검증 강사 위촉\n기관: 가상 연수원\n2024년 5월 3일 강사 위촉'));
+    const careerDraft=page.getByRole('dialog',{name:'새 경력 기록하기',exact:true});
+    await expect(careerDraft.getByRole('combobox',{name:'분류',exact:true})).toHaveValue('표창');
+    await careerDraft.getByRole('button',{name:'취소',exact:true}).click();
+    await expect(page.getByRole('navigation',{name:'이력 분류',exact:true}).getByRole('button',{name:/^표창/})).toHaveAttribute('aria-pressed','true');
+    expect((await careerData(page)).careers).toEqual(before.careers);
+    expect(errors).toEqual([]);
+  } finally {
+    for(const item of (await workspace(page)).items.filter((item:{id:string})=>!itemIds.has(item.id))) {
+      const state=await workspace(page);
+      expect((await page.request.delete(`/api/workspace/items/${item.id}`,{data:{expectedRevision:state.revision}})).ok()).toBeTruthy();
+    }
+    for(const doc of (await careerData(page)).documents.filter((doc:{id:string})=>!originalIds.has(doc.id))) expect((await page.request.delete(`/api/documents/${doc.id}`)).ok()).toBeTruthy();
+  }
+  expect(await careerData(page)).toEqual(before);
+  const after=await workspace(page);expect(after.items).toEqual(initialWorkspace.items);expect(after.links).toEqual(initialWorkspace.links);
 });

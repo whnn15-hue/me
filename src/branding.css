@@ -1,11 +1,13 @@
 /* Shared C wordmark, sized independently from ordinary interface text. */
 .archive-mark { display:block; flex-shrink:0; object-fit:contain; }
-.app-shell .sidebar .brand { gap:12px; padding:7px 0 26px; margin-bottom:8px; }
-/* Center the complete wordmark, with a small optical inset for the open C. */
-.app-shell .sidebar a.brand { justify-content:center; padding-inline:12px 0; }
+.app-shell .sidebar .brand { gap:16px; padding:7px 0 26px; margin-bottom:8px; }
+/* Center the mark and name as one group, without the old one-sided inset. */
+.app-shell .sidebar a.brand { justify-content:center; padding-inline:0; }
 .app-shell .sidebar .brand-icon,
 .app-shell .sidebar .brand-icon .archive-mark { width:64px; height:64px; flex:0 0 64px; }
-.app-shell .brand strong { display:block; color:var(--ui-text); font-size:26px; line-height:1.3; font-weight:700; letter-spacing:-.065em; white-space:nowrap; }
+.app-shell .brand strong { display:block; color:var(--ui-text); font-size:25px; line-height:1.3; font-weight:700; letter-spacing:-.04em; white-space:nowrap; }
+.app-shell .brand strong.archive-wordmark { display:inline-flex; align-items:baseline; gap:5px; }
+.archive-wordmark > span:first-child { letter-spacing:0; }
 .app-shell .brand small { display:block; margin-top:6px; font-size:10px; line-height:1.2; font-weight:600; letter-spacing:.2em; color:var(--ui-subtle); }
 .app-shell .brand:focus-visible { outline:2px solid var(--ui-accent); outline-offset:5px; border-radius:12px; }
 .home-identity { display:flex; align-items:center; gap:18px; }
@@ -15,8 +17,8 @@
 .app-shell .login-state h1 { font-family:var(--font-display); font-size:38px; font-weight:700; letter-spacing:-.06em; }
 :root[data-theme="dark"] .archive-mark { border-radius:27%; outline:1px solid var(--ui-border); outline-offset:-1px; }
 @media (max-width:1200px) {
-  .app-shell .sidebar .brand { gap:10px; }
+  .app-shell .sidebar .brand { gap:14px; }
   .app-shell .sidebar .brand-icon,
   .app-shell .sidebar .brand-icon .archive-mark { width:56px; height:56px; flex-basis:56px; }
-  .app-shell .brand strong { font-size:25px; }
+  .app-shell .brand strong { font-size:23px; }
 }

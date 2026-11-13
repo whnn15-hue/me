@@ -62,6 +62,9 @@ async function fixture(run){
 test('project filters and editor preserve structured fields, relationships, and failed-save input',browserOptions,async()=>{
   await fixture(async page=>{
     assert.equal(await page.getByRole('button',{name:/즐겨찾/}).count(),0);
+    assert.equal(await page.getByRole('tab',{name:/^수업 자료/}).getAttribute('aria-selected'),'true');
+    assert.equal(await page.locator('.project-card').count(),0,'Structured lesson records stay collapsed beneath the default file shelf');
+    await page.locator('.school-project-records > summary').click();
     assert.equal(await page.locator('.project-card').count(),2);
     await page.getByLabel('학년도 필터',{exact:true}).selectOption('2026');
     assert.equal(await page.getByRole('button',{name:'가상 마을 탐구 자세히 보기'}).count(),0);

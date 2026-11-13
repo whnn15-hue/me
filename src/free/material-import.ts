@@ -162,7 +162,7 @@ export async function applyMaterialImport(prepared: PreparedMaterialImport, opti
       checkCancellation(options.signal);
       const enriched = options.enrich ? await options.enrich(entry.item, original.file, stored.id, original.document.sha256) : entry.item;
       // An enrichment callback can describe the source, but cannot change its identity or destination.
-      const normalized = normalizeWorkspaceItem({ ...enriched, id: entry.item.id, kind: "material", purpose: entry.item.purpose,
+      const normalized = normalizeWorkspaceItem({ ...enriched, id: entry.item.id, kind: "material", purpose: entry.item.purpose, schoolSection: entry.item.schoolSection,
         createdAt: entry.item.createdAt, sourceFile: entry.item.sourceFile, fileUrl: `https://drive.google.com/file/d/${stored.id}/view` });
       if (normalized.kind !== "material") throw new Error("자료 항목의 종류가 올바르지 않습니다.");
       savedItems.push(normalized);

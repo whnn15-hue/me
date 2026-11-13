@@ -55,6 +55,47 @@ test('classroom rows survive metadata and backup merges without changing lecture
   assert.deepEqual(old, before);
 });
 
+test('school shelves are additive, validate their destination, and preserve legacy classroom shapes through edits', () => {
+  const legacy = normalizeWorkspaceItem(item('legacy_classroom', 'material', { purpose: 'classroom', format: 'TXT', summary: 'Keep the original classroom shelf' }));
+  assert.equal(Object.hasOwn(legacy, 'schoolSection'), false);
+  assert.deepEqual(normalizeWorkspaceItem(legacy), legacy);
+  assert.equal(Object.hasOwn(normalizeWorkspaceItem({ title: 'Renamed legacy activity' }, legacy), 'schoolSection'), false);
+  for (const schoolSection of ['lesson', 'classroom']) {
+    const school = normalizeWorkspaceItem(item(`school_${schoolSection}`, 'material', { purpose: 'classroom', schoolSection, format: 'HWP' }));
+    assert.equal(school.schoolSection, schoolSection);
+    assert.equal(normalizeWorkspaceItem({ title: 'Renamed school material' }, school).schoolSection, schoolSection);
+  }
+  for (const schoolSection of ['', null, false, 0, {}, 'research', 'lecture']) {
+    assert.throws(() => normalizeWorkspaceItem(item('bad_school', 'material', { purpose: 'classroom', schoolSection })), badRequest);
+  }
+  for (const purpose of [undefined, 'lecture', 'research']) {
+    assert.throws(() => normalizeWorkspaceItem(item('bad_destination', 'material', { purpose, schoolSection: 'lesson' })), badRequest);
+  }
+});
+
+test('school shelves round-trip metadata and JSON merges without moving legacy materials or replacing current placement', () => {
+  const legacy = item('legacy_classroom', 'material', { purpose: 'classroom', summary: 'Legacy classroom stays here' });
+  const lesson = item('lesson_handout', 'material', { purpose: 'classroom', schoolSection: 'lesson', summary: 'Subject handout' });
+  const explicitClassroom = item('classroom_handout', 'material', { purpose: 'classroom', schoolSection: 'classroom' });
+  const current = normalizeWorkspace(workspace([legacy, lesson, explicitClassroom, item('lesson_record', 'project')], [
+    canonical('material:lesson_handout', 'project:lesson_record'), canonical('material:legacy_classroom', 'material:classroom_handout'),
+  ], 11));
+  const before = structuredClone(current);
+  assert.deepEqual(workspaceFromRows(workspaceToRows(current), [], 11), current);
+  const copied = JSON.parse(JSON.stringify(current));
+  const restored = mergeWorkspaceData(emptyWorkspace(), copied, []);
+  assert.deepEqual(restored.workspace.items, current.items);
+  assert.deepEqual(restored.workspace.links, current.links);
+  assert.equal(Object.hasOwn(restored.workspace.items.find(row => row.id === 'legacy_classroom'), 'schoolSection'), false);
+  copied.items.find(row => row.id === 'lesson_handout').schoolSection = 'classroom';
+  const repeated = mergeWorkspaceData(current, copied, []);
+  assert.equal(repeated.workspace.items.find(row => row.id === 'lesson_handout').schoolSection, 'lesson');
+  assert.deepEqual(repeated.added, { items: 0, links: 0 });
+  assert.equal(repeated.conflicts.length, 1);
+  assert.equal(repeated.conflicts[0].ref, 'material:lesson_handout');
+  assert.deepEqual(current, before);
+});
+
 test('web links reject executable schemes, credentials and Drive lookalikes; photos require HTTPS', () => {
   assert.equal(normalizeWorkspaceUrl('  https://example.test/path?q=one#two  '), 'https://example.test/path?q=one#two');
   assert.equal(normalizeWorkspaceUrl('http://example.test'), 'http://example.test/');

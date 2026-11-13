@@ -8,10 +8,11 @@ async function state(page: Page) {
 
 async function openTab(page: Page, name: string) {
   await page.getByRole('navigation', { name: '주 메뉴', exact: true }).getByRole('button', { name, exact: true }).click();
+  if (name === '학교' && await page.locator('.school-project-records').getAttribute('open') === null) await page.locator('.school-project-records > summary').click();
 }
 
 for (const record of [
-  { kind: 'project', tab: '수업', title: '동시 편집 프로젝트', detail: ' 자세히 보기', edit: '수정', input: '예: 우리 동네를 바꾸는 작은 실천', save: '수업 저장' },
+  { kind: 'project', tab: '학교', title: '동시 편집 프로젝트', detail: ' 자세히 보기', edit: '수정', input: '예: 우리 동네를 바꾸는 작은 실천', save: '수업 저장' },
   { kind: 'material', tab: '교안', title: '동시 편집 강의 자료', detail: ' 상세보기', edit: '수정하기', input: '다시 찾기 쉬운 자료 제목', save: '자료 저장' },
 ]) {
   test(`${record.tab} keeps the editor revision after a conflict and does not open search over a draft`, async ({ page }) => {
@@ -71,7 +72,7 @@ test('a stale delete confirmation cannot delete a record changed on another devi
   const base = await created.json();
   const item = base.items.find((entry: { title: string }) => entry.title === '동시 삭제 보호 프로젝트');
   await page.goto('/');
-  await openTab(page, '수업');
+  await openTab(page, '학교');
   await page.getByRole('button', { name: `${item.title} 자세히 보기`, exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '수업 삭제', exact: true }).click();
   const confirmation = page.getByRole('dialog');

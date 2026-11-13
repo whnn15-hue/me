@@ -14,7 +14,7 @@ const bundle = await build({
     import {StrictMode,useState} from 'react';
     import {createRoot} from 'react-dom/client';
     import WorkspaceTree from './src/WorkspaceTree';
-    import {ArchiveMark} from './src/branding';
+    import {ArchiveMark,ArchiveWordmark} from './src/branding';
     const careers=[
       {id:'lecture',title:'가상 교원 연수',category:'강의·연수',role:'강사',documentIds:[],tags:[]},
       {id:'community',title:'영상제작 콘텐츠 교사 모임 몽당분필',category:'집필·콘텐츠',role:'회원',documentIds:[],tags:[]},
@@ -26,7 +26,7 @@ const bundle = await build({
       fixture.state={view,category};
       fixture.externalCategory=value=>{setView('careers');setCategory(value);};
       return <div className="app-shell"><aside className="sidebar">
-        <a href="#" className="brand" aria-label="C아카이브 홈"><span className="brand-icon"><ArchiveMark/></span><span><strong>C아카이브</strong></span></a>
+        <a href="#" className="brand" aria-label="C아카이브 홈"><span className="brand-icon"><ArchiveMark/></span><span><ArchiveWordmark/></span></a>
         <WorkspaceTree view={view} category={category} careers={careers} documents={[]} workspace={{schemaVersion:1,revision:0,items:[],links:[]}}
           onView={value=>{fixture.navigations.push(value);setView(value);}}
           onCategory={value=>{fixture.categories.push(value);setCategory(value);setView('careers');}}
@@ -63,7 +63,7 @@ async function fixture(run, saved) {
 test('career disclosure selects existing presentation categories, preserves records, and keeps video last',browserOptions,async()=>{
   await fixture(async page=>{
     const menu=page.getByRole('navigation',{name:'주 메뉴'});
-    assert.deepEqual(await menu.locator('.tree-parent > .nav-item').allTextContents(),['홈','이력','수업','연구 자료','교안','영상 작업']);
+    assert.deepEqual(await menu.locator('.tree-parent > .nav-item').allTextContents(),['홈','이력','학교','연구 자료','교안','영상 작업']);
     assert.equal(await menu.locator('#tree-careers').count(),0);
     await menu.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true}).click();
     assert.equal(await menu.getByRole('button',{name:'이력 하위 메뉴 접기',exact:true}).getAttribute('aria-expanded'),'true');
@@ -102,7 +102,10 @@ test('career disclosure preference survives reload and cross-links reveal their 
     const b=await brand.boundingBox(),w=await wordmark.boundingBox(),i=await icon.boundingBox();
     assert.ok(i.x>=b.x && w.x+w.width<=b.x+b.width+1,'Logo and name remain inside sidebar brand');
     const offset=(i.x+w.x+w.width)/2-(b.x+b.width/2);
-    assert.ok(offset>=2 && offset<=10,'Complete logo group has a small balanced optical inset');
+    assert.ok(Math.abs(offset)<=1,'Complete logo and wordmark group is centered');
+    const letters=wordmark.locator('span');
+    const c=await letters.nth(0).boundingBox(),name=await letters.nth(1).boundingBox();
+    assert.ok(name.x-(c.x+c.width)>=4,'The C and archive name have visible spacing');
   });
 });
 

@@ -191,6 +191,41 @@ test('classroom packages preserve original bytes and cannot enter full backup re
   await assert.rejects(readBackupFile(file), /전체 기록 복원/);
 });
 
+test('school material packages retain the chosen lesson shelf through reading, enrichment and archive saving', async () => {
+  const state = runtime(), before = await readFreeSnapshot();
+  const source = material('lesson_handout', { schoolSection: 'lesson', title: 'Lesson handout' });
+  const input = await prepared([source]);
+  const file = input.documents[0];
+  input.purpose = 'classroom';
+  input.materials[0].item.sourceFile = { name: file.name, size: file.size, sha256: file.sha256 };
+  assert.equal(input.materials[0].item.schoolSection, 'lesson');
+  assert.deepEqual(file.bytes, original('original_lesson_handout').bytes);
+  const result = await apply(input, { enrich: async value => ({ ...value, title: 'Enriched lesson handout', schoolSection: 'classroom' }) });
+  assert.deepEqual(result, { added: 1, duplicates: 0, skipped: 0 });
+  const after = await readFreeSnapshot(), saved = after.workspace.items.find(value => value.id === source.id);
+  assert.equal(saved.purpose, 'classroom');
+  assert.equal(saved.schoolSection, 'lesson');
+  assert.equal(saved.title, 'Enriched lesson handout');
+  assert.deepEqual(saved.sourceFile, input.materials[0].item.sourceFile);
+  assert.equal(state.uploads.length, 1);
+  assert.deepEqual(state.uploads[0].bytes, file.bytes);
+  assert.deepEqual(after.careers, before.careers);
+  assert.deepEqual(after.documents, before.documents);
+  assert.deepEqual(after.workspace.links, before.workspace.links);
+});
+
+test('a lesson-shelf import of an existing classroom material never moves or overwrites it', async () => {
+  const existing = material('same_original', { title: 'Owner classroom activity', fileUrl: 'https://drive.google.com/file/d/existing_classroom/view' });
+  const state = runtime([existing]), before = await readFreeSnapshot();
+  const input = await prepared([material('same_original', { schoolSection: 'lesson', title: 'New lesson label' })]);
+  input.purpose = 'classroom';
+  assert.deepEqual(await apply(input), { added: 0, duplicates: 1, skipped: 0 });
+  assert.deepEqual(await readFreeSnapshot(), before);
+  const saved = before.workspace.items.find(value => value.id === existing.id);
+  assert.equal(Object.hasOwn(saved, 'schoolSection'), false);
+  noWrites(state);
+});
+
 test('reader rejects mixed archives, unsupported markers and unsafe or duplicate mappings', async () => {
   const state = runtime();
   const mutations = [

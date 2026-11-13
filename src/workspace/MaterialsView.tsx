@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowDownAZ, Code2, Check, Clapperboard, ExternalLink, FileText, LoaderCircle,
-  PencilLine, Plus, Presentation, Search, SlidersHorizontal, Trash2, X, Headphones, Image as ImageIcon,
+  ArrowDownAZ, ArrowDownToLine, Code2, Check, Clapperboard, ExternalLink, FileText, LoaderCircle,
+  PencilLine, Plus, Presentation, Search, SlidersHorizontal, Trash2, X, Headphones, Image as ImageIcon, Upload,
 } from "lucide-react";
 import { uploadDate } from "./upload-date";
 import HtmlPreview from "./HtmlPreview";
 import AudioPreview from "./AudioPreview";
 import {videoResourceTypes, resourceType, resourceLabel, materialLibrary, audioName, formatBytes, type ResourceType, type MaterialLibrary} from "../../shared/resources.mjs";
 import { useLibraryView, ViewSwitch } from "./LibraryControls";
-import FileDropzone from "../FileDropzone";
 import { recordTags, materialClassification, materialSubjects, materialTrainings } from "../../shared/material-classification.mjs";
 import { Modal } from "../CareerEditor";
 import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from "./WorkspaceUI";
@@ -19,12 +18,12 @@ const formats: MaterialItem["format"][] = ["PPT", "PDF", "영상", "기타", "HW
 
 
 
-function newMaterial(purpose: "classroom" | "lecture", library: MaterialLibrary): MaterialItem {
+function newMaterial(purpose: "classroom" | "lecture", library: MaterialLibrary, schoolSection?: MaterialItem["schoolSection"]): MaterialItem {
   return {
     id: "", kind: "material", title: "", tags: [], createdAt: "", updatedAt: "",
     ownership: "created", author: "", eventName: "", date: "", audience: [],
     format: "PPT", fileUrl: "", summary: "", resourceType: library === "video" && purpose !== "classroom" ? "template" : "lecture",
-    ...(purpose === "classroom" ? { purpose } : {}),
+    ...(purpose === "classroom" ? { purpose, schoolSection: schoolSection ?? "classroom" } : {}),
   };
 }
 
@@ -58,7 +57,7 @@ function MaterialEditor({ item, library, workspace, careers, onSave, onError, on
 } & Pick<WorkspaceSectionProps, "workspace" | "careers" | "onSave" | "onError">) {
   const classroom = item.purpose === "classroom";
   const video = !classroom && library === "video";
-  const materialLabel = classroom ? "학급 자료" : "자료";
+  const materialLabel = classroom ? item.schoolSection === "lesson" ? "수업 자료" : "학급 자료" : "자료";
   // An explicit edit can pin a legacy record's placement. Renaming a template
   // must not silently move it out of the library the person is editing.
   const [draft, setDraft] = useState<MaterialItem>({ ...item, resourceType: item.resourceType ?? (video ? resourceType(item) : "lecture"), tags: [...item.tags], audience: [...item.audience] });
@@ -112,20 +111,24 @@ function MaterialEditor({ item, library, workspace, careers, onSave, onError, on
 
 export interface MaterialsViewProps extends WorkspaceSectionProps {
   purpose?: "classroom" | "lecture";
+  schoolSection?: MaterialItem["schoolSection"];
   library?: MaterialLibrary;
   importPanel?: ReactNode;
+  onResourceChange?: (resource: ResourceType | "") => void;
 }
 
-export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", library = "learning", importPanel, onFiles, uploading, loadHtmlPreview, loadAudioPreview, initialSection, initialSubject }: MaterialsViewProps) {
+export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", schoolSection = "classroom", library = "learning", importPanel, onFiles, uploading, loadHtmlPreview, loadAudioPreview, onDownloadOriginal, onResourceChange, initialSection, initialSubject }: MaterialsViewProps) {
   const classroom = purpose === "classroom";
   const video = !classroom && library === "video";
-  const materialLabel = classroom ? "학급 자료" : video ? "영상 작업" : "교안";
-  const [view, setView] = useLibraryView(`materials-${purpose}-${library}`);
+  const materialLabel = classroom ? schoolSection === "lesson" ? "수업 자료" : "학급 자료" : video ? "영상 작업" : "교안";
+  const [view, setView] = useLibraryView(`materials-${purpose}-${library}${classroom && schoolSection === "lesson" ? "-lesson" : ""}`);
+  const uploadInput = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [subject, setSubject] = useState(initialSubject || "");
   const [training, setTraining] = useState("");
   const [format, setFormat] = useState("");
   const [resource,setResource]=useState(video && initialSection?.startsWith("resource:") ? initialSection.slice(9) : "");
+  useEffect(() => { onResourceChange?.(video ? resource as ResourceType | "" : ""); }, [video, resource, onResourceChange]);
   const [tag, setTag] = useState("");
   const [sort, setSort] = useState("recent");
   const [selectedId, setSelectedId] = useState("");
@@ -135,7 +138,8 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const deleteBusyRef = useRef(false);
-  const materials = useMemo(() => workspace.items.filter((item): item is MaterialItem => item.kind === "material" && (item.purpose ?? "lecture") === purpose && (classroom || materialLibrary(item) === library)).map(item => ({ ...item, tags: recordTags(item) })), [workspace.items, purpose, classroom, library]);
+  const [downloadingId, setDownloadingId] = useState("");
+  const materials = useMemo(() => workspace.items.filter((item): item is MaterialItem => item.kind === "material" && (item.purpose ?? "lecture") === purpose && (classroom ? (item.schoolSection ?? "classroom") === schoolSection : materialLibrary(item) === library)).map(item => ({ ...item, tags: recordTags(item) })), [workspace.items, purpose, classroom, schoolSection, library]);
   const selected = materials.find(item => item.id === selectedId);
   const classified = new Map(materials.map(item => [item.id, materialClassification(item)]));
   const allSubjects = [...new Set(materials.flatMap(item => classified.get(item.id)!.subjects))].sort((a,b)=>a.localeCompare(b,"ko"));
@@ -145,7 +149,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
     if (resource && resourceType(item)!==resource) return false;
     if (subject && (subject === "unclassified" ? classified.get(item.id)!.subjects.length > 0 : !classified.get(item.id)!.subjects.includes(subject)) || training && !classified.get(item.id)!.trainings.includes(training)
       || format && item.format !== format || tag && !item.tags.includes(tag)) return false;
-    return !normalizedQuery || [resourceLabel(item), item.sourceFile?.name, item.title, item.author, item.eventName, item.summary, item.date, item.format, ...classified.get(item.id)!.subjects, ...classified.get(item.id)!.trainings, ...item.audience, ...item.tags]
+    return !normalizedQuery || [classroom ? materialLabel : resourceLabel(item), item.sourceFile?.name, item.title, item.author, item.eventName, item.summary, item.date, item.format, ...classified.get(item.id)!.subjects, ...classified.get(item.id)!.trainings, ...item.audience, ...item.tags]
       .join(" ").normalize("NFC").toLocaleLowerCase("ko-KR").includes(normalizedQuery);
   }).sort((a, b) => sort === "title" ? a.title.localeCompare(b.title, "ko") : b.createdAt.localeCompare(a.createdAt));
   const hasFilters = Boolean(resource || query || subject || training || format || tag);
@@ -163,13 +167,20 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
     finally { deleteBusyRef.current = false; setDeleteBusy(false); }
   }
 
+  async function downloadOriginal(item: MaterialItem) {
+    if (!onDownloadOriginal || downloadingId) return;
+    setDownloadingId(item.id);
+    try { await onDownloadOriginal(item); }
+    catch (error) { onError(error); }
+    finally { setDownloadingId(""); }
+  }
+
   return (
     <div className={`materials-view ${video ? "materials-video" : "materials-learning"}`}>
       <div className="materials-heading">
         <h1>{materialLabel}<span className="library-total" aria-hidden="true">{materials.length}</span></h1>
-        <button className="button primary" onClick={() => setEditing(newMaterial(purpose, library))}><Plus size={17} /> 자료 추가</button>
+        <div className="material-heading-actions">{onFiles && <><input ref={uploadInput} type="file" multiple hidden accept=".pdf,.ppt,.pptx,.potx,.hwp,.hwpx,.docx,.dotx,.xlsx,.xltx,.cell,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a,.flac" aria-label={`${materialLabel} 파일 선택`} onChange={event => { const files = Array.from(event.target.files ?? []); event.currentTarget.value = ""; if (files.length && !uploading) void onFiles(files, purpose, classroom ? schoolSection : undefined, video && resource ? resource as ResourceType : undefined); }} /><button className="button secondary" disabled={uploading} onClick={() => uploadInput.current?.click()}><Upload size={16}/>{uploading ? "저장 중" : "파일 추가"}</button></>}<button className="button primary" onClick={() => setEditing(newMaterial(purpose, library, schoolSection))}><Plus size={17} /> 자료 추가</button></div>
       </div>
-      {onFiles && <div className="materials-quick-upload"><FileDropzone onFiles={files=>onFiles(files,purpose)} busy={uploading} label="파일을 끌어 놓거나 선택" accept=".pdf,.ppt,.pptx,.potx,.hwp,.hwpx,.docx,.dotx,.xlsx,.xltx,.cell,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a,.flac" hint={video ? "효과음, 음악, 템플릿, 이미지 / 파일당 25 MB" : "문서와 수업 자료 / 파일당 25 MB"} /></div>}
       {importPanel && <details className="materials-import-panel"><summary>준비된 자료 가져오기</summary>{importPanel}</details>}
       <div className="materials-toolbar">
         <label className="materials-search"><Search size={17} /><input aria-label={`${materialLabel} 검색`} value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 내용, 태그 검색" />{query && <button className="icon-button" aria-label="자료 검색어 지우기" onClick={() => setQuery("")}><X size={14} /></button>}</label>
@@ -189,20 +200,20 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
             <button type="button" className="material-card-open" onClick={() => setSelectedId(item.id)} aria-label={`${displayLabel(item.title)} 상세보기`}>
             <span className="record-file-icon" aria-hidden="true"><FormatIcon format={item.format} size={22}/></span>
             <div className="material-card-body"><h3>{displayLabel(item.title)}</h3><div className="record-tags">{item.tags.slice(0,4).map(value => <span key={value}>#{displayLabel(value)}</span>)}{item.tags.length > 4 && <span>+{item.tags.length-4}</span>}</div></div>
-            <span className="record-format">{resourceLabel(item)}<small>{item.format}{item.sourceFile ? ` / ${formatBytes(item.sourceFile.size)}` : ""}</small></span><time className="record-upload-date" dateTime={item.createdAt}>{uploadDate(item.createdAt) && `업로드 ${uploadDate(item.createdAt)}`}</time>
-            </button><div className="library-card-actions">{fileUrl(item.fileUrl) && <a href={fileUrl(item.fileUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" aria-label={`${displayLabel(item.title)} 원본 열기`}><ExternalLink size={13}/>원본 열기</a>}<button onClick={()=>setEditing(item)} aria-label={`${displayLabel(item.title)} 수정`}><PencilLine size={13}/>수정</button></div>
+            <span className="record-format">{classroom ? materialLabel : resourceLabel(item)}<small>{item.format}{item.sourceFile ? ` / ${formatBytes(item.sourceFile.size)}` : ""}</small></span><time className="record-upload-date" dateTime={item.createdAt}>{uploadDate(item.createdAt) && `업로드 ${uploadDate(item.createdAt)}`}</time>
+            </button><div className="library-card-actions">{fileUrl(item.fileUrl) ? <a href={fileUrl(item.fileUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" aria-label={`${displayLabel(item.title)} 원본 열기`}><ExternalLink size={13}/>원본 열기</a> : item.sourceFile && onDownloadOriginal && <button disabled={Boolean(downloadingId)} onClick={()=>void downloadOriginal(item)} aria-label={`${displayLabel(item.title)} 원본 내려받기`}><ArrowDownToLine size={13}/>{downloadingId === item.id ? "내려받는 중" : "원본 내려받기"}</button>}<button onClick={()=>setEditing(item)} aria-label={`${displayLabel(item.title)} 수정`}><PencilLine size={13}/>수정</button></div>
           </article>)}
         </div>
       ) : (
-        <div className="materials-empty"><span>{video ? <Clapperboard size={31}/> : <Presentation size={31} />}</span><h3>{materials.length ? "조건에 맞는 자료가 없어요" : "등록된 자료가 없습니다"}</h3><button className="button secondary" onClick={materials.length ? resetFilters : () => setEditing(newMaterial(purpose, library))}>{materials.length ? <X size={15} /> : <Plus size={15} />}{materials.length ? "필터 초기화" : "첫 자료 추가하기"}</button></div>
+        <div className="materials-empty"><span>{video ? <Clapperboard size={31}/> : <Presentation size={31} />}</span><h3>{materials.length ? "조건에 맞는 자료가 없어요" : "등록된 자료가 없습니다"}</h3><button className="button secondary" onClick={materials.length ? resetFilters : () => setEditing(newMaterial(purpose, library, schoolSection))}>{materials.length ? <X size={15} /> : <Plus size={15} />}{materials.length ? "필터 초기화" : "첫 자료 추가하기"}</button></div>
       )}
 
 
       {selected && !editing && !deleting && (
         <Modal title={displayLabel(selected.title)} subtitle={materialClassification(selected).subjects.join(", ")} wide onClose={() => setSelectedId("")}>
           <div className="modal-body material-detail">
-            <div className="material-detail-feature"><span className={`material-format-icon format-${formats.indexOf(selected.format)}`}><FormatIcon format={selected.format} size={29} /></span><div><strong>{resourceLabel(selected)} / {selected.format}</strong><span>{uploadDate(selected.createdAt) && `업로드 ${uploadDate(selected.createdAt)}`}</span></div>{fileUrl(selected.fileUrl) ? <a className="button primary" href={fileUrl(selected.fileUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"><ExternalLink size={15} />드라이브에서 열기</a> : <span className="material-no-file">파일 링크 미등록</span>}</div>
-            {selected.format === "HTML" && selected.sourceFile && fileUrl(selected.fileUrl) && loadHtmlPreview && <HtmlPreview key={`${selected.id}-${selected.updatedAt}`} item={selected} load={loadHtmlPreview}/>}
+            <div className="material-detail-feature"><span className={`material-format-icon format-${formats.indexOf(selected.format)}`}><FormatIcon format={selected.format} size={29} /></span><div><strong>{classroom ? materialLabel : resourceLabel(selected)} / {selected.format}</strong><span>{uploadDate(selected.createdAt) && `업로드 ${uploadDate(selected.createdAt)}`}</span></div>{fileUrl(selected.fileUrl) ? <a className="button primary" href={fileUrl(selected.fileUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"><ExternalLink size={15} />드라이브에서 열기</a> : selected.sourceFile && onDownloadOriginal ? <button className="button primary" disabled={Boolean(downloadingId)} onClick={()=>void downloadOriginal(selected)}><ArrowDownToLine size={15}/>{downloadingId ? "내려받는 중" : "원본 내려받기"}</button> : <span className="material-no-file">파일 링크 미등록</span>}</div>
+            {selected.format === "HTML" && selected.sourceFile && loadHtmlPreview && <HtmlPreview key={`${selected.id}-${selected.updatedAt}`} item={selected} load={loadHtmlPreview}/>}
             {selected.sourceFile && audioName(selected.sourceFile.name) && loadAudioPreview && <AudioPreview key={`${selected.id}-${selected.updatedAt}`} item={selected} load={loadAudioPreview}/>}
             {selected.summary && <section className="material-detail-notes"><h3><FileText size={16} />핵심 내용과 활용 메모</h3><p>{displayLabel(selected.summary)}</p></section>}
             <div className="material-training-labels">{materialClassification(selected).trainings.map(value=><span key={value}>{value}</span>)}</div>
@@ -214,7 +225,7 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
         </Modal>
       )}
       {editing && <MaterialEditor key={editing.id || "new-material"} item={editing} library={library} workspace={workspace} careers={careers} onSave={onSave} onError={onError} onClose={() => setEditing(null)} />}
-      {deleting && <Modal title={`${classroom ? "학급 자료" : "자료"}를 삭제할까요?`} subtitle={displayLabel(deleting.title)} onClose={() => !deleteBusyRef.current && setDeleting(null)}><div className="modal-body"><p className="confirm-description">이 자료의 기록과 다른 항목과의 연결을 삭제합니다. 구글 드라이브 원본 파일은 유지됩니다.</p>{deleteError && <div className="alert error" role="alert">{displayLabel(deleteError)}<p>다른 곳에서 기록이 바뀌었다면 취소한 뒤 최신 내용을 확인해 주세요.</p></div>}</div><div className="modal-footer"><button className="button secondary" disabled={deleteBusy} onClick={() => setDeleting(null)}>취소</button><button className="button danger" disabled={deleteBusy} onClick={() => void remove()}>{deleteBusy ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}{deleteBusy ? "삭제 중" : "자료 삭제"}</button></div></Modal>}
+      {deleting && <Modal title={`${classroom ? materialLabel : "자료"}를 삭제할까요?`} subtitle={displayLabel(deleting.title)} onClose={() => !deleteBusyRef.current && setDeleting(null)}><div className="modal-body"><p className="confirm-description">이 자료의 기록과 다른 항목과의 연결을 삭제합니다. 구글 드라이브 원본 파일은 유지됩니다.</p>{deleteError && <div className="alert error" role="alert">{displayLabel(deleteError)}<p>다른 곳에서 기록이 바뀌었다면 취소한 뒤 최신 내용을 확인해 주세요.</p></div>}</div><div className="modal-footer"><button className="button secondary" disabled={deleteBusy} onClick={() => setDeleting(null)}>취소</button><button className="button danger" disabled={deleteBusy} onClick={() => void remove()}>{deleteBusy ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}{deleteBusy ? "삭제 중" : "자료 삭제"}</button></div></Modal>}
     </div>
   );
 }

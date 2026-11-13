@@ -31,7 +31,6 @@ test('proof availability toggles persist without editing the career, update home
     await chooseCategory('콘텐츠 제작');
     await expect(entry(ids[2])).toBeVisible(); await expect(entry(ids[1])).toHaveCount(0); await expect(entry(ids[3])).toHaveCount(0);
     await chooseCategory('전체');
-    await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill(title);
     // A second session changes notes while this screen is stale. The quick action
     // must patch only evidenceStatus instead of overwriting this latest content.
     await page.request.put(`/api/careers/${ids[0]}`, { data: { description: '다른 창에서 바꾼 최신 메모' } });
@@ -45,15 +44,12 @@ test('proof availability toggles persist without editing the career, update home
     expect(saved.evidenceStatus).toBe('unavailable'); expect(saved.description).toBe('다른 창에서 바꾼 최신 메모');
     expect(saved.role).toBe('보존할 역할'); expect(saved.tags).toEqual(['보존할 태그']); expect(saved.documentIds).toEqual([]);
     await page.reload();
-    await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill(title);
     await expect(entry(ids[0]).locator('.evidence')).toHaveText('확보 어려움');
     await page.screenshot({ path: '/tmp/evidence-unavailable-list.png', animations: 'disabled' });
     await menu.getByRole('button', { name: '홈', exact: true }).click();
     await expect(page.getByRole('button', { name: `증빙 보완할 경력 ${initialMissing - 1}건`, exact: true })).toBeVisible();
     await menu.getByRole('button', { name: '경력 아카이브', exact: true }).click();
-    await page.locator('.career-extra-filters > summary').click();
-    await page.getByRole('combobox', { name: '증빙 필터', exact: true }).selectOption('증빙 확보 어려움');
-    await page.locator('.career-extra-filters > summary').click();
+    await expect(page.locator('.career-extra-filters')).toHaveCount(0);
     await expect(entry(ids[0])).toBeVisible();
     await entry(ids[0]).locator('.career-row').click();
     const detail = page.getByRole('dialog', { name: '경력 상세', exact: true });
@@ -64,11 +60,11 @@ test('proof availability toggles persist without editing the career, update home
     await detail.getByRole('button', { name: '증빙 확보 어려움 해제', exact: true }).click();
     await expect(detail.getByRole('button', { name: '증빙 확보 어려움', exact: true })).toHaveAttribute('aria-pressed', 'false');
     await page.getByRole('button', { name: '상세 닫기', exact: true }).click();
-    await expect(entry(ids[0])).toHaveCount(0);
+    await expect(entry(ids[0])).toBeVisible();
+    await expect(entry(ids[0]).locator('.evidence')).toHaveText('증빙 미첨부');
     await menu.getByRole('button', { name: '홈', exact: true }).click();
     await expect(page.getByRole('button', { name: `증빙 보완할 경력 ${initialMissing}건`, exact: true })).toBeVisible();
     await menu.getByRole('button', { name: '경력 아카이브', exact: true }).click();
-    await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill(title);
     await page.route(`**/api/careers/${ids[0]}`, route => route.request().method() === 'PUT' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: '테스트 저장 실패' }) }) : route.continue());
     await entry(ids[0]).getByRole('button', { name: `${title} 증빙 확보 어려움 표시`, exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('테스트 저장 실패');

@@ -15,7 +15,7 @@ async function navigate(page: Page, name: string) {
     await page.getByRole('menu',{name:'보관함과 설정',exact:true}).getByRole('menuitem',{name:label,exact:true}).click();
   }else await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('button', { name:label, exact: true }).click();
 }
-async function findCareer(page: Page, title: string) { await navigate(page, '경력 아카이브'); await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill(title); return page.locator('.career-row').filter({ hasText: title }); }
+async function findCareer(page: Page, title: string) { await navigate(page, '경력 아카이브'); return page.locator('.career-row').filter({ hasText: title }); }
 async function archive(download: Download) { const path = await download.path(); expect(path).toBeTruthy(); return JSZip.loadAsync(await readFile(path!)); }
 async function removeDocument(page: Page, filename: string) {
   await page.getByRole('button', { name: `${filename} 삭제`, exact: true }).click();
@@ -30,9 +30,10 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   await expect(page.locator('.career-row')).toHaveCount(initialCount);
   await expect(page.getByRole('button',{name:'경력 아카이브',exact:true}).locator('.nav-count')).toHaveCount(0);
   if (initial.careers.some((career: { title: string }) => career.title.includes('KERIS'))) {
-    await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill('KERIS');
-    await expect(page.locator('.career-row').filter({hasText:initial.careers.find((career:{title:string})=>career.title.includes('KERIS')).title})).toBeVisible();
-    await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill('');
+    const input=page.getByRole('combobox',{name:'모든 기록 검색어',exact:true});
+    await input.fill('KERIS');
+    await expect(page.locator('.global-search-result').first()).toContainText('KERIS');
+    await input.press('Escape');
   }
 
   // A career without a document can be created, persisted across reload, edited and deleted.
@@ -74,6 +75,7 @@ test('personal career workflow persists records, reviews uploads, exports eviden
   await expect(editor.getByPlaceholder('어떤 경험을 하셨나요?')).toHaveValue(secondTitle);
   await editor.getByRole('button', { name: '확인하고 저장', exact: true }).click();
   await expect(editor).toHaveCount(0);
+  await navigate(page, '공문 보관함');
   await expect(page.locator('.document-row')).toHaveCount(2);
   let current = await data(page);
   expect(current.careers).toHaveLength(initialCount + 2); expect(current.documents).toHaveLength(2);

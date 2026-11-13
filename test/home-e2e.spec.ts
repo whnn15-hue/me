@@ -20,10 +20,18 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     }
     await page.emulateMedia({colorScheme:'light'});await page.goto('/');
     await expect(page).toHaveTitle('C아카이브');
+    const brandAlignment=await page.locator('.sidebar .brand').evaluate(element=>{
+      const sidebar=element.closest('.sidebar')!.getBoundingClientRect(),mark=element.querySelector('.brand-icon')!.getBoundingClientRect(),name=element.querySelector('.archive-wordmark')!.getBoundingClientRect();
+      const letters=[...element.querySelectorAll('.archive-wordmark > span')].map(span=>span.getBoundingClientRect());
+      return {offset:Math.abs((mark.left+name.right)/2-(sidebar.left+sidebar.right)/2),markGap:name.left-mark.right,letterGap:letters[1].left-letters[0].right};
+    });
+    expect(brandAlignment.offset).toBeLessThanOrEqual(3);
+    expect(brandAlignment.markGap).toBeGreaterThanOrEqual(14);
+    expect(brandAlignment.letterGap).toBeGreaterThanOrEqual(5);
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
     await expect(menu.getByRole('button',{name:'홈',exact:true})).toHaveAttribute('aria-current','page');
     await expect(menu.getByText('대학원', {exact:true})).toHaveCount(0);
-    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','연구 자료','교안','영상 작업']);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','학교','연구 자료','교안','영상 작업']);
     await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
     await expect(menu.getByRole('button',{name:'백업 및 설정',exact:true})).toHaveCount(0);
     await expect(menu.getByRole('button',{name:'사진 보관함',exact:true})).toHaveCount(0);
@@ -31,6 +39,7 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await expect(home).toBeVisible();
     await expect(home.locator('.home-identity,.home-date,.stats-grid,.attention-grid,.home-bottom-actions,.home-backup')).toHaveCount(0);
     await expect(home.getByRole('heading',{name:'C아카이브',exact:true})).toHaveCount(0);
+    await expect(home.getByRole('heading',{name:'나의 성장',exact:true})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
     await expect(home.getByRole('button',{name:/이력서와 제출용 증빙 만들기|전체 기록 백업|날짜 입력|공문 연결/})).toHaveCount(0);
     await expect(page.getByRole('region',{name:'연도별 성장 지도'})).toBeVisible();
@@ -40,9 +49,11 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     const totalMissing=original.careers.filter((career:{documentIds:string[];evidenceStatus:string})=>career.evidenceStatus!=='unneeded'&&!career.documentIds.some(id=>original.documents.some((document:{id:string})=>document.id===id))).length+1;
     await expect(missing).toContainText(String(totalMissing));
     await missing.click();
-    await page.locator('.career-extra-filters > summary').click();
-    await expect(page.getByRole('combobox',{name:'증빙 필터',exact:true})).toHaveValue('증빙 미첨부');
+    await expect(page.locator('.career-context-filter')).toContainText('증빙');
+    await expect(page.getByRole('button',{name:'전체 이력 보기',exact:true})).toBeVisible();
     await expect(page.locator('.career-row').filter({hasText:'홈검증 오늘 특강'})).toBeVisible();
+    await expect(page.getByText('이 기록은 본인만 볼 수 있어요.',{exact:true})).toHaveCount(0);
+    await expect(page.locator('.career-search-toolbar,.career-extra-filters,.archive-result-bar,.active-filter-chips')).toHaveCount(0);
     await menu.getByRole('button',{name:'홈',exact:true}).click();
     await expect(page.getByText('최근 작업',{exact:true})).toHaveCount(0);
     await expect(page.getByText('최근 활동',{exact:true})).toHaveCount(0);

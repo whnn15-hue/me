@@ -5,7 +5,6 @@ import { ArrowUpRight, BookOpen, CalendarDays, Check, FileText, ChevronRight, Im
 import { Modal } from "../CareerEditor";
 import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from "./WorkspaceUI";
 import type { WorkspaceItem, WorkspaceSectionProps } from "./types";
-import FileDropzone from "../FileDropzone";
 import { useLibraryView, ViewSwitch } from "./LibraryControls";
 import MaterialsView from "./MaterialsView";
 import "./ProjectsView.css";
@@ -201,30 +200,37 @@ function ProjectRecordsView({ workspace, careers, onSave, onDelete, onOpen, focu
 
 export interface ProjectsViewProps extends WorkspaceSectionProps {
   classroomImport?: ReactNode;
+  onSectionChange?: (section: "records" | "classroom") => void;
 }
 
-export default function ProjectsView({ classroomImport, ...props }: ProjectsViewProps) {
+export default function ProjectsView({ classroomImport, onSectionChange, ...props }: ProjectsViewProps) {
   const focused = props.workspace.items.find(item => item.id === props.focusId);
-  const focusedSection = focused?.kind === "material" && focused.purpose === "classroom" ? "classroom"
+  const focusedSection = focused?.kind === "material" && focused.purpose === "classroom" ? focused.schoolSection === "lesson" ? "records" : "classroom"
     : focused?.kind === "project" ? "records" : undefined;
   const [section, setSection] = useState<"records" | "classroom">(() => focusedSection ?? (props.initialSection === "classroom" ? "classroom" : "records"));
   useEffect(() => { if (focusedSection) setSection(focusedSection); }, [props.focusId, focusedSection]);
+  useEffect(() => { onSectionChange?.(section); }, [section, onSectionChange]);
+  const [recordsOpen, setRecordsOpen] = useState(focused?.kind === "project");
+  useEffect(() => { if (focused?.kind === "project") setRecordsOpen(true); }, [focused?.id, focused?.kind]);
   const recordCount = props.workspace.items.filter(item => item.kind === "project").length;
-  const materialCount = props.workspace.items.filter(item => item.kind === "material" && item.purpose === "classroom").length;
+  const lessonCount = props.workspace.items.filter(item => item.kind === "material" && item.purpose === "classroom" && item.schoolSection === "lesson").length;
+  const materialCount = props.workspace.items.filter(item => item.kind === "material" && item.purpose === "classroom" && item.schoolSection !== "lesson").length;
   return <div className="classroom-view">
-    {section === "records" && props.onFiles && <FileDropzone onFiles={files=>props.onFiles!(files,"classroom")} busy={props.uploading} label="수업 자료를 끌어 놓으면 자동 정리" />}
-    <div className="classroom-sections" role="tablist" aria-label="수업 분류" onKeyDown={event => {
+    <div className="classroom-sections" role="tablist" aria-label="학교 자료 분류" onKeyDown={event => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const next = event.key === "Home" ? "records" : event.key === "End" ? "classroom" : section === "records" ? "classroom" : "records";
       setSection(next);
       event.currentTarget.querySelector<HTMLButtonElement>(next === "records" ? "#classroom-records-tab" : "#classroom-materials-tab")?.focus();
     }}>
-      <button id="classroom-records-tab" type="button" role="tab" tabIndex={section === "records" ? 0 : -1} aria-selected={section === "records"} aria-controls="classroom-content" onClick={() => setSection("records")}><BookOpen size={17} /><span>수업 기록</span><strong>{recordCount}</strong></button>
+      <button id="classroom-records-tab" type="button" role="tab" tabIndex={section === "records" ? 0 : -1} aria-selected={section === "records"} aria-controls="classroom-content" onClick={() => setSection("records")}><BookOpen size={17} /><span>수업 자료</span><strong>{lessonCount}</strong></button>
       <button id="classroom-materials-tab" type="button" role="tab" tabIndex={section === "classroom" ? 0 : -1} aria-selected={section === "classroom"} aria-controls="classroom-content" onClick={() => setSection("classroom")}><FileText size={17} /><span>학급 자료</span><strong>{materialCount}</strong></button>
     </div>
     <div id="classroom-content" role="tabpanel" aria-labelledby={section === "records" ? "classroom-records-tab" : "classroom-materials-tab"}>
-      {section === "records" ? <ProjectRecordsView {...props} /> : <MaterialsView {...props} purpose="classroom" importPanel={classroomImport} />}
+      {section === "records" ? <>
+        <MaterialsView key="lesson" {...props} purpose="classroom" schoolSection="lesson" />
+        <details className="school-project-records" open={recordsOpen} onToggle={event => setRecordsOpen(event.currentTarget.open)}><summary><BookOpen size={16}/><span>수업 기록</span><small>{recordCount}</small><ChevronRight size={15}/></summary>{recordsOpen && <ProjectRecordsView {...props} />}</details>
+      </> : <MaterialsView key="classroom" {...props} purpose="classroom" schoolSection="classroom" importPanel={classroomImport} />}
     </div>
   </div>;
 }

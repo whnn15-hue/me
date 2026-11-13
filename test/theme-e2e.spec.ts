@@ -94,8 +94,9 @@ test('desktop palette follows the system live across all workspaces without losi
   await expect(page.locator('.atlas-panel')).toHaveCSS('background-color','rgb(32, 32, 32)');
   await page.screenshot({path:'/tmp/introduce-me-neutral-dark.png',animations:'disabled'});
   // Every tab uses the same semantic surfaces, including its editor.
-  for(const [tab,add,dialog] of [['수업','수업 추가','새 수업 기록'],['교안','자료 추가','자료 추가']]){
+  for(const [tab,add,dialog] of [['학교','수업 추가','새 수업 기록'],['교안','자료 추가','자료 추가']]){
     await main.getByRole('button',{name:tab,exact:true}).click();
+    if(tab==='학교' && await page.locator('.school-project-records').getAttribute('open')===null)await page.locator('.school-project-records > summary').click();
     await expect(root).toHaveCSS('background-color','rgb(20, 20, 20)');
     await page.getByRole('button',{name:add,exact:true}).first().click();
     const modal=page.getByRole('dialog',{name:dialog,exact:true});

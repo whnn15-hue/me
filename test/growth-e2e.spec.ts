@@ -106,13 +106,15 @@ test('desktop growth journey animates real records, supports reduced motion and 
   await expect(page.locator('.career-row')).toHaveCount(count);
   await expect(page.locator('.career-row').filter({hasText:'성장검증 여러 해 활동'})).toHaveCount(0);
   await expect(page.locator('.career-row').filter({hasText:'성장검증 올해 예정 강의'})).toHaveCount(0);
-  // The ordinary year filter still includes an activity spanning this year.
-  await page.getByRole('combobox',{name:'연도 필터',exact:true}).selectOption(String(currentYear));
+  // The remaining contextual filter can be cleared without leaving hidden constraints.
+  await expect(page.locator('.career-context-filter')).toContainText(String(currentYear));
+  await page.getByRole('button',{name:'전체 이력 보기',exact:true}).click();
   await expect(page.locator('.career-row').filter({hasText:'성장검증 여러 해 활동'})).toBeVisible();
   await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'홈',exact:true}).click();
   // A map pin opens the career list filtered to that year (the per-year card and charts were removed from home).
   await map.getByRole('button',{name:new RegExp(`${currentYear-2}년 이력 보기`)}).click();
-  await expect(page.getByRole('combobox',{name:'연도 필터',exact:true})).toHaveValue(String(currentYear-2));
+  await expect(page.locator('.career-context-filter')).toContainText(String(currentYear-2));
+  await expect(page.getByRole('combobox',{name:'연도 필터',exact:true})).toHaveCount(0);
   await page.locator('.career-row').filter({hasText:'성장검증 과거 강의'}).click();
   await expect(page.getByRole('dialog',{name:'경력 상세',exact:true})).toContainText('성장검증 과거 강의');
   await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
@@ -128,9 +130,9 @@ test('desktop growth journey animates real records, supports reduced motion and 
   await expect(page.locator('.career-row').filter({hasText:'성장검증 오늘 강의'})).toBeVisible();
   const tree=page.getByRole('navigation',{name:'주 메뉴',exact:true});
   await expect(tree.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(1);
-  await tree.getByRole('button',{name:'수업 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'수업에서 학급 자료 보기',exact:true}).click();
+  await tree.getByRole('button',{name:'학교 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'학교에서 학급 자료 보기',exact:true}).click();
   await expect(page.getByRole('tab',{name:/학급 자료/})).toHaveAttribute('aria-selected','true');
-  await tree.getByRole('button',{name:'수업에서 수업 기록 보기',exact:true}).click();await expect(page.getByRole('tab',{name:/수업 기록/})).toHaveAttribute('aria-selected','true');
+  await tree.getByRole('button',{name:'학교에서 수업 자료 보기',exact:true}).click();await expect(page.getByRole('tab',{name:/수업 자료/})).toHaveAttribute('aria-selected','true');
   await tree.getByRole('button',{name:'교안',exact:true}).click();
   await page.getByRole('combobox',{name:'과목 필터',exact:true}).selectOption('수학');
   await expect(page.getByRole('combobox',{name:'과목 필터',exact:true})).toHaveValue('수학');
