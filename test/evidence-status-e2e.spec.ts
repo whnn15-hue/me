@@ -23,13 +23,14 @@ test('proof availability toggles persist without editing the career, update home
     const initialMissing = countMissing(await data());
     await expect(page.getByRole('button', { name: `증빙 보완할 경력 ${initialMissing}건`, exact: true })).toBeVisible();
     await menu.getByRole('button', { name: '경력 아카이브', exact: true }).click();
-    const category = page.getByRole('combobox', { name: '이력 분류', exact: true });
+    const categories = page.getByRole('navigation', { name: '이력 분류', exact: true });
+    const chooseCategory = (label: string) => categories.getByRole('button', { name: new RegExp(`^${label}\\s*\\d+$`) }).click();
     const entry = (id: string) => page.locator(`.career-entry[data-career-id="${id}"]`);
-    await category.selectOption('활동 경력');
+    await chooseCategory('활동 경력');
     await expect(entry(ids[1])).toBeVisible(); await expect(entry(ids[3])).toBeVisible(); await expect(entry(ids[2])).toHaveCount(0);
-    await category.selectOption('콘텐츠 제작');
+    await chooseCategory('콘텐츠 제작');
     await expect(entry(ids[2])).toBeVisible(); await expect(entry(ids[1])).toHaveCount(0); await expect(entry(ids[3])).toHaveCount(0);
-    await category.selectOption('전체');
+    await chooseCategory('전체');
     await page.getByRole('textbox', { name: '경력 검색', exact: true }).fill(title);
     // A second session changes notes while this screen is stale. The quick action
     // must patch only evidenceStatus instead of overwriting this latest content.
