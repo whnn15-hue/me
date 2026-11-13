@@ -7,6 +7,10 @@ async function workspace(page:Page) {
 }
 async function careerData(page:Page) { return (await page.request.get('/api/data')).json(); }
 async function tab(page:Page,name:string) {
+  if (name === '백업 및 설정') {
+    await page.getByRole('button',{name:'보관함과 설정',exact:true}).click();
+    await page.getByRole('menuitem',{name,exact:true}).click();return;
+  }
   const tabs = page.getByRole('navigation',{name:'주 메뉴',exact:true});
   if (await tabs.isVisible()) await tabs.getByRole('button',{name,exact:true}).click();
   else await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name,exact:true}).click();
@@ -59,8 +63,8 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await page.getByRole('combobox',{name:'학년도 필터',exact:true}).selectOption('2026');
   await page.getByRole('combobox',{name:'교과 필터',exact:true}).selectOption('과학');
   await expect(page.getByRole('button',{name:'통합검증 생태 수업 프로젝트 자세히 보기',exact:true})).toBeVisible();
-  await tab(page,'강의 자료');await page.getByRole('button',{name:'자료 추가',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'강의 자료 추가',exact:true});
+  await tab(page,'교안');await page.getByRole('button',{name:'자료 추가',exact:true}).click();
+  dialog=page.getByRole('dialog',{name:'자료 추가',exact:true});
   await dialog.getByPlaceholder('다시 찾기 쉬운 자료 제목').fill('통합검증 생태 강의안');
   if(await dialog.locator('details.optional-fields:not([open])').count()) await dialog.locator('details.optional-fields > summary').click();
   await dialog.getByLabel('자료 형식',{exact:true}).selectOption('PDF');
@@ -71,7 +75,9 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await dialog.locator('.workspace-link-option').filter({hasText:project.title}).getByRole('checkbox').check();
   await dialog.getByRole('button',{name:'자료 저장',exact:true}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.locator('.materials-advanced-filters > summary').click();
   await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('PDF');
+  await page.locator('.materials-advanced-filters > summary').click();
   await page.getByRole('button',{name:'통합검증 생태 강의안 상세보기',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'통합검증 생태 강의안',exact:true});
   await dialog.locator('.workspace-related').getByRole('button',{name:new RegExp(project.title)}).click();
@@ -87,7 +93,7 @@ test('new tabs preserve careers, link both directions, search, and round-trip al
   await search.getByRole('combobox',{name:'통합 검색 태그',exact:true}).selectOption('통합검증');
   await expect(search).toContainText(project.title);await expect(search).toContainText('통합검증 생태 강의안');
   await search.getByRole('button',{name:'닫기',exact:true}).click();
-  await page.getByRole('navigation',{name:'주 메뉴'}).getByRole('button',{name:'백업 및 설정',exact:true}).click();
+  await tab(page,'백업 및 설정');
   const downloading=page.waitForEvent('download');
   await page.getByRole('button',{name:'전체 기록 JSON 내보내기',exact:true}).click();
   const downloaded=await downloading;const json=JSON.parse(await readFile((await downloaded.path())!,'utf8'));
@@ -111,7 +117,7 @@ test('retired graduate records and relationships remain in JSON backups without 
     const result = await page.request.post('/api/workspace/items',{data:{item:{kind:'course',title:'보존 검증 강좌',semester:'2026-2',professor:'가상 교수'},links:[],expectedRevision:original.revision}});
     expect(result.ok()).toBeTruthy(); const saved = await result.json();
     await page.goto('/#graduate');
-    await expect(page.getByRole('heading',{name:'C아카이브',exact:true})).toBeVisible();
+    await expect(page.getByRole('region',{name:'나의 성장',exact:true})).toBeVisible();
     await expect(page.getByRole('navigation',{name:'주 메뉴'}).getByText('대학원',{exact:true})).toHaveCount(0);
     await page.getByRole('button',{name:'모든 기록 검색 열기'}).click();
     await page.getByRole('combobox',{name:'모든 기록 검색어'}).fill('보존 검증 강좌');
@@ -165,7 +171,9 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await expect(page.getByRole('button',{name:`${legacy.title} 상세보기`,exact:true})).toHaveCount(0);
   await page.getByLabel('학급 자료 검색',{exact:true}).fill('발표 순서');
   await expect(page.getByRole('button',{name:`${material.title} 상세보기`,exact:true})).toBeVisible();
+  await page.locator('.materials-advanced-filters > summary').click();
   await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('HWP');
+  await page.locator('.materials-advanced-filters > summary').click();
   await page.getByRole('button',{name:`${material.title} 상세보기`,exact:true}).click();
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await dialog.locator('.workspace-related').getByRole('button',{name:new RegExp(project.title)}).click();
@@ -178,7 +186,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await expect(dialog.getByRole('link',{name:'드라이브에서 열기',exact:true})).toHaveAttribute('href',material.fileUrl);
   await dialog.getByRole('button',{name:'닫기',exact:true}).first().click();
 
-  await tab(page,'강의 자료');
+  await tab(page,'교안');
   await expect(page.getByRole('button',{name:`${legacy.title} 상세보기`,exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:`${material.title} 상세보기`,exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'모든 기록 검색 열기',exact:true}).click();
@@ -204,13 +212,13 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   await dialog.getByRole('button',{name:'자료 저장',exact:true}).click();
   dialog=page.getByRole('dialog',{name:material.title,exact:true});
   await expect(dialog).toContainText('다음 수업에는 한 문장 발표로 시작하기');
-  await expect(dialog).toContainText('TXT 자료');
+  await expect(dialog).toContainText('교안 / TXT');
   await dialog.getByRole('button',{name:'닫기',exact:true}).first().click();
   const beforeBackup=await workspace(page);
   expect(beforeBackup.items.find((i:any)=>i.id===legacy.id)).toEqual(legacy);
   const updated=beforeBackup.items.find((i:any)=>i.id===material.id);
   expect(updated.purpose).toBe('classroom');expect(updated.format).toBe('TXT');
-  await page.getByRole('navigation',{name:'주 메뉴'}).getByRole('button',{name:'백업 및 설정',exact:true}).click();
+  await tab(page,'백업 및 설정');
   const downloadEvent=page.waitForEvent('download');
   await page.getByRole('button',{name:'전체 기록 JSON 내보내기',exact:true}).click();
   const downloaded=await downloadEvent;const backupPath=(await downloaded.path())!;
@@ -233,7 +241,7 @@ test('classroom materials stay under lessons, link both ways, and survive JSON r
   expect(saved.items.some((i:any)=>i.id===material.id)).toBeFalsy();
   expect(saved.links.some((link:any)=>link.from===`material:${material.id}`||link.to===`material:${material.id}`)).toBeFalsy();
   await page.setViewportSize({width:1440,height:1000});
-  await page.getByRole('navigation',{name:'주 메뉴'}).getByRole('button',{name:'백업 및 설정',exact:true}).click();
+  await tab(page,'백업 및 설정');
   await page.getByLabel('가져올 전체 기록 JSON',{exact:true}).setInputFiles(backupPath);
   const confirm=page.getByRole('dialog',{name:'JSON 기록을 가져올까요?',exact:true});
   await confirm.getByRole('button',{name:'현재 기록에 추가',exact:true}).click();await expect(confirm).toHaveCount(0);

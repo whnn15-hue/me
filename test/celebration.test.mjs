@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 const bundle = async entry => { const out = await build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'esm', write: false }); return import('data:text/javascript;base64,' + Buffer.from(out.outputFiles[0].text).toString('base64')); };
-const { celebrationStats, celebrationHeadline, pickAchievements, shouldPlayIntro, markIntroPlayed, countAt, easeOut, subjectParticle, INTRO_STORAGE_KEY } = await bundle('src/growth/celebration.ts');
+const { celebrationStats, celebrationHeadline, pickAchievements, pickYearRecord, shouldPlayIntro, markIntroPlayed, countAt, easeOut, subjectParticle, INTRO_STORAGE_KEY } = await bundle('src/growth/celebration.ts');
 const { growthModel } = await bundle('src/growth/growth-model.ts');
 const career = (id, startDate, fields = {}) => ({ id, title: id, category: '강의·연수', organization: '가상 연수원', startDate, endDate: '', role: '강사', description: '', tags: [], documentIds: [], ...fields });
 const today = '2026-11-12';
@@ -75,4 +75,20 @@ test('count-up starts at zero, eases out and lands exactly on the target', () =>
   assert.equal(countAt(77, 99999, 180, 1500), 77);
   assert.equal(easeOut(-1), 0); assert.equal(easeOut(1), 1); assert.equal(easeOut(2), 1);
   let previous = 0; for (let t = 0; t <= 2000; t += 50) { const value = countAt(1234, t, 180, 1500); assert.ok(value >= previous); previous = value; }
+});
+
+
+test('year previews sample the provided year without mutating records and avoid immediate repeats', () => {
+  const records = [career('lecture', '2026-03-01'), career('committee', '2026-05-01'), career('award', '2026-09-01')];
+  const before = structuredClone(records);
+  assert.equal(pickYearRecord(records, undefined, () => 0).id, 'lecture');
+  assert.equal(pickYearRecord(records, undefined, () => .99).id, 'award');
+  for (const previous of records) for (const draw of [0, .25, .75, .99]) {
+    const selected = pickYearRecord(records, previous.id, () => draw);
+    assert.notEqual(selected.id, previous.id);
+    assert.ok(records.includes(selected));
+  }
+  assert.equal(pickYearRecord([records[0]], records[0].id).id, 'lecture');
+  assert.equal(pickYearRecord([]), undefined);
+  assert.deepEqual(records, before);
 });

@@ -66,6 +66,5 @@
 .home-focus .evidence-focus-button > svg { color:var(--ui-muted); }
 .home-focus .evidence-focus-button.complete { opacity:1; border-color:var(--ui-border); cursor:default; }
 .home-focus .evidence-focus-button.complete .evidence-focus-total { color:var(--ui-muted); }
-.home-focus .home-favorites { margin-top:26px; }
 @media (max-width:1000px) { .home-focus .home-secondary-actions { gap:15px; }.home-focus .home-support-row { gap:12px; } }
 @media (prefers-reduced-motion:reduce) { .home-focus .evidence-focus-button { transition:none; } }

@@ -116,7 +116,7 @@ const navItems: {
     description: "나의 모든 경험",
   },
   { view: "projects", label: "수업", icon: Folder, description: "교실에서 만들어 낸 배움" },
-  { view: "materials", label: "학습 자료", icon: BookOpen, description: "" },
+  { view: "materials", label: "교안", icon: BookOpen, description: "" },
   { view: "video", label: "영상 작업", icon: Clapperboard, description: "" },
   {
     view: "documents",
@@ -835,7 +835,7 @@ export default function App() {
             <ArchiveMark />
           </span>
           <span>
-            <strong>{APP_NAME}</strong><small>C ARCHIVE</small>
+            <strong>{APP_NAME}</strong>
           </span>
         </a>
         <WorkspaceTree view={view} careers={careers} documents={documents} workspace={workspace} category={category}
@@ -957,7 +957,7 @@ export default function App() {
                     {isCareerView
                       ? "이력"
                       : view === "projects" ? "수업"
-                      : view === "materials" ? "자료실"
+                      : view === "materials" ? "교안"
                       : view === "graduate" ? "대학원"
                       : view === "documents"
                         ? "공문 보관함"
@@ -1217,7 +1217,7 @@ export default function App() {
           </button>
         </div>
       )}
-      {authorized && globalSearch && <WorkspaceSearch busy={!!busy} workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} onView={changeView} onCreate={() => {setEditor(emptyCareer()); setQueue([]); setAnalysisNote("");}} onUpload={() => uploadRef.current?.click()} onClose={() => setGlobalSearch(false)} />}
+      {authorized && globalSearch && <WorkspaceSearch workspace={workspace} careers={careers} documents={documents} onOpen={openWorkspaceRef} onClose={() => setGlobalSearch(false)} />}
       {editor && (
         <CareerEditor
           career={editor}
@@ -1304,7 +1304,7 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="drawer-top">
-              <span>CAREER DETAIL</span>
+              <span>이력 상세</span>
               <button
                 className="icon-button"
                 aria-label="상세 닫기"

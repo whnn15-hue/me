@@ -1,6 +1,5 @@
 /* The atlas is isolated from legacy dashboard and chart styles. */
 .growth-atlas .atlas-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin:0 0 23px; }
-.growth-atlas .atlas-kicker { display:block; color:var(--ui-accent-ink); font-size:10px; font-weight:600; letter-spacing:.17em; margin-bottom:10px; }
 .growth-atlas .atlas-heading h2 { font:550 38px/1.2 var(--font-display); letter-spacing:-.055em; color:var(--ui-text); }
 .growth-atlas .atlas-actions { display:flex; align-items:center; gap:9px; }
 .growth-atlas .atlas-actions button { height:36px; display:flex; align-items:center; justify-content:center; gap:7px; color:var(--ui-muted); font-size:13px; border:1px solid var(--ui-border); border-radius:100px; background:var(--ui-surface); }
@@ -45,10 +44,6 @@
 .growth-atlas .atlas-footer > div { display:flex; align-items:center; gap:22px; }
 .growth-atlas .atlas-footer button { display:flex; align-items:center; gap:7px; color:var(--ui-text); font-size:13px; }
 .growth-atlas .atlas-footer button:hover { color:var(--ui-accent-ink); }
-.growth-atlas .atlas-note { position:relative; }
-.growth-atlas .atlas-note summary { cursor:pointer; font-size:12px; list-style:none; text-decoration:underline; text-underline-offset:4px; text-decoration-color:var(--ui-border); }
-.growth-atlas .atlas-note summary::-webkit-details-marker { display:none; }
-.growth-atlas .atlas-note p { position:absolute; bottom:28px; right:0; width:280px; padding:15px 17px; border:1px solid var(--ui-border); border-radius:12px; color:var(--ui-muted); font-size:13px; line-height:1.75; background:var(--ui-surface); box-shadow:0 8px 30px rgb(var(--ui-shadow-rgb) / .08); z-index:3; }
 .growth-atlas .atlas-empty { position:absolute; inset:0 0 42%; display:grid; justify-items:center; align-content:center; gap:12px; color:var(--ui-subtle); }
 .growth-atlas .atlas-empty > svg { color:var(--ui-accent-ink); margin-bottom:8px; }
 .growth-atlas .atlas-empty h3 { font-size:18px; font-weight:500; color:var(--ui-text); }
@@ -76,12 +71,16 @@
 
 /* All years share the stage, even when no activity was recorded in a year. */
 .growth-atlas .atlas-entire-range { color:var(--ui-subtle); font-size:12px; }
-.growth-atlas .atlas-milestone { position:absolute; z-index:1; left:3.7%; top:20px; width:min(57%,620px); display:grid; gap:8px; pointer-events:none; }
-.growth-atlas .atlas-milestone > span { display:flex; gap:9px; align-items:center; color:var(--ui-accent-ink); font:500 13px/1 var(--font-display); }
-.growth-atlas .atlas-milestone > span i { width:28px; height:1px; background:var(--ui-accent-line); }
-.growth-atlas .atlas-milestone strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:20px; font-weight:500; letter-spacing:-.035em; color:var(--ui-text); line-height:1.5; }
-.growth-atlas .atlas-milestone small { color:var(--ui-subtle); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.growth-atlas .atlas-milestone .atlas-milestone-empty { color:var(--ui-muted); font-size:16px; font-weight:400; }
+/* A dedicated preview area keeps long titles readable without covering the path. */
+.growth-atlas .atlas-milestone { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:152px; width:calc(100% - 64px); max-width:1020px; margin:22px auto 0; text-align:center; }
+.growth-atlas .atlas-milestone > span { color:var(--ui-accent-ink); font:550 18px/1.3 var(--font-display); font-variant-numeric:tabular-nums; }
+.growth-atlas .atlas-milestone-record { display:grid; justify-items:center; gap:10px; width:100%; padding:0; text-align:center; border-radius:10px; }
+.growth-atlas .atlas-milestone-record:disabled { opacity:1; cursor:default; }
+.growth-atlas .atlas-milestone strong { font-size:clamp(24px,1.9vw,28px); font-weight:550; letter-spacing:-.035em; color:var(--ui-text); line-height:1.45; word-break:keep-all; overflow-wrap:anywhere; }
+.growth-atlas .atlas-milestone small { color:var(--ui-muted); font-size:16px; line-height:1.5; word-break:keep-all; overflow-wrap:anywhere; }
+.growth-atlas .atlas-milestone-record:hover:not(:disabled) strong { color:var(--ui-accent-ink); }
+.growth-atlas .atlas-milestone-record:focus-visible { outline:2px solid var(--ui-accent); outline-offset:7px; }
+.growth-atlas .atlas-milestone .atlas-milestone-empty { color:var(--ui-muted); font-size:20px; font-weight:400; }
 .growth-atlas .atlas-pin { min-width:75px; }
 .growth-atlas .atlas-pin.is-empty .atlas-pin-core { border-color:var(--ui-border); width:28px; height:28px; margin:6px; box-shadow:0 0 0 5px var(--ui-surface); }
 .growth-atlas .atlas-pin.is-empty .atlas-pin-core i { width:4px; height:4px; background:var(--ui-mark); }
@@ -100,7 +99,7 @@
 .growth-atlas .atlas-earlier strong { font-weight:500; font-variant-numeric:tabular-nums; }
 .growth-atlas .atlas-earlier button span { flex:1; color:var(--ui-muted); font-size:12px; }
 @keyframes atlas-travel-light { 0%,5% { opacity:0; } 12%,85% { opacity:1; } 100% { opacity:0; } }
-@media (max-width:1050px) { .growth-atlas .atlas-milestone strong { font-size:18px; }.growth-atlas .atlas-pin-label strong { font-size:20px; }.growth-atlas .atlas-pin.is-empty .atlas-pin-label strong { font-size:18px; } }
+@media (max-width:1050px) { .growth-atlas .atlas-milestone { width:calc(100% - 48px); }.growth-atlas .atlas-pin-label strong { font-size:20px; }.growth-atlas .atlas-pin.is-empty .atlas-pin-label strong { font-size:18px; } }
 @media (prefers-reduced-motion:reduce) { .growth-atlas .atlas-traveler { display:none; } }
 
 .growth-atlas .atlas-pin.is-empty:disabled { opacity:1; cursor:default; }

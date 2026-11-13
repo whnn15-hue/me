@@ -41,8 +41,6 @@ button, input, select, textarea { font:inherit; }
 .app-shell .materials-toolbar { flex-wrap:wrap; padding:12px; border-radius:12px; }
 .app-shell .materials-search { flex:1 1 250px; }
 .app-shell .materials-select-filters { flex:0 1 auto; flex-wrap:wrap; }
-.app-shell .material-favorites-filter { display:grid; place-items:center; width:38px; min-height:38px; border:1px solid var(--ui-border); border-radius:8px; background:var(--ui-surface); color:var(--ui-muted); }
-.app-shell .material-favorites-filter[aria-pressed=true] { color:var(--ui-accent-ink); background:var(--ui-accent-soft); }
 .app-shell .materials-results-header { margin:12px 0; }
 .app-shell :is(.file-dropzone > button) { min-height:60px; }
 .app-shell .record-file-icon { display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:9px; background:var(--ui-inset); color:var(--ui-muted); }
@@ -50,19 +48,17 @@ button, input, select, textarea { font:inherit; }
 .app-shell :is(.materials-grid.library-list,.project-grid.library-list) { display:flex; flex-direction:column; gap:8px; }
 .app-shell :is(.material-card,.project-card) { border-radius:11px; box-shadow:none; padding:0; }
 .app-shell :is(.material-card,.project-card):hover { transform:none; box-shadow:none; border-color:var(--ui-accent-line); }
-.app-shell :is(.material-card-open,.project-card-open) { display:flex; flex-direction:row; align-items:center; gap:14px; min-height:84px; padding:16px 50px 16px 16px; border-radius:10px; }
+.app-shell :is(.material-card-open,.project-card-open) { display:flex; flex-direction:row; align-items:center; gap:14px; min-height:84px; padding:16px; border-radius:10px; }
 .app-shell :is(.material-card-body,.project-card-body) { flex:1; min-width:0; padding:0; display:block; }
 .app-shell :is(.material-card-body h3,.project-card-body h2) { font-size:16px; line-height:1.4; margin:0 0 6px; min-height:0; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:550; }
 .app-shell .record-tags { display:flex; gap:8px; flex-wrap:wrap; color:var(--ui-muted); font-size:13px; line-height:1.4; }
 .app-shell .record-format { color:var(--ui-muted); font-size:13px; flex-shrink:0; }
 .app-shell .record-upload-date { color:var(--ui-muted); font-size:13px; white-space:nowrap; font-variant-numeric:tabular-nums; }
-.app-shell .library-favorite { top:22px; right:12px; border:none; background:transparent; box-shadow:none; color:var(--ui-muted); }
-.app-shell .library-favorite[aria-pressed=true] { color:var(--ui-accent-ink); background:var(--ui-accent-soft); }
 .app-shell .library-list .material-card { flex-direction:row; align-items:center; }
 .app-shell .library-list .material-card-open { padding-right:12px; }
-.app-shell .library-list .library-card-actions { flex:0 0 auto; align-self:center; border:0; padding:0 52px 0 8px; display:flex; gap:12px; margin:0; }
+.app-shell .library-list .library-card-actions { flex:0 0 auto; align-self:center; border:0; padding:0 16px 0 8px; display:flex; gap:12px; margin:0; }
 .app-shell .library-list .library-card-actions :is(a,button) { font-size:13px; white-space:nowrap; color:var(--ui-muted); }
-.app-shell .library-grid :is(.material-card-open,.project-card-open) { flex-wrap:wrap; padding:18px 48px 16px 18px; gap:12px; min-height:132px; }
+.app-shell .library-grid :is(.material-card-open,.project-card-open) { flex-wrap:wrap; padding:18px 18px 16px; gap:12px; min-height:132px; }
 .app-shell .library-grid :is(.material-card-body,.project-card-body) { flex-basis:calc(100% - 52px); }
 .app-shell .library-grid .record-upload-date { margin-left:auto; }
 .app-shell .library-grid .record-tags { max-height:34px; overflow:hidden; }

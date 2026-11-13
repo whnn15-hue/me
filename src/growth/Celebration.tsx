@@ -82,14 +82,14 @@ export function Burst({ fire, x, y }: { fire: boolean; x: number; y: number }) {
 
 export function AchievementReel({ items, play, onOpen }: { items: Achievement[]; play: boolean; onOpen?: (ref: string) => void }) {
   if (!items.length) return null;
-  return <div className={`atlas-reel ${play ? "is-playing" : ""}`} aria-label="최근 수상과 성과">
+  return <div className={`atlas-reel ${play ? "is-playing" : ""}`} aria-label="빛나는 순간">
     <span className="atlas-reel-label"><Trophy size={15} strokeWidth={1.9} aria-hidden="true"/>빛나는 순간</span>
     <ul>
       {items.map((item, index) => <li key={item.id} style={{ "--reel-delay": `${INTRO_TIMELINE.reel + index * INTRO_TIMELINE.reelStagger}ms` } as CSSProperties}>
         <button onClick={() => onOpen?.(`career:${item.id}`)} disabled={!onOpen} title={displayText(item.title)} aria-label={`${item.year}년 ${displayText(item.title)}${item.grade ? `, ${item.grade}` : ""} 열기`}>
           <span className="atlas-reel-icon" aria-hidden="true">{item.section === "표창" ? <Award size={16} strokeWidth={1.9}/> : <Trophy size={16} strokeWidth={1.9}/>}</span>
           <span className="atlas-reel-title">{displayText(item.title).replace(/^\s*\d{4}\s*(?:학년도|년)\s+(?=\S)/, "")}</span>
-          <span className="atlas-reel-grade"><span className="atlas-reel-year">{item.year}</span>{item.grade && <> · {item.grade}</>}</span>
+          <span className="atlas-reel-grade"><span className="atlas-reel-year">{item.year}</span>{item.grade && <>, {item.grade}</>}</span>
         </button>
       </li>)}
     </ul>

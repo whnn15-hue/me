@@ -159,7 +159,6 @@
 .materials-view .materials-toolbar { gap:10px; }
 .materials-view .materials-select-filters { gap:8px; }
 .materials-view .materials-select-filters > select { min-width:135px; max-width:190px; height:44px; }
-.materials-view .material-favorites-filter { display:grid; place-items:center; flex-shrink:0; width:44px; height:44px; padding:0; border-radius:9px; }
 .materials-advanced-filters { position:relative; flex-shrink:0; }
 .materials-advanced-filters > summary { display:flex; align-items:center; justify-content:center; gap:7px; padding:0 12px; height:44px; border:1px solid var(--ui-border); border-radius:8px; color:var(--ui-muted); background:var(--ui-surface); font-size:13px; list-style:none; cursor:pointer; white-space:nowrap; }
 .materials-advanced-filters > summary::-webkit-details-marker { display:none; }

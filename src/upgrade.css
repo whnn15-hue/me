@@ -1,44 +1,5 @@
 /* 2026-11 visibility pass. Loaded last so it wins over the earlier layered
    refinements without editing each of them. Tokens live in theme.css. */
-:root {
-  --ui-favorite: #e0a100;
-  --ui-favorite-fill: #f6b800;
-  --ui-favorite-soft: #fff6d6;
-  --ui-favorite-line: #efd27a;
-}
-:root[data-theme="dark"] {
-  --ui-favorite: #ffcc4d;
-  --ui-favorite-fill: #ffc533;
-  --ui-favorite-soft: #3d3216;
-  --ui-favorite-line: #75602a;
-}
-
-/* A1. Favorite star: larger, clear outline when off, filled amber when on. */
-.app-shell .library-favorite,
-.library-favorite {
-  display: grid; place-items: center;
-  width: 40px; height: 40px; min-width: 40px;
-  border: 1.5px solid var(--ui-border); border-radius: 50%;
-  color: var(--ui-muted); background: var(--ui-surface);
-  box-shadow: none; cursor: pointer;
-}
-.app-shell .library-favorite svg, .library-favorite svg { width: 22px; height: 22px; stroke-width: 2; }
-.app-shell .library-favorite:hover, .library-favorite:hover { color: var(--ui-favorite); border-color: var(--ui-favorite-line); background: var(--ui-favorite-soft); }
-.app-shell .library-favorite[aria-pressed=true], .library-favorite[aria-pressed=true] {
-  color: var(--ui-favorite); border-color: var(--ui-favorite-line); background: var(--ui-favorite-soft);
-}
-.app-shell .library-favorite[aria-pressed=true] svg, .library-favorite[aria-pressed=true] svg { fill: var(--ui-favorite-fill); color: var(--ui-favorite); }
-.library-favorite:focus-visible { outline: 3px solid var(--ui-favorite-line); outline-offset: 2px; }
-/* Room for the 40px star next to the row actions in the list view. */
-.app-shell .library-list .library-card-actions { padding-right: 64px; }
-.app-shell .library-list .library-favorite { top: 50%; transform: translateY(-50%); right: 14px; }
-.material-favorites-filter { min-width: 40px; min-height: 40px; display: inline-grid; place-items: center; }
-.material-favorites-filter svg { width: 21px; height: 21px; }
-.material-favorites-filter[aria-pressed=true] { color: var(--ui-favorite); border-color: var(--ui-favorite-line); background: var(--ui-favorite-soft); }
-.material-favorites-filter[aria-pressed=true] svg { fill: var(--ui-favorite-fill); }
-.home-favorites h2 svg, .home-favorites button > svg:first-child { color: var(--ui-favorite); fill: var(--ui-favorite-fill); }
-.home-favorites button > svg:first-child { width: 17px; height: 17px; }
-
 /* A3. Compact one-row career list (the grid toggle keeps the card view). */
 .career-list .career-row:not(.as-card) {
   display: grid;
