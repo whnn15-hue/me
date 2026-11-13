@@ -46,6 +46,25 @@ test('browser backups round-trip and restore with the existing local backend', a
   });
 });
 
+test('activity careers and unavailable evidence survive browser backup and local restore without changing legacy proof states', async () => {
+  const rows = ['unavailable', 'unneeded', 'later'].map((evidenceStatus, index) => normalizeCareer({
+    id: `activity_${index}`, title: `가상 모임 활동 ${index}`, category: '활동 경력', evidenceStatus,
+    role: '운영진', description: '기존 메모', startDate: '2022', tags: ['보존'], documentIds: [],
+  }));
+  const blob = await createBackupBlob({ careers: rows, documents: [] });
+  const archive = new Uint8Array(await blob.arrayBuffer());
+  const restored = await readBackupFile(file(archive));
+  assert.deepEqual(restored.careers, rows);
+  await withStore(async store => {
+    await restoreBackup(store, Buffer.from(archive));
+    for (const row of rows) assert.deepEqual(store.career(row.id), row);
+  });
+  const attached = normalizeCareer({ documentIds: ['doc_one'] }, rows[0]);
+  assert.equal(attached.evidenceStatus, 'attached');
+  assert.equal(attached.description, rows[0].description);
+  assert.equal(normalizeCareer({ evidenceStatus: 'later' }, rows[0]).evidenceStatus, 'later');
+});
+
 test('browser restore accepts local exports and derives links from careers', async () => {
   await withStore(async store => {
     store.putCareer(career);

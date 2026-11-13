@@ -44,10 +44,10 @@ test('legacy awards, book writing and KERIS operations each have exactly one des
     [{category:'집필·콘텐츠',title:'가상 학습 자료집 개발',role:'집필'}, '콘텐츠 제작'],
     [{category:'집필',title:'가상 영상 콘텐츠 제작',role:'집필'}, '콘텐츠 제작'],
     [{category:'집필·콘텐츠',title:'가상 교육자료 개발 TF'}, '콘텐츠 제작'],
-    [{category:'집필·콘텐츠',title:'똑똑! 수학탐험대 디지털 교구 활용사례집 제작 계획'}, '파견'],
-    [{category:'기타',title:'연구학교 성과보고회 및 시도담당자 협의회 운영 용역 추진 계획'}, '파견'],
-    [{category:'강의·연수',title:'인공지능 활용 초등수학 수업 지원시스템 온라인 연수 운영 계획'}, '파견'],
-    [{category:'위원회·지원단',title:'AI 디지털교과서 수정보완 검토위원회 운영 계획'}, '파견'],
+    [{category:'집필·콘텐츠',title:'똑똑! 수학탐험대 디지털 교구 활용사례집 제작 계획'}, '활동 경력'],
+    [{category:'기타',title:'연구학교 성과보고회 및 시도담당자 협의회 운영 용역 추진 계획'}, '활동 경력'],
+    [{category:'강의·연수',title:'인공지능 활용 초등수학 수업 지원시스템 온라인 연수 운영 계획'}, '활동 경력'],
+    [{category:'위원회·지원단',title:'AI 디지털교과서 수정보완 검토위원회 운영 계획'}, '활동 경력'],
     [{category:'강의·연수',title:'가상 지식 공유 강사 위촉',role:'강사',organization:'한국교육학술정보원'}, '강의·연수'],
     [{category:'위원회·지원단',title:'가상 콘텐츠 개발 사업 제안서 평가위원',organization:'한국교육학술정보원'}, '위원회·지원단'],
     [{category:'위원회·지원단',title:'가상 교사 콘텐츠 검토 협의회'}, '위원회·지원단'],
@@ -64,6 +64,32 @@ test('legacy awards, book writing and KERIS operations each have exactly one des
   assert.equal(careerOrganization(fixtureCareer({title:'가상 강의'})),'기관 미입력');
   assert.equal(careerOrganization(fixtureCareer({title:'가상 AI 디지털교과서 현장교사 파견'})),'기관 미입력');
   assert.equal(careerOrganization(fixtureCareer(cases.find(([fields])=>fields.title.includes('수학탐험대'))[0])),'한국교육학술정보원(KERIS)');
+});
+
+test('community membership and secondment share activity careers while produced content stays separate',()=>{
+  const community=fixtureCareer({category:'집필·콘텐츠',title:'영상제작 콘텐츠 교사 모임 몽당분필',startDate:'2021',tags:['몽당분필','영상제작'],documentIds:['original-proof']});
+  const before=structuredClone(community);
+  assert.equal(careerSection(community),'활동 경력');
+  assert.equal(careerCategoryLabel(community),'활동 경력');
+  assert.equal(matchesCareerCategory(community,'파견'),false);
+  assert.equal(matchesCareerCategory(community,'콘텐츠 제작'),false);
+  assert.deepEqual(careerCollections(community),[]);
+  assert.deepEqual(community,before);
+  const secondment=fixtureCareer({category:'파견',title:'가상 기관 활동'});
+  assert.equal(careerSection(secondment),'활동 경력');
+  assert.equal(matchesCareerCategory(secondment,'파견'),true);
+  assert.deepEqual(careerCollections(secondment),['secondment']);
+  for(const fields of [
+    {title:'몽당분필 영상 제작',role:'촬영, 편집'},
+    {title:'몽당분필 활동 영상 제작'},
+    {title:'가상 영상 제작',organization:'몽당분필',tags:['몽당분필']},
+    {title:'몽당분필',role:'영상 편집'},
+  ]) assert.equal(careerSection(fixtureCareer({category:'집필·콘텐츠',...fields})),'콘텐츠 제작');
+  assert.equal(careerSection(fixtureCareer({category:'강의·연수',title:'몽당분필',role:'강사'})),'강의·연수');
+  assert.equal(careerSection(fixtureCareer({category:'콘텐츠 제작',title:'몽당분필 운영진',role:'회원'})),'활동 경력');
+  // A manually chosen activity category is retained even without a named community.
+  const explicit={...community,title:'가상 교사 모임 활동',category:'활동 경력'};
+  assert.equal(careerSection(explicit),'활동 경력');
 });
 
 test('recognition keeps explicit overrides and preserves multiple stages and grades through both validators',()=>{
@@ -96,7 +122,8 @@ test('contest awards are separate from research and commendations without turnin
   const stored=fixtureCareer({category:'공모전 수상',title:'직접 분류한 활동'});
   assert.equal(normalizeBrowserCareer(stored).category,'공모전 수상');
   assert.equal(careerSection(stored),'공모전 수상');
-  assert.ok(careerCategoryChoices.includes('파견'));assert.ok(!careerNavigationChoices.includes('파견'));
+  assert.ok(!careerCategoryChoices.includes('파견'));assert.ok(!careerNavigationChoices.includes('파견'));
+  assert.ok(careerCategoryChoices.includes('활동 경력'));assert.ok(careerNavigationChoices.includes('활동 경력'));
   assert.ok(careerNavigationChoices.includes('공모전 수상'));
 });
 

@@ -5,6 +5,18 @@ export const searchText = (text: string) => displayText(text).normalize("NFC").t
 export const searchWords = (query: string) => searchText(query).split(/\s+/).filter(Boolean);
 export const matchesWords = (text: string, query: string) => searchWords(query).every(word => searchText(text).includes(word));
 
+export function careerEvidenceState(career: Career, documents: DocumentRecord[]): Career["evidenceStatus"] {
+  if (career.documentIds.some(id => documents.some(document => document.id === id))) return "attached";
+  return career.evidenceStatus === "unneeded" || career.evidenceStatus === "unavailable" ? career.evidenceStatus : "later";
+}
+
+export function matchesEvidenceFilter(career: Career, documents: DocumentRecord[], filter: string) {
+  const state = careerEvidenceState(career, documents);
+  return filter === "전체 증빙" || (filter === "증빙 있음" ? state === "attached"
+    : filter === "증빙 확보 어려움" ? state === "unavailable"
+    : filter === "증빙 불필요" ? state === "unneeded" : state === "later");
+}
+
 /** Prefer a title match, then metadata, then full text. Keep source order for ties. */
 export function rankSearch<T extends { title: string; body: string; detail: string }>(entries: T[], query: string): T[] {
   const phrase = searchText(query), words = searchWords(query);
@@ -19,10 +31,9 @@ export function rankSearch<T extends { title: string; body: string; detail: stri
 }
 
 export function archiveAttention(careers: Career[], documents: DocumentRecord[]) {
-  const available = new Set(documents.map(item => item.id));
   const linked = new Set(careers.flatMap(item => item.documentIds));
   return {
-    missing: careers.filter(item => !item.documentIds.some(id => available.has(id)) && item.evidenceStatus !== "unneeded"),
+    missing: careers.filter(item => careerEvidenceState(item, documents) === "later"),
     undated: careers.filter(item => !item.startDate),
     unlinked: documents.filter(item => !linked.has(item.id)),
   };

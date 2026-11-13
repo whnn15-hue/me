@@ -45,7 +45,7 @@ export function normalizeCareer(value: unknown, previousValue?: Career): Career 
   const precision = chosen(input, previous, "datePrecision") ?? "day";
   const status = chosen(input, previous, "evidenceStatus") ?? "later";
   const verified = chosen(input, previous, "verified") ?? true;
-  if (typeof precision !== "string" || !["year", "month", "day"].includes(precision) || typeof status !== "string" || !["attached", "later", "unneeded"].includes(status) || typeof verified !== "boolean") return invalid("경력 항목 형식이 올바르지 않습니다.");
+  if (typeof precision !== "string" || !["year", "month", "day"].includes(precision) || typeof status !== "string" || !["attached", "later", "unneeded", "unavailable"].includes(status) || typeof verified !== "boolean") return invalid("경력 항목 형식이 올바르지 않습니다.");
   const rawTags = chosen(input, previous, "tags") ?? [];
   if (!Array.isArray(rawTags) || rawTags.some(tag => typeof tag !== "string")) return invalid("태그는 문자열 목록이어야 합니다.");
   const rawLinks = chosen(input, previous, "documentIds") ?? [];

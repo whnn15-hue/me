@@ -12,6 +12,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CheckCheck,
+  CircleSlash2,
   ChevronDown,
   ChevronRight,
   CloudUpload,
@@ -40,7 +41,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { matchesWords, documentFormat, sortDocuments } from "./archive-tools";
+import { matchesWords, documentFormat, sortDocuments, careerEvidenceState, matchesEvidenceFilter } from "./archive-tools";
+import "./evidence-status.css";
 import GrowthOverview from "./growth/GrowthOverview";
 import { seoulToday } from "./growth/growth-model";
 import WorkspaceTree from "./WorkspaceTree";
@@ -96,6 +98,7 @@ const categoryIcons = {
   "집필·콘텐츠": BookOpen,
   "근무·파견": BriefcaseBusiness,
   파견: BriefcaseBusiness, 근무: BriefcaseBusiness, 집필: BookOpen, "콘텐츠 제작": Clapperboard,
+  "활동 경력": BriefcaseBusiness,
   자격증: FileCheck2,
   기타: Layers3,
 };
@@ -170,14 +173,17 @@ export function fileSize(size: number) {
     ? `${Math.max(1, Math.round(size / 1024))} KB`
     : `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
-export function Evidence({ career }: { career: Career }) {
-  return career.documentIds.length ? (
+export function Evidence({ career, documents, compact = false }: { career: Career; documents: DocumentRecord[]; compact?: boolean }) {
+  const state = careerEvidenceState(career, documents);
+  return state === "attached" ? (
     <span className="evidence attached">
       <FileCheck2 size={13} />
       증빙 있음
     </span>
-  ) : career.evidenceStatus === "unneeded" ? (
+  ) : state === "unneeded" ? (
     <span className="evidence">증빙 불필요</span>
+  ) : state === "unavailable" ? (
+    <span className="evidence unavailable" title="증빙 확보 어려움"><CircleSlash2 size={13}/>{compact ? "확보 어려움" : "증빙 확보 어려움"}</span>
   ) : (
     <span className="evidence">
       <File size={13} />
@@ -196,6 +202,7 @@ export default function App() {
     [workspaceFocusVersion, setWorkspaceFocusVersion] = useState(0),
     [globalSearch, setGlobalSearch] = useState(false);
   const materialUploading = useRef(false);
+  const evidenceSaving = useRef(false);
   const storageName = status?.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브";
   const [workspaceTarget, setWorkspaceTarget] = useState<{section?: string; subject?: string}>({});
   const [view, setView] = useState<View>(initialView),
@@ -402,11 +409,7 @@ export default function App() {
             (year === "전체 연도" ||
               (yearStartOnly ? c.startDate.slice(0, 4) === year && c.startDate <= growthToday : c.startDate.slice(0, 4) <= year &&
                 (c.endDate || c.startDate).slice(0, 4) >= year)) &&
-            (evidenceFilter === "전체 증빙" ||
-              (evidenceFilter === "증빙 있음"
-                ? c.documentIds.some(id => documents.some(doc => doc.id === id))
-                : !c.documentIds.some(id => documents.some(doc => doc.id === id)) &&
-                  c.evidenceStatus !== "unneeded"))
+            matchesEvidenceFilter(c, documents, evidenceFilter)
           );
         })
         .sort(
@@ -565,6 +568,20 @@ export default function App() {
     } finally {
       setBusy("");
     }
+  }
+  async function toggleEvidenceUnavailable(career: Career) {
+    if (busy || evidenceSaving.current || careerEvidenceState(career, documents) === "attached") return;
+    evidenceSaving.current = true; setBusy("증빙 표시 저장 중"); setError("");
+    const next = career.evidenceStatus === "unavailable" ? "later" : "unavailable";
+    try {
+      // Only this field is patched; the latest title, notes and links stay intact.
+      const saved = await api<Career>(`/careers/${career.id}`, { method: "PUT", body: JSON.stringify({ evidenceStatus: next }) });
+      setCareers(current => current.map(item => item.id === saved.id ? saved : item));
+      setDetail(current => current?.id === saved.id ? saved : current);
+      await refresh();
+      setToast(saved.evidenceStatus === "attached" ? "새로 연결된 증빙을 반영했습니다." : saved.evidenceStatus === "unavailable" ? "증빙 확보 어려움으로 표시했습니다. 다시 누르면 해제됩니다." : "증빙 확보 어려움 표시를 해제했습니다.");
+    } catch (cause) { fail(cause); }
+    finally { evidenceSaving.current = false; setBusy(""); }
   }
   async function analyzeText() {
     if (!manualText.trim()) return;
@@ -1007,7 +1024,7 @@ export default function App() {
                       <details className="career-extra-filters"><summary><Settings2 size={16}/>필터</summary><div className="career-filter-panel">
                         {(category === "전체" || category === "파견") && <label><span>활동 맥락</span><select aria-label="활동 맥락" value={category} onChange={event=>chooseCategory(event.target.value as "전체" | "파견")}><option value="전체">모든 활동</option><option value="파견">파견 업무</option></select></label>}
                         <label><span>기관</span><select aria-label="기관 필터" value={institution} onChange={event=>setInstitution(event.target.value)}><option>전체 기관</option>{institutions.map(name=><option key={name}>{name}</option>)}</select></label>
-                        <label><span>증빙 서류</span><select aria-label="증빙 필터" value={evidenceFilter} onChange={event=>setEvidenceFilter(event.target.value)}><option>전체 증빙</option><option>증빙 있음</option><option>증빙 미첨부</option></select></label>
+                        <label><span>증빙 서류</span><select aria-label="증빙 필터" value={evidenceFilter} onChange={event=>setEvidenceFilter(event.target.value)}><option>전체 증빙</option><option>증빙 있음</option><option>증빙 미첨부</option><option>증빙 확보 어려움</option><option>증빙 불필요</option></select></label>
                         <div className="view-switch"><button aria-label="목록 보기" className={layout === "list" ? "active" : ""} aria-pressed={layout === "list"} onClick={()=>setLayout("list")}><List size={17}/></button><button aria-label="카드 보기" className={layout === "grid" ? "active" : ""} aria-pressed={layout === "grid"} onClick={()=>setLayout("grid")}><LayoutGrid size={16}/></button></div>
                       </div></details>
                     </div>
@@ -1060,9 +1077,9 @@ export default function App() {
                             }
                           >
                             {records?.map((c) => (
+                              <div data-career-id={c.id} className={`career-entry ${layout === "grid" ? "entry-card" : ""} ${["later", "unavailable"].includes(careerEvidenceState(c, documents)) ? "has-evidence-toggle" : ""}`} key={c.id}>
                               <button
                                 className={`career-row ${layout === "grid" ? "as-card" : ""} ${qualificationsOnly ? "qualification-row" : ""} ${["연구대회", "공모전 수상"].includes(careerSection(c, documents)) ? "recognition-row" : ""}`}
-                                key={c.id}
                                 onClick={() => setDetail(c)}
                               >
                                 <CategoryIcon category={careerSection(c, documents)} />
@@ -1085,13 +1102,15 @@ export default function App() {
                                   {formatPeriod(c)}
                                 </div>}
                                 <div className="career-row-evidence">
-                                  <Evidence career={c} />
+                                  <Evidence career={c} documents={documents} compact />
                                 </div>
                                 <ChevronRight
                                   className="career-row-arrow"
                                   size={17}
                                 />
                               </button>
+                              {["later", "unavailable"].includes(careerEvidenceState(c, documents)) && <button className="evidence-quick-toggle" disabled={!!busy} aria-pressed={careerEvidenceState(c, documents) === "unavailable"} aria-label={`${c.title} ${careerEvidenceState(c, documents) === "unavailable" ? "증빙 확보 어려움 해제" : "증빙 확보 어려움 표시"}`} title={careerEvidenceState(c, documents) === "unavailable" ? "증빙 확보 어려움 해제" : "증빙 확보 어려움 표시"} onClick={() => void toggleEvidenceUnavailable(c)}><CircleSlash2 size={17} aria-hidden="true"/></button>}
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -1291,7 +1310,9 @@ export default function App() {
             <CategoryIcon category={careerSection(detail, documents)} />
             <div className="detail-category">{careerCategoryLabel(detail, documents)}</div>
             <h2>{displayLabel(detail.title)}</h2><Recognition career={detail} />
-            <Evidence career={detail} />
+            <div className="detail-evidence-status"><Evidence career={detail} documents={documents} />
+              {careerEvidenceState(detail, documents) !== "attached" && <button className="evidence-detail-toggle" disabled={!!busy} aria-pressed={careerEvidenceState(detail, documents) === "unavailable"} onClick={() => void toggleEvidenceUnavailable(detail)}><CircleSlash2 size={15}/>{careerEvidenceState(detail, documents) === "unavailable" ? "증빙 확보 어려움 해제" : "증빙 확보 어려움"}</button>}
+            </div>
             <dl className="detail-fields">
               <div>
                 <dt>
@@ -1368,6 +1389,7 @@ export default function App() {
                   <p>
                     {detail.evidenceStatus === "unneeded"
                       ? "증빙이 필요하지 않은 경력이에요."
+                      : detail.evidenceStatus === "unavailable" ? "증빙 확보가 어려운 기록으로 표시했어요. 증빙 보완 대상에서는 제외됩니다."
                       : "공문을 연결하면 증빙을 쉽게 찾을 수 있어요."}
                   </p>
                 </div>

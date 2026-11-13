@@ -13,6 +13,7 @@ export const categories = [
   "콘텐츠 제작",
   "자격증",
   "기타",
+  "활동 경력",
 ] as const;
 export type Category = (typeof categories)[number];
 export interface Career {
@@ -26,7 +27,7 @@ export interface Career {
   datePrecision: "year" | "month" | "day";
   description: string;
   tags: string[];
-  evidenceStatus: "attached" | "later" | "unneeded";
+  evidenceStatus: "attached" | "later" | "unneeded" | "unavailable";
   verified: boolean;
   documentIds: string[];
   source?: string;

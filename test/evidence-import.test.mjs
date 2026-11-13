@@ -882,3 +882,108 @@ test('mutable corrections cannot change title, role or prose once validation sta
   await applyEvidenceImport(input,detailsOptions);const now=state.snapshot.careers[0];
   assert.equal(now.title,'Reviewed title');assert.equal(now.role,'Reviewed role');assert.ok(now.description.startsWith('Reviewed prose'));
 });
+
+const correctionOptions = {requireMatchingCareerDetails:true,allowAutomaticNewCareers:true,allowAutomaticLinkCorrections:true};
+function correctionFixture() {
+  const proof=original('reviewed_source');
+  const prior=career('prior_career',['stored_source'],{title:'기존 지원단',startDate:'2022',endDate:'2022',description:'Keep owner notes',role:'기존 역할',tags:['유지']});
+  const target=career('new_career',[proof.id],{title:'별도 지원단',startDate:'2022',organization:'가상 교육청'});
+  const correction={documentId:proof.id,previousCareer:{id:prior.id,title:prior.title,startDate:prior.startDate}};
+  const doc=storedDocument({...proof,id:'stored_source',recordIds:[prior.id]});
+  return {proof,prior,target,correction,doc};
+}
+async function withLinkCorrection(fixture, corrections=[fixture.correction]) {
+  return readEvidenceImportFile(await archive([fixture.target],[fixture.proof],{marker:{format:'career-evidence-import',version:1,newCareerIds:[fixture.target.id],linkCorrections:corrections}}));
+}
+
+test('reviewed link correction moves only a known original, keeps prior career fields and replays without writes',async()=>{
+  const fixture=correctionFixture(),input=await withLinkCorrection(fixture);
+  const extra=original('other_proof');
+  const prior={...fixture.prior,documentIds:[fixture.doc.id,extra.id]};
+  const unrelated=career('another_career',[fixture.doc.id],{description:'Another valid relationship'});
+  const state=runtime([prior,unrelated],[fixture.doc,storedDocument(extra)]),before=structuredClone(state.snapshot);
+  const result=await applyEvidenceImport(input,correctionOptions);
+  assert.equal(result.added,0);assert.equal(result.duplicates,1);assert.equal(result.careersAdded,1);assert.equal(result.linksCorrected,1);assert.equal(result.linked,1);
+  assert.equal(state.uploads.length,0);assert.deepEqual(state.trashed,[]);assert.equal(state.activations.length,1);
+  assert.deepEqual(state.snapshot.careers[0],{...prior,documentIds:[extra.id]});
+  assert.deepEqual(state.snapshot.careers[1],unrelated);
+  assert.deepEqual(state.snapshot.careers.find(c=>c.id===fixture.target.id).documentIds,[fixture.doc.id]);
+  assert.deepEqual(state.snapshot.documents,before.documents);
+  const replay=await applyEvidenceImport(input,correctionOptions);
+  assert.equal(replay.linksCorrected,undefined);assert.equal(replay.linked,0);assert.equal(state.activations.length,1);
+  // The actual snapshot adapter derives both document-side links from career IDs.
+  globalThis[firestoreStateKey]=firestoreRuntimeState();
+  await activateActualStore({careers:state.snapshot.careers,documents:state.snapshot.documents},11,'live_version');
+  const restored=await readActualStore();
+  assert.deepEqual(restored.documents.find(d=>d.id===fixture.doc.id).recordIds.sort(),[unrelated.id,fixture.target.id].sort());
+});
+
+test('removing the last mislinked original restores pending evidence without changing the old activity identity',async()=>{
+  const fixture=correctionFixture(),input=await withLinkCorrection(fixture);
+  const state=runtime([fixture.prior],[fixture.doc]);
+  const result=await applyEvidenceImport(input,correctionOptions);
+  assert.equal(result.linksCorrected,1);
+  assert.deepEqual(state.snapshot.careers[0],{...fixture.prior,documentIds:[],evidenceStatus:'later'});
+});
+
+test('unapproved link corrections fail before reads, uploads or archive writes',async()=>{
+  const fixture=correctionFixture(),input=await withLinkCorrection(fixture);
+  for(const options of [{},{requireMatchingCareerDetails:true,allowAutomaticNewCareers:true},{allowAutomaticLinkCorrections:true}]) {
+    const state=runtime([fixture.prior],[fixture.doc]);
+    await assert.rejects(applyEvidenceImport(input,options),/연결 수정 승인/);
+    assertNoWrites(state);assert.equal(state.reads,0);
+  }
+});
+
+test('link repair validates exact source mappings, identities and bounded marker fields',async()=>{
+  const fixture=correctionFixture(),patch=fixture.correction;
+  const invalids=[null,{...patch,documentId:'unknown'},{...patch,previousCareer:{...patch.previousCareer,id:fixture.target.id}},
+    {...patch,previousCareer:{...patch.previousCareer,title:''}},
+    {...patch,previousCareer:{...patch.previousCareer,startDate:'2022-02-30'}},
+    {...patch,previousCareer:{...patch.previousCareer,startDate:''}},
+    {...patch,previousCareer:{...patch.previousCareer,role:'delete'}},
+    {...patch,removeAll:true}];
+  for(const invalid of invalids)await assert.rejects(withLinkCorrection(fixture,[invalid]));
+  await assert.rejects(withLinkCorrection(fixture,[patch,patch]));
+});
+
+test('changed previous identities preserve existing links while approved target additions can continue',async()=>{
+  for(const changed of [{title:'Owner renamed activity'},{startDate:'2024'},{startDate:''}]) {
+    const fixture=correctionFixture(),input=await withLinkCorrection(fixture);
+    const current={...fixture.prior,...changed},state=runtime([current],[fixture.doc]);
+    const result=await applyEvidenceImport(input,correctionOptions);
+    assert.equal(result.linksCorrected,undefined);assert.equal(result.linkCorrectionsSkipped,1);
+    assert.deepEqual(state.snapshot.careers[0],current);
+    assert.ok(state.snapshot.careers.find(c=>c.id===fixture.target.id).documentIds.includes(fixture.doc.id));
+  }
+});
+
+test('missing previous records or already-removed links are no-ops and unavailable flags survive',async()=>{
+  for(const previous of [null,{...correctionFixture().prior,documentIds:[],evidenceStatus:'unavailable'}]) {
+    const fixture=correctionFixture(),input=await withLinkCorrection(fixture);
+    const state=runtime(previous?[previous]:[],[fixture.doc]);
+    const result=await applyEvidenceImport(input,correctionOptions);
+    assert.equal(result.linksCorrected,undefined);assert.equal(result.linkCorrectionsSkipped,undefined);
+    if(previous)assert.deepEqual(state.snapshot.careers[0],previous);
+  }
+});
+
+test('link correction snapshots cannot be altered during validation, and staging conflicts preserve originals and relationships',async()=>{
+  const fixture=correctionFixture(),input=await withLinkCorrection(fixture);
+  const state=runtime([fixture.prior],[fixture.doc]);
+  await applyEvidenceImport(input,{...correctionOptions,onProgress:()=>{input.linkCorrections[0].previousCareer.title='Injected title';}});
+  assert.deepEqual(state.snapshot.careers[0].documentIds,[]);
+  const conflict=runtime([fixture.prior],[fixture.doc]),before=structuredClone(conflict.snapshot);conflict.failure='definite-conflict';
+  await assert.rejects(applyEvidenceImport(await withLinkCorrection(fixture),correctionOptions),/archive changed/);
+  assert.deepEqual(conflict.snapshot,before);assert.equal(conflict.uploads.length,0);assert.deepEqual(conflict.trashed,[]);
+});
+
+test('semantic new-career reuse cannot turn a replacement into removal of the same approved target',async()=>{
+  const fixture=correctionFixture();
+  fixture.prior={...fixture.prior,organization:'가상 교육청'};
+  fixture.target={...fixture.target,title:fixture.prior.title};
+  const input=await withLinkCorrection(fixture),state=runtime([fixture.prior],[fixture.doc]);
+  const result=await applyEvidenceImport(input,correctionOptions);
+  assert.equal(result.linksCorrected,undefined);assert.equal(result.linkCorrectionsSkipped,1);
+  assert.deepEqual(state.snapshot.careers,[fixture.prior]);assertNoWrites(state);
+});
