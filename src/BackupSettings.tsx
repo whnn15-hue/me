@@ -98,6 +98,9 @@ export default function BackupSettings({
       onToast(`${status.storageProvider === "onedrive" ? "OneDrive" : "구글 드라이브"}에 날짜별 백업을 저장했습니다.`);
     } catch (e) {
       onError(e);
+      // An expired Microsoft grant is recorded by the server. Refresh the badge
+      // and recovery action even when this backup attempt did not succeed.
+      await onRefresh().catch(() => {});
     } finally {
       setBusy("");
     }
@@ -331,7 +334,7 @@ export default function BackupSettings({
             <span
               className={`connection-badge ${status.driveConnected ? "connected" : ""}`}
             >
-              {status.driveConnected ? "연결됨" : "미연결"}
+              {status.storageReconnectRequired ? "재연결 필요" : status.driveConnected ? "연결됨" : "미연결"}
             </span>
           </div>
           <div className="backup-state">
@@ -356,6 +359,9 @@ export default function BackupSettings({
             <div className="alert error" role="alert">
               최근 백업 오류: {status.backupError}
             </div>
+          )}
+          {status.storageProvider === "onedrive" && status.storageReconnectRequired && (
+            <p className="configuration-note">처음 연결한 Microsoft 계정으로 다시 로그인해 주세요. 다시 연결한 뒤 지금 백업하기를 누르면 됩니다.</p>
           )}
           <div className="backup-features">
             <p>
@@ -390,6 +396,11 @@ export default function BackupSettings({
                   <RefreshCw size={16} />
                   지금 백업하기
                 </button>
+                {status.storageProvider === "onedrive" && freeMode && driveConfigured && status.user && (
+                  <button className="button secondary" onClick={connectDrive} disabled={!!busy}>
+                    <Cloud size={16} />OneDrive 다시 연결
+                  </button>
+                )}
                 <button
                   className="text-button"
                   onClick={() => setDisconnect(true)}
@@ -402,7 +413,7 @@ export default function BackupSettings({
               cloudMode ? (
                 <button className="button primary" onClick={connectDrive} disabled={!!busy}>
                   <Cloud size={17} />
-                  {storageName} 연결
+                  {storageName} {status.storageReconnectRequired ? "다시 연결" : "연결"}
                 </button>
               ) : (
               <a className="button primary" href="/api/auth/drive">
