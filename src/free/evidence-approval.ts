@@ -1,15 +1,16 @@
 import type { Career } from "../types";
 import type { PreparedEvidenceImport } from "./evidence-import";
-import { approvedEvidenceArchives, approvedEvidenceNewCareerArchives, approvedEvidenceDetailArchives } from "./evidence-approvals";
+import { approvedEvidenceArchives, approvedEvidenceNewCareerArchives, approvedEvidenceDetailArchives, approvedEvidenceLinkArchives } from "./evidence-approvals";
 
 /** A URL parameter or a flag inside an imported ZIP cannot grant approval. */
-export async function evidenceImportApproval(file: File): Promise<{ allowNewCareers: boolean; allowCareerDetails: boolean } | null> {
+export async function evidenceImportApproval(file: File): Promise<{ allowNewCareers: boolean; allowCareerDetails: boolean; allowLinkCorrections: boolean } | null> {
   if (file.size < 1 || file.size > 16 * 1024 * 1024) return null;
   const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())),
     byte => byte.toString(16).padStart(2, "0")).join("");
   const allowNewCareers = approvedEvidenceNewCareerArchives.includes(fingerprint);
   const allowCareerDetails = approvedEvidenceDetailArchives.includes(fingerprint);
-  return allowNewCareers || allowCareerDetails || approvedEvidenceArchives.includes(fingerprint) ? { allowNewCareers, allowCareerDetails } : null;
+  const allowLinkCorrections = approvedEvidenceLinkArchives.includes(fingerprint);
+  return allowNewCareers || allowCareerDetails || allowLinkCorrections || approvedEvidenceArchives.includes(fingerprint) ? { allowNewCareers, allowCareerDetails, allowLinkCorrections } : null;
 }
 
 export async function hasEvidenceImportApproval(file: File): Promise<boolean> {

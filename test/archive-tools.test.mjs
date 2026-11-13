@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 const bundle = await build({ entryPoints:['src/archive-tools.ts'], bundle:true, platform:'node', format:'esm', write:false });
-const { matchesWords, rankSearch, archiveAttention, sortDocuments, documentFormat } = await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const { matchesWords, rankSearch, archiveAttention, sortDocuments, documentFormat, careerEvidenceState, matchesEvidenceFilter } = await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 
 test('search handles Korean normalization, reordered words, case and legacy punctuation', () => {
   assert.equal(matchesWords('강의·연수 KERIS 디지털 교육', '교육 keris'), true);
@@ -31,6 +31,7 @@ test('attention uses real files, respects evidence exemptions and canonical care
     {id:'a',documentIds:['present'],evidenceStatus:'attached',verified:true,startDate:'2026'},
     {id:'b',documentIds:['deleted-file'],evidenceStatus:'attached',verified:false,startDate:''},
     {id:'c',documentIds:[],evidenceStatus:'unneeded',verified:true,startDate:'2025-01'},
+    {id:'d',documentIds:[],evidenceStatus:'unavailable',verified:true,startDate:'2025-01'},
   ];
   const documents = [{id:'present',recordIds:[]},{id:'unlinked',recordIds:['a']}];
   const before = structuredClone({careers,documents});
@@ -39,6 +40,25 @@ test('attention uses real files, respects evidence exemptions and canonical care
   assert.deepEqual(result.unlinked.map(item=>item.id),['unlinked']);
   assert.deepEqual({careers,documents},before);
   assert.deepEqual(archiveAttention([],[]),{missing:[],undated:[],unlinked:[]});
+});
+
+test('unavailable evidence is distinct from unneeded, reversible and overridden by a linked original', () => {
+  const unavailable = {id:'u',documentIds:[],evidenceStatus:'unavailable',startDate:'2025'};
+  const unneeded = {...unavailable,id:'n',evidenceStatus:'unneeded'};
+  const restored = {...unavailable,id:'r',evidenceStatus:'later'};
+  const attached = {...unavailable,documentIds:['file']};
+  const before = structuredClone([unavailable,unneeded,restored,attached]);
+  assert.equal(careerEvidenceState(unavailable,[]),'unavailable');
+  assert.equal(matchesEvidenceFilter(unavailable,[],'증빙 확보 어려움'),true);
+  assert.equal(matchesEvidenceFilter(unavailable,[],'증빙 미첨부'),false);
+  assert.equal(matchesEvidenceFilter(unneeded,[],'증빙 확보 어려움'),false);
+  assert.equal(matchesEvidenceFilter(unneeded,[],'증빙 불필요'),true);
+  assert.equal(matchesEvidenceFilter(restored,[],'증빙 미첨부'),true);
+  assert.equal(careerEvidenceState(attached,[{id:'file'}]),'attached');
+  assert.equal(matchesEvidenceFilter(attached,[{id:'file'}],'증빙 확보 어려움'),false);
+  assert.equal(matchesEvidenceFilter(attached,[{id:'file'}],'증빙 있음'),true);
+  assert.deepEqual(archiveAttention([unavailable,unneeded,restored,attached],[{id:'file'}]).missing.map(item=>item.id),['r']);
+  assert.deepEqual([unavailable,unneeded,restored,attached],before);
 });
 
 test('file grouping and sorting cover legacy originals and preserve source order', () => {

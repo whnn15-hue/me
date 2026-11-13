@@ -4,13 +4,18 @@ import { readBackupFile, type RestoredDocument } from "./backup";
 import { sha256, trashDriveFile, uploadDriveFile, validateDriveUploadFile } from "./drive";
 import { normalizeCareer, normalizeDocumentRecord, validRecordId } from "./normalize";
 import { activateRestoredData, ArchiveRevisionConflictError, readFreeSnapshot } from "./store";
-import { automaticEvidencePlan } from "./evidence-approval";
+import { automaticEvidencePlan, sameEvidenceCareer } from "./evidence-approval";
 import { applyEvidenceDetails, readEvidenceDetails, type EvidenceCareerDetails } from "./evidence-details";
 
 const MAX_METADATA_SIZE = 5 * 1024 * 1024;
 const MAX_ORIGINALS_SIZE = 200 * 1024 * 1024;
 const MAX_CAREERS = 100_000;
 const MAX_DOCUMENTS = 10_000;
+
+export interface EvidenceLinkCorrection {
+  documentId: string;
+  previousCareer: Pick<Career, "id" | "title" | "startDate">;
+}
 
 /** Carrier fields are identity labels. Explicit proposals and source-backed
  * detail patches have separate approval policies. */
@@ -21,6 +26,7 @@ export interface PreparedEvidenceImport {
   documents: RestoredDocument[];
   newCareerIds?: string[];
   careerDetails?: EvidenceCareerDetails[];
+  linkCorrections?: EvidenceLinkCorrection[];
 }
 export interface EvidenceImportProgress {
   phase: "validating" | "uploading" | "saving" | "done";
@@ -39,6 +45,8 @@ export interface EvidenceImportOptions {
   allowAutomaticNewCareers?: boolean;
   /** Only the separately approved archive may enrich existing institutions/dates. */
   allowAutomaticCareerDetails?: boolean;
+  /** Only the separately fingerprint-approved archive may remove reviewed links. */
+  allowAutomaticLinkCorrections?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: EvidenceImportProgress) => void;
 }
@@ -51,6 +59,8 @@ export interface EvidenceImportResult {
   careersAdded?: number;
   detailsUpdated?: number;
   detailsSkipped?: number;
+  linksCorrected?: number;
+  linkCorrectionsSkipped?: number;
 }
 
 /** Preview labels reflect the owner's current records without changing them. */
@@ -75,6 +85,30 @@ function newCareerIds(value: unknown, careers: Career[]): string[] {
   if (value.some(id => counts.get(id) !== 1))
     throw new Error("새 경력의 내용이 없거나 ID가 중복되어 있습니다.");
   return [...value];
+}
+
+function readLinkCorrections(value: unknown, documents: { id: string; recordIds: string[] }[]): EvidenceLinkCorrection[] {
+  if (value === undefined) return [];
+  const invalid = (): never => { throw new Error("증빙 연결 수정 정보가 올바르지 않습니다."); };
+  if (!Array.isArray(value) || value.length > MAX_DOCUMENTS) return invalid();
+  const seen = new Set<string>();
+  return value.map(raw => {
+    if (!plainObject(raw) || Object.keys(raw).some(key => !["documentId", "previousCareer"].includes(key))
+      || !validRecordId(raw.documentId) || !plainObject(raw.previousCareer)) return invalid();
+    const previous = raw.previousCareer;
+    if (Object.keys(previous).some(key => !["id", "title", "startDate"].includes(key))
+      || !validRecordId(previous.id) || typeof previous.title !== "string" || !previous.title.trim()
+      || previous.title !== previous.title.trim() || previous.title.length > 300
+      || typeof previous.startDate !== "string" || !previous.startDate || previous.startDate.length > 10) return invalid();
+    const normalized = normalizeCareer(previous);
+    if (normalized.startDate !== previous.startDate) return invalid();
+    const document = documents.find(item => item.id === raw.documentId);
+    if (!document || !document.recordIds.length || document.recordIds.includes(previous.id)) return invalid();
+    const key = `${raw.documentId}:${previous.id}`;
+    if (seen.has(key)) return invalid();
+    seen.add(key);
+    return { documentId: raw.documentId, previousCareer: { id: previous.id, title: previous.title, startDate: previous.startDate } };
+  });
 }
 function metadataSize(careers: Career[], documents: DocumentRecord[]) {
   const encoder = new TextEncoder();
@@ -126,6 +160,7 @@ export async function readEvidenceImportFile(
     format: "career-evidence-import", version: 1, careers: restored.careers, documents: restored.documents,
     ...(marker.newCareerIds === undefined ? {} : { newCareerIds: suggestedIds }),
     ...(marker.careerDetails === undefined ? {} : { careerDetails: readEvidenceDetails(marker.careerDetails, restored.careers, restored.documents) }),
+    ...(marker.linkCorrections === undefined ? {} : { linkCorrections: readLinkCorrections(marker.linkCorrections, restored.documents) }),
   };
 }
 
@@ -152,6 +187,9 @@ export async function applyEvidenceImport(
   const carrierById = new Map(prepared.careers.map(career => [career.id, career]));
   const allowAutomaticNewCareers = options.allowAutomaticNewCareers === true;
   const requestedDetails = readEvidenceDetails(prepared.careerDetails, prepared.careers, prepared.documents);
+  const requestedCorrections = readLinkCorrections(prepared.linkCorrections, prepared.documents);
+  if (requestedCorrections.length && !(options.requireMatchingCareerDetails && options.allowAutomaticLinkCorrections === true))
+    throw new Error("이 증빙 묶음은 연결 수정 승인이 필요합니다. 승인된 최신 연결 링크를 사용해 주세요.");
   // Snapshot before awaits; an ordinary import can never opt itself into updates.
   const approvedDetails = options.requireMatchingCareerDetails && options.allowAutomaticCareerDetails === true ? requestedDetails : [];
   const automaticInput: PreparedEvidenceImport | null = options.requireMatchingCareerDetails ? {
@@ -248,13 +286,34 @@ export async function applyEvidenceImport(
       links.add(target); linksByCareer.set(careerId, links);
     }
   }
-  let linked = 0, careersUpdated = 0, detailsUpdated = 0, detailsSkipped = 0;
+  const removalsByCareer = new Map<string, Set<string>>();
+  let linkCorrectionsSkipped = 0;
+  for (const correction of requestedCorrections) {
+    const item = incoming.find(value => value.document.id === correction.documentId)!;
+    // The removed link must refer to a byte-verified original already in storage,
+    // even when that original has a different live ID from the reviewed archive.
+    const original = byHash.get(item.document.sha256);
+    const previous = current.careers.find(career => career.id === correction.previousCareer.id);
+    if (!original || !previous || !previous.documentIds.includes(original.id)) continue;
+    if (!previous.startDate || previous.startDate.slice(0, 4) !== correction.previousCareer.startDate.slice(0, 4)
+      || !sameEvidenceCareer(correction.previousCareer, previous) || !item.links.length || item.links.includes(previous.id)) {
+      linkCorrectionsSkipped++;
+      continue;
+    }
+    const removals = removalsByCareer.get(previous.id) || new Set<string>();
+    removals.add(original.id); removalsByCareer.set(previous.id, removals);
+  }
+  let linked = 0, careersUpdated = 0, detailsUpdated = 0, detailsSkipped = 0, linksCorrected = 0;
   const careers = [...current.careers, ...newCareers].map(career => {
     const approved = linksByCareer.get(career.id);
-    if (!approved) return career;
-    const additions = [...approved].filter(id => !career.documentIds.includes(id));
+    const removals = removalsByCareer.get(career.id);
+    if (!approved && !removals) return career;
+    const additions = [...(approved || [])].filter(id => !career.documentIds.includes(id));
+    const retained = career.documentIds.filter(id => !removals?.has(id));
+    linksCorrected += career.documentIds.length - retained.length;
     linked += additions.length;
-    let updated = additions.length ? normalizeCareer({ documentIds: [...career.documentIds, ...additions] }, career) : career;
+    let updated = additions.length || retained.length !== career.documentIds.length
+      ? normalizeCareer({ documentIds: [...retained, ...additions] }, career) : career;
     const details = approvedDetails.find(item => item.careerId === career.id);
     if (details && details.sourceDocumentIds.every(id => incoming.some(item => item.document.id === id && item.links.includes(career.id)))) {
       const enriched = applyEvidenceDetails(updated, details);
@@ -271,10 +330,12 @@ export async function applyEvidenceImport(
     ...(newCareers.length ? { careersAdded: newCareers.length } : {}),
     ...(detailsUpdated ? { detailsUpdated } : {}),
     ...(detailsSkipped ? { detailsSkipped } : {}),
+    ...(linksCorrected ? { linksCorrected } : {}),
+    ...(linkCorrectionsSkipped ? { linkCorrectionsSkipped } : {}),
   };
   const documents = [...current.documents, ...newItems.map(item => item.document)];
   metadataSize(careers, documents);
-  if (!result.added && !result.linked && !result.careersAdded && !result.detailsUpdated) {
+  if (!result.added && !result.linked && !result.careersAdded && !result.detailsUpdated && !result.linksCorrected) {
     report({ phase: "done", completed: 1, total: 1 });
     return result;
   }

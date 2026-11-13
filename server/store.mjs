@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export const CATEGORIES = ['강의·연수', '위원회·지원단', '연구·수상', '연구대회', '공모전 수상', '표창', '집필·콘텐츠', '근무·파견', '파견', '근무', '집필', '콘텐츠 제작', '자격증', '기타'];
+export const CATEGORIES = ['강의·연수', '위원회·지원단', '연구·수상', '연구대회', '공모전 수상', '표창', '집필·콘텐츠', '근무·파견', '파견', '근무', '집필', '콘텐츠 제작', '자격증', '기타', '활동 경력'];
 export const cleanText = (value, max = 10000) => String(value ?? '').trim().slice(0, max);
 export function normalizeCareer(input, previous = {}) {
   const title = cleanText(input.title ?? previous.title, 300);
@@ -42,7 +42,7 @@ export function normalizeCareer(input, previous = {}) {
       if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== result[field]) throw Object.assign(new Error('실제 존재하는 날짜를 입력해 주세요.'), { status: 400 });
     }
   }
-  if (!['year', 'month', 'day'].includes(result.datePrecision) || !['attached', 'later', 'unneeded'].includes(result.evidenceStatus) || typeof result.verified !== 'boolean') throw Object.assign(new Error('경력 항목 형식이 올바르지 않습니다.'), { status: 400 });
+  if (!['year', 'month', 'day'].includes(result.datePrecision) || !['attached', 'later', 'unneeded', 'unavailable'].includes(result.evidenceStatus) || typeof result.verified !== 'boolean') throw Object.assign(new Error('경력 항목 형식이 올바르지 않습니다.'), { status: 400 });
   if (result.documentIds.length) result.evidenceStatus = 'attached';
   if (!result.documentIds.length && result.evidenceStatus === 'attached') result.evidenceStatus = 'later';
   return result;

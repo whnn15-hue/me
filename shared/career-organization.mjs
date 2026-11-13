@@ -1,10 +1,22 @@
 // Presentation categories are exclusive. Legacy stored values remain valid for backups.
-export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '공모전 수상', '표창', '파견', '집필', '콘텐츠 제작', '자격증'];
-// Secondment remains a valid stored category and contextual filter, not a primary tab.
-export const careerNavigationChoices = careerCategoryChoices.filter(category => category !== '파견');
+export const careerCategoryChoices = ['강의·연수', '위원회·지원단', '연구대회', '공모전 수상', '표창', '활동 경력', '집필', '콘텐츠 제작', '자격증'];
+// The legacy secondment value remains a contextual filter within activity careers.
+export const careerNavigationChoices = [...careerCategoryChoices];
 const fold = value => String(value || '').normalize('NFC').replaceAll('_', ' ');
 const isKeris = text => /KERIS|한국교육학술정보원/i.test(text);
 const internalProgramme = /수학탐험대.*디지털\s*교구.*활용사례집.*제작|연구학교.*성과보고회.*시도.*운영\s*용역|인공지능.*초등수학.*온라인\s*연수.*운영\s*계획|AI\s*디지털교과서.*수정\s*보완.*검토위원회.*운영\s*계획/i;
+const originalNames = (career, documents) => documents.filter(document => career.documentIds?.includes(document.id)).map(document => document.name).join(' ');
+
+/** Membership in a creator community is a career, not a produced asset. Keep
+ * this narrow: an organization/tag mention alone cannot reclassify an output. */
+function communityMembership(career) {
+  if (!['집필·콘텐츠', '콘텐츠 제작', '근무·파견', '근무', '기타'].includes(career.category)) return false;
+  const title = fold(career.title).replace(/[\s「」『』()（）]/g, ''), role = fold(career.role);
+  const membership = /회원|운영진|운영위원|대표|회장|임원|소속|교사\s*모임/.test(role);
+  if (!membership && /강사|강의|출강|촬영|편집|저작|집필|제작/.test(role)) return false;
+  // The actual legacy entry is "영상제작 콘텐츠 교사 모임 몽당분필".
+  return /^(?:영상제작콘텐츠교사모임|교사모임)?몽당분필(?:교사모임)?(?:활동|소속활동|회원활동|정회원|회원|운영진활동|운영진|운영위원|대표|회장|임원|가입|참여|활동경력)?$/.test(title);
+}
 
 /** Internal KERIS plans are secondment work, not outside invitations to teach. */
 function secondmentWork(career, originals) {
@@ -19,8 +31,8 @@ function secondmentWork(career, originals) {
 
 /** One destination per career; classification never changes the original record. */
 export function careerSection(career, documents = []) {
-  const originals = documents.filter(document => career.documentIds?.includes(document.id)).map(document => document.name).join(' ');
-  if (secondmentWork(career, originals)) return '파견';
+  const originals = originalNames(career, documents);
+  if (career.category === '활동 경력' || secondmentWork(career, originals) || communityMembership(career)) return '활동 경력';
   const title = fold(career.title), role = fold(career.role), primary = `${title} ${role}`;
   if (career.category === '표창' || /표창|감사장|공로상|훈장|포장\s*수여/.test(primary)) return '표창';
   if (career.category === '공모전 수상') return '공모전 수상';
@@ -57,7 +69,9 @@ export function careerSection(career, documents = []) {
 }
 
 export function careerCollections(career, documents = []) {
-  const collection = { '파견': 'secondment', '집필': 'writing', '콘텐츠 제작': 'content' }[careerSection(career, documents)];
+  // Existing consumers may still ask specifically for secondment work.
+  if (secondmentWork(career, originalNames(career, documents))) return ['secondment'];
+  const collection = { '집필': 'writing', '콘텐츠 제작': 'content' }[careerSection(career, documents)];
   return collection ? [collection] : [];
 }
 export function careerCategoryLabel(career, documents = []) {
@@ -66,12 +80,13 @@ export function careerCategoryLabel(career, documents = []) {
 }
 export function matchesCareerCategory(career, category, documents = []) {
   if (category === '전체') return true;
+  if (category === '파견') return secondmentWork(career, originalNames(career, documents));
   return careerSection(career, documents) === category;
 }
 export function careerOrganization(career, documents = []) {
   const original = fold(career.organization).trim();
   if (original) return original.replaceAll('·', ', ');
-  if (careerSection(career, documents) === '파견' && (isKeris([career.title, career.description, ...(career.tags || [])].join(' ')) || internalProgramme.test(fold(career.title)))) return '한국교육학술정보원(KERIS)';
+  if (secondmentWork(career, originalNames(career, documents)) && (isKeris([career.title, career.description, ...(career.tags || [])].join(' ')) || internalProgramme.test(fold(career.title)))) return '한국교육학술정보원(KERIS)';
   return '기관 미입력';
 }
 export function recognitionDetails(career) {

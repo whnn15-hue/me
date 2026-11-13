@@ -409,7 +409,7 @@ export function CareerEditor({
                   <input
                     type="radio"
                     name="evidence"
-                    checked={draft.evidenceStatus !== "unneeded"}
+                    checked={draft.evidenceStatus !== "unneeded" && draft.evidenceStatus !== "unavailable"}
                     onChange={() => change("evidenceStatus", "later")}
                   />
                   나중에 증빙 첨부
@@ -422,6 +422,10 @@ export function CareerEditor({
                     onChange={() => change("evidenceStatus", "unneeded")}
                   />
                   증빙 불필요
+                </label>
+                <label>
+                  <input type="radio" name="evidence" checked={draft.evidenceStatus === "unavailable"} onChange={() => change("evidenceStatus", "unavailable")} />
+                  증빙 확보 어려움
                 </label>
               </div>
             )}

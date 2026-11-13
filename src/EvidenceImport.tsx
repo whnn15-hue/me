@@ -89,6 +89,9 @@ export default function EvidenceImport({
   const [autoPending, setAutoPending] = useState(false);
   const [autoAllowNewCareers, setAutoAllowNewCareers] = useState(false);
   const [autoAllowCareerDetails, setAutoAllowCareerDetails] = useState(false);
+  const [autoAllowLinkCorrections, setAutoAllowLinkCorrections] = useState(false);
+  const [automaticSelectionIntact, setAutomaticSelectionIntact] = useState(false);
+  const [reviewedRetryAvailable, setReviewedRetryAvailable] = useState(false);
   const [autoNote, setAutoNote] = useState("");
   const [error, setError] = useState("");
   const [canceled, setCanceled] = useState(false);
@@ -160,6 +163,9 @@ export default function EvidenceImport({
     setAutoPending(false);
     setAutoAllowNewCareers(false);
     setAutoAllowCareerDetails(false);
+    setAutoAllowLinkCorrections(false);
+    setAutomaticSelectionIntact(false);
+    setReviewedRetryAvailable(false);
     setAutoNote("");
     try {
       const archive = file ?? await evidenceFileFromImportCode(suppliedCode);
@@ -179,6 +185,8 @@ export default function EvidenceImport({
       setApprovedNewCareerIds(automatic?.newCareerIds ?? newIds);
       setAutoAllowNewCareers(Boolean(approved?.allowNewCareers));
       setAutoAllowCareerDetails(Boolean(approved?.allowCareerDetails));
+      setAutoAllowLinkCorrections(Boolean(approved?.allowLinkCorrections));
+      setAutomaticSelectionIntact(Boolean(automatic));
       setAutoPending(Boolean(automatic));
       if (approved && !automatic) setAutoNote("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.");
       setCode("");
@@ -194,8 +202,13 @@ export default function EvidenceImport({
 
   async function confirmImport(automatic = false) {
     if (!prepared || operationRef.current || disabled || !driveConnected) return;
+    const reviewedRetry = automatic && reviewedRetryAvailable;
+    // A failed approved import may retry its original mapping, but edited
+    // selections must never inherit permission to remove existing links.
+    if (automatic && (!automaticSelectionIntact || !autoPending && !reviewedRetry)) return;
     operationRef.current = true;
     setAutoPending(false);
+    setReviewedRetryAvailable(false);
     const controller = new AbortController();
     controllerRef.current = controller;
     onBusyChange(true);
@@ -205,13 +218,31 @@ export default function EvidenceImport({
     setCanceling(false);
     setProgress({ phase: "validating", completed: 0, total: prepared.documents.length });
     try {
-      const { applyEvidenceImport } = await import("./free/evidence-import");
+      const { applyEvidenceImport, readEvidenceImportReviewCareers } = await import("./free/evidence-import");
+      let links = approvedLinks;
+      let newCareerIds = approvedNewCareerIds;
+      if (reviewedRetry) {
+        const latestCareers = await readEvidenceImportReviewCareers();
+        const plan = automaticEvidencePlan(prepared, latestCareers, autoAllowNewCareers, autoAllowCareerDetails);
+        setReviewCareers(latestCareers);
+        if (!plan) {
+          setAutomaticSelectionIntact(false);
+          setAutoNote("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.");
+          setStep("review");
+          return;
+        }
+        links = plan.links;
+        newCareerIds = plan.newCareerIds;
+        setApprovedLinks(links);
+        setApprovedNewCareerIds(newCareerIds);
+      }
       const saved = await applyEvidenceImport(prepared, {
-        approvedLinks,
-        approvedNewCareerIds,
+        approvedLinks: links,
+        approvedNewCareerIds: newCareerIds,
         requireMatchingCareerDetails: automatic,
         allowAutomaticNewCareers: automatic && autoAllowNewCareers,
         allowAutomaticCareerDetails: automatic && autoAllowCareerDetails,
+        allowAutomaticLinkCorrections: automatic && autoAllowLinkCorrections,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -220,12 +251,14 @@ export default function EvidenceImport({
       setReviewCareers([]);
       setApprovedLinks({});
       setApprovedNewCareerIds([]);
+      setAutomaticSelectionIntact(false);
       setStep("complete");
-      onToast(`${saved.careersAdded ? `새 경력 ${saved.careersAdded}건, ` : ""}증빙 ${saved.added}개 추가, 연결 ${saved.linked}개 저장${saved.detailsUpdated ? `, 이력 ${saved.detailsUpdated}건 보완` : ""}`);
+      onToast(`${saved.careersAdded ? `새 경력 ${saved.careersAdded}건, ` : ""}증빙 ${saved.added}개 추가, 연결 ${saved.linked}개 저장${saved.detailsUpdated ? `, 이력 ${saved.detailsUpdated}건 보완` : ""}${saved.linksCorrected ? `, 기존 연결 ${saved.linksCorrected}개 정정` : ""}`);
       await onRefresh();
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") setCanceled(true);
       else setError(cause instanceof Error ? cause.message : "증빙을 추가하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.");
+      setReviewedRetryAvailable(automatic && autoAllowLinkCorrections && automaticSelectionIntact);
       setStep(current => current === "complete" ? current : "review");
       // A network interruption can occur after a committed write. Refresh the
       // visible archive so retrying never relies on an outdated client count.
@@ -247,6 +280,8 @@ export default function EvidenceImport({
 
   function toggleLink(documentId: string, careerId: string, checked: boolean) {
     setAutoPending(false);
+    setAutomaticSelectionIntact(false);
+    setReviewedRetryAvailable(false);
     setApprovedLinks(current => ({
       ...current,
       [documentId]: checked
@@ -257,6 +292,8 @@ export default function EvidenceImport({
 
   function toggleNewCareer(careerId: string, checked: boolean) {
     setAutoPending(false);
+    setAutomaticSelectionIntact(false);
+    setReviewedRetryAvailable(false);
     setApprovedNewCareerIds(current => checked ? [...new Set([...current, careerId])] : current.filter(id => id !== careerId));
     setApprovedLinks(current => Object.fromEntries(Object.entries(current).map(([documentId, ids]) => [
       documentId,
@@ -269,6 +306,8 @@ export default function EvidenceImport({
   function reset() {
     if (operationRef.current) return;
     setAutoPending(false);
+    setAutomaticSelectionIntact(false);
+    setReviewedRetryAvailable(false);
     setAutoNote("");
     setPrepared(null);
     setReviewCareers([]);
@@ -429,9 +468,9 @@ export default function EvidenceImport({
           )}
 
           <div className="evidence-confirm-actions">
-            <button className="button primary" disabled={locked || !driveConnected || prepared.documents.length === 0} onClick={() => void confirmImport()}>
+            <button className="button primary" disabled={locked || !driveConnected || prepared.documents.length === 0} onClick={() => void confirmImport(reviewedRetryAvailable)}>
               {step === "importing" ? <LoaderCircle className="spin" size={17} /> : <CloudUpload size={17} />}
-              {step === "importing" ? "증빙 추가 중" : "증빙 추가하고 연결"}
+              {step === "importing" ? "증빙 추가 중" : reviewedRetryAvailable ? "검토된 연결 다시 시도" : "증빙 추가하고 연결"}
             </button>
             {step === "importing" && <button className="text-button" disabled={canceling || progress?.phase === "saving" || progress?.phase === "done"} onClick={() => { setCanceling(true); controllerRef.current?.abort(); }}>중단하기</button>}
             {step !== "importing" && <span>원본 {prepared.documents.length}개, 경력 연결 {linkedCareerCount}건{approvedNewCareerIds.length > 0 ? `, 새 경력 ${approvedNewCareerIds.length}건 추가` : ""}</span>}
@@ -442,7 +481,7 @@ export default function EvidenceImport({
       {step === "complete" && result && (
         <div className="evidence-import-complete" role="status">
           <span className="evidence-complete-mark"><Check size={22} /></span>
-          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 추가했습니다.</p>}{Boolean(result.detailsUpdated) && <p>증빙을 바탕으로 이력 {result.detailsUpdated}건을 보완했습니다.</p>}{Boolean(result.detailsSkipped) && <p>이미 수정된 정보는 유지했습니다. {result.detailsSkipped}건</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
+          <div><h3>증빙이 내 경력에 자리 잡았어요</h3><p>원본 {result.added}개 추가, 동일 파일 {result.duplicates}개 재사용, 경력 연결 {result.linked}개 저장</p>{Boolean(result.careersAdded) && <p>새 경력 {result.careersAdded}건을 추가했습니다.</p>}{Boolean(result.detailsUpdated) && <p>증빙을 바탕으로 이력 {result.detailsUpdated}건을 보완했습니다.</p>}{Boolean(result.detailsSkipped) && <p>이미 수정된 정보는 유지했습니다. {result.detailsSkipped}건</p>}{Boolean(result.linksCorrected) && <p>지정한 증빙의 기존 연결 {result.linksCorrected}개를 정정했습니다.</p>}{Boolean(result.linkCorrectionsSkipped) && <p>이름이나 기간이 변경된 이력의 기존 연결 {result.linkCorrectionsSkipped}개는 유지했습니다.</p>}{result.unmatched > 0 && <p>경력과 연결하지 않은 {result.unmatched}개는 공문 보관함에서 확인할 수 있어요.</p>}</div>
           <div className="evidence-complete-actions">
             <button className="button secondary" disabled={disabled} onClick={() => void onBackup()}><FileCheck2 size={15} /> 지금 백업하기</button>
             <button className="text-button" disabled={disabled} onClick={reset}>다른 증빙 가져오기 <ArrowRight size={14} /></button>
