@@ -42,7 +42,7 @@ const styles = ['styles.css','workspace/Workspace.css','refinements.css','career
 async function fixture(run, saved) {
   const server=createServer((request,response)=>{
     if(request.url==='/bundle.js')return response.writeHead(200,{'Content-Type':'application/javascript'}).end(bundle.outputFiles[0].text);
-    if(request.url==='/icons/c-archive.svg')return response.writeHead(200,{'Content-Type':'image/svg+xml'}).end(readFileSync(new URL('../public/icons/c-archive.svg',import.meta.url)));
+    if(new URL(request.url,'http://localhost').pathname==='/icons/c-archive.svg')return response.writeHead(200,{'Content-Type':'image/svg+xml'}).end(readFileSync(new URL('../public/icons/c-archive.svg',import.meta.url)));
     if(request.url==='/fixture')return response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}).end('<style>'+styles+'</style><div id="root"></div><script src="/bundle.js"></script>');
     response.writeHead(404).end();
   });
