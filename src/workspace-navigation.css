@@ -38,8 +38,8 @@
 }
 
 .app-shell .compact-workspace-tree .tree-toggle {
-  width: 27px;
-  height: 38px;
+  width: 32px;
+  height: 40px;
 }
 
 .app-shell .compact-workspace-tree .tree-children {
@@ -60,6 +60,27 @@
 .app-shell .compact-workspace-tree .tree-children > button.selected {
   background: var(--ui-inset);
   color: var(--ui-text);
+}
+
+.app-shell .compact-workspace-tree .tree-career-link > span {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.app-shell .compact-workspace-tree .tree-career-link > svg {
+  flex: none;
+}
+
+.app-shell .compact-workspace-tree .tree-career-link > small {
+  margin-left: auto;
+  color: var(--ui-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .compact-workspace-tree .tree-career-link.selected > small {
+  color: var(--ui-accent-ink);
 }
 
 .app-shell .compact-workspace-tree button:focus-visible {

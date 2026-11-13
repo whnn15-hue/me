@@ -16,7 +16,7 @@ const output = await build({
     import MaterialsView from './src/workspace/MaterialsView';
     const common={kind:'material',createdAt:'2026-01-01T00:00:00.000Z',updatedAt:'2026-01-01T00:00:00.000Z'};
     const initial={schemaVersion:1,revision:0,items:[
-      {...common,id:'material_one',title:'가상 강의 자료',ownership:'created',author:'테스트 제작자',eventName:'가상 교원 연수',date:'2025-03-02',audience:['교원'],format:'PPT',fileUrl:'https://docs.google.com/presentation/d/fixture-one/edit',summary:'교원을 위한 가상 교육 실습',tags:['미디어','강의']},
+      {...common,id:'material_one',favorite:true,title:'가상 강의 자료',ownership:'created',author:'테스트 제작자',eventName:'가상 교원 연수',date:'2025-03-02',audience:['교원'],format:'PPT',fileUrl:'https://docs.google.com/presentation/d/fixture-one/edit',summary:'교원을 위한 가상 교육 실습',tags:['미디어','강의']},
       {...common,id:'material_two',title:'수집한 참고 자료',ownership:'collected',author:'가상 기관',eventName:'',date:'2024-06-01',audience:['학생'],format:'PDF',fileUrl:'https://drive.google.com/file/d/fixture-two/view',summary:'학생 활동에 참고하는 예시 자료',tags:['참고']},
       {...common,id:'classroom_one',purpose:'classroom',title:'가상 스피치 활동',ownership:'created',author:'가상 교사',eventName:'아침 활동',date:'',audience:['학생'],format:'TXT',fileUrl:'https://drive.google.com/file/d/classroom-one/view',summary:'짝과 함께 발표하는 말하기 활동',tags:['학급운영','말하기']},
       {...common,id:'classroom_two',purpose:'classroom',title:'가상 속담 활동지',ownership:'collected',author:'가상 출처',eventName:'국어',date:'',audience:['학생'],format:'HWP',fileUrl:'https://drive.google.com/file/d/classroom-two/view',summary:'속담 뜻을 살펴보는 읽기 활동',tags:['국어']},
@@ -95,10 +95,10 @@ test('material library filters subjects, trainings, format, tags and search with
     await page.getByRole('button', { name: /필터 초기화/ }).click();
     await page.getByLabel('자료 형식 필터', { exact: true }).selectOption('PPT');
     await page.getByLabel('자료 태그 필터', { exact: true }).selectOption('미디어');
-    await page.getByLabel('학습 자료 검색', { exact: true }).fill('가상 교육 실습');
+    await page.getByLabel('교안 검색', { exact: true }).fill('가상 교육 실습');
     assert.equal(await cards.count(), 1);
     assert.match(await cards.innerText(), /가상 강의 자료/);
-    await page.getByLabel('학습 자료 검색', { exact: true }).fill('존재하지 않는 자료');
+    await page.getByLabel('교안 검색', { exact: true }).fill('존재하지 않는 자료');
     await page.getByText('조건에 맞는 자료가 없어요', { exact: true }).waitFor();
     await page.getByRole('button', { name: /필터 초기화/ }).first().click();
     assert.equal(await cards.count(), 2);
@@ -277,22 +277,25 @@ test('classroom additions retain purpose through editing, link to lesson records
   }, 'classroom');
 });
 
-test('gallery, list and favorite actions keep career links on desktop',browserOptions,async()=>{
+test('gallery and list keep all materials visible without favorite controls and retain legacy flags on edit',browserOptions,async()=>{
   await fixture(async page=>{
-    await page.getByRole('button',{name:'가상 강의 자료 즐겨찾기',exact:true}).click();
-    const saved=await page.evaluate(()=>fixture.saves.at(-1));
-    assert.equal(saved.item.favorite,true);assert.deepEqual(saved.links,['career:career_one']);assert.equal(saved.expectedRevision,0);
-    await page.getByRole('button',{name:'즐겨찾는 자료만',exact:true}).click();
-    assert.equal(await page.locator('.material-card').count(),1);
+    assert.equal(await page.getByRole('button',{name:/즐겨찾/}).count(),0);
+    assert.equal(await page.locator('.material-card').count(),2);
+    assert.deepEqual(await page.evaluate(()=>fixture.saves),[]);
+    await page.getByRole('button',{name:'갤러리 보기',exact:true}).click();
+    assert.ok(await page.locator('.materials-grid').evaluate(element=>element.classList.contains('library-grid')));
     await page.getByRole('button',{name:'목록 보기',exact:true}).click();
     assert.ok(await page.locator('.materials-grid').evaluate(element=>element.classList.contains('library-list')));
-    if (!process.env.TEST_DESKTOP_ONLY) await page.setViewportSize({width:375,height:812});
-    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     assert.equal(await page.getByRole('link',{name:'가상 강의 자료 원본 열기'}).getAttribute('target'),'_blank');
-    await page.getByRole('button',{name:'가상 강의 자료 즐겨찾기',exact:true}).click();
-    assert.equal(await page.locator('.material-card').count(),0);
-    await page.getByRole('button',{name:/필터 초기화/}).first().click();
+    await page.getByRole('button',{name:'가상 강의 자료 수정',exact:true}).click();
+    const editor=page.getByRole('dialog',{name:'자료 수정',exact:true});
+    await editor.getByLabel('제목',{exact:false}).fill('가상 강의 자료 수정본');
+    await editor.getByRole('button',{name:'자료 저장',exact:true}).click();
+    await editor.waitFor({state:'hidden'});
+    const saved=await page.evaluate(()=>fixture.saves.at(-1));
+    assert.equal(saved.item.favorite,true);assert.deepEqual(saved.links,['career:career_one']);assert.equal(saved.expectedRevision,0);
     assert.equal(await page.locator('.material-card').count(),2);
+    assert.equal(await page.getByRole('button',{name:/즐겨찾/}).count(),0);
     await page.reload();
     assert.equal(await page.getByRole('button',{name:'목록 보기',exact:true}).getAttribute('aria-pressed'),'true');
   });

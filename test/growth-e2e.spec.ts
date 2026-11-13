@@ -15,12 +15,16 @@ test('desktop growth journey animates real records, supports reduced motion and 
   const careerFixtures=[
     {title:'성장검증 과거 강의',startDate:`${currentYear-2}-03-02`},
     {title:'성장검증 오늘 강의',startDate:today},
+    {title:'성장검증 같은 해 다른 특강',startDate:today},
+    {title:'성장검증 교육장 표창',startDate:today,category:'표창'},
+    {title:'성장검증 교육감 표창',startDate:today,category:'표창'},
+    {title:'성장검증 장관 표창',startDate:today,category:'표창'},
     {title:'성장검증 예정 강의',startDate:`${currentYear+1}-03-02`},
     {title:'성장검증 여러 해 활동',startDate:`${currentYear-3}-03-02`,endDate:today},
     ...(tomorrow.startsWith(String(currentYear))?[{title:'성장검증 올해 예정 강의',startDate:tomorrow}]:[]),
   ];
   for(const item of careerFixtures){
-    const result=await page.request.post('/api/careers',{data:{...item,category:'강의·연수',organization:'성장검증 기관',role:'강사',evidenceStatus:'unneeded',datePrecision:'day',verified:true}});
+    const result=await page.request.post('/api/careers',{data:{category:'강의·연수',...item,organization:'성장검증 기관',role:'강사',evidenceStatus:'unneeded',datePrecision:'day',verified:true}});
     expect(result.ok()).toBeTruthy();created.push(await result.json());
   }
   const items=[
@@ -46,6 +50,37 @@ test('desktop growth journey animates real records, supports reduced motion and 
   const count=actual.filter((career:{startDate:string})=>career.startDate.startsWith(String(currentYear))&&career.startDate<=today).length;
   await expect(map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true})).toBeVisible();
   await expect(map.getByRole('button',{name:new RegExp(`^${currentYear+1}년 이력 보기`)})).toHaveCount(0);
+  await expect(map.getByText('GROWTH JOURNEY',{exact:true})).toHaveCount(0);
+  await expect(map.getByText('집계 기준',{exact:true})).toHaveCount(0);
+  const currentPin=map.getByRole('button',{name:`${currentYear}년 이력 보기, 이 해에 시작한 기록 ${count}건`,exact:true});
+  const preview=map.locator('.atlas-milestone');
+  await currentPin.hover();
+  await expect(preview).toHaveAttribute('aria-label',`${currentYear}년 기록 미리보기`);
+  const previewTitle=await preview.locator('strong').innerText();
+  const eligibleTitles=actual.filter((career:{startDate:string})=>career.startDate.startsWith(String(currentYear))&&career.startDate<=today).map((career:{title:string})=>career.title.replaceAll('·',','));
+  expect(eligibleTitles).toContain(previewTitle);
+  await currentPin.focus();
+  await expect(preview.locator('strong')).toHaveText(previewTitle);
+  await map.locator('.atlas-range').first().hover();
+  await currentPin.hover();
+  await expect(preview.locator('strong')).not.toHaveText(previewTitle);
+  expect(eligibleTitles).toContain(await preview.locator('strong').innerText());
+  expect(await preview.locator('strong').evaluate(element=>parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(24);
+  await expect(preview.locator('i')).toHaveCount(0);
+  const reel=map.locator('.atlas-reel');
+  await expect(reel).toHaveAttribute('aria-label','빛나는 순간');
+  await expect(reel.locator('li')).toHaveCount(3);
+  const alignment=await reel.evaluate(element=>{
+    const panel=element.getBoundingClientRect(),label=element.querySelector('.atlas-reel-label')!.getBoundingClientRect();
+    const cards=[...element.querySelectorAll('li')].map(item=>item.getBoundingClientRect());
+    return {center:(panel.left+panel.right)/2,label:(label.left+label.right)/2,cards:(cards[0].left+cards.at(-1)!.right)/2};
+  });
+  expect(Math.abs(alignment.center-alignment.label)).toBeLessThanOrEqual(2);
+  expect(Math.abs(alignment.center-alignment.cards)).toBeLessThanOrEqual(2);
+
+  const previewBox=await preview.boundingBox(),canvasBox=await map.locator('.atlas-canvas').boundingBox();
+  expect(previewBox!.y+previewBox!.height).toBeLessThanOrEqual(canvasBox!.y+11);
+
   const trail=map.locator('.atlas-reveal');
   await expect(trail).toHaveCSS('animation-name','atlas-reveal');
   await expect(trail).toHaveCSS('animation-iteration-count','1');
@@ -86,15 +121,14 @@ test('desktop growth journey animates real records, supports reduced motion and 
   await page.getByRole('navigation',{name:'이력 분류',exact:true}).getByRole('button',{name:/^강의, 연수/}).click();
   await expect(page.locator('.career-row').filter({hasText:'성장검증 오늘 강의'})).toBeVisible();
   const tree=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-  await expect(tree.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(0);
+  await expect(tree.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(1);
   await tree.getByRole('button',{name:'수업 하위 메뉴 펼치기',exact:true}).click();await tree.getByRole('button',{name:'수업에서 학급 자료 보기',exact:true}).click();
   await expect(page.getByRole('tab',{name:/학급 자료/})).toHaveAttribute('aria-selected','true');
   await tree.getByRole('button',{name:'수업에서 수업 기록 보기',exact:true}).click();await expect(page.getByRole('tab',{name:/수업 기록/})).toHaveAttribute('aria-selected','true');
-  await tree.getByRole('button',{name:'학습 자료',exact:true}).click();
+  await tree.getByRole('button',{name:'교안',exact:true}).click();
   await page.getByRole('combobox',{name:'과목 필터',exact:true}).selectOption('수학');
   await expect(page.getByRole('combobox',{name:'과목 필터',exact:true})).toHaveValue('수학');
-  await page.getByRole('button',{name:'즐겨찾는 자료만',exact:true}).click();
-  await expect(page.getByRole('button',{name:'즐겨찾는 자료만',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('button',{name:/즐겨찾/})).toHaveCount(0);
   await main.getByRole('button',{name:'홈',exact:true}).click();
   const growth=page.getByRole('region',{name:'나의 성장',exact:true});
   await growth.getByRole('button',{name:'접기',exact:true}).click();await expect(map).toHaveCount(0);await page.reload();await expect(map).toHaveCount(0);await growth.getByRole('button',{name:'펼치기',exact:true}).click();

@@ -1,8 +1,7 @@
-import { Layers3, ArrowUpRight, CloudUpload, Plus, Star, FileCheck2, Check } from "lucide-react";
+import { Layers3, ArrowUpRight, CloudUpload, Plus, FileCheck2, Check } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { Career, DocumentRecord, Status, View } from "../types";
 import type { WorkspaceData } from "../workspace/types";
-import { displayLabel } from "../workspace/WorkspaceUI";
 import { archiveAttention } from "../archive-tools";
 
 interface Props {
@@ -11,9 +10,8 @@ interface Props {
   onAttention: (filter: "missing" | "undated" | "unlinked") => void;
   onOverview: () => void; overview: ReactNode; onUpload: () => void; onCreate: () => void; busy: boolean;
 }
-export default function HomeDashboard({ careers, documents, workspace, onOpen, onUpload, onCreate, onAttention, busy, overview, onOverview }: Props) {
+export default function HomeDashboard({ careers, documents, onUpload, onCreate, onAttention, busy, overview, onOverview }: Props) {
   const attention = useMemo(() => archiveAttention(careers, documents), [careers, documents]);
-  const favorites = useMemo(() => workspace.items.filter(item => item.favorite && !["course", "assignment", "paper", "idea"].includes(item.kind)).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [workspace]);
   const missing = attention.missing.length;
   return <div className="home-dashboard home-focus">
     <h1 className="visually-hidden">홈</h1>
@@ -29,6 +27,5 @@ export default function HomeDashboard({ careers, documents, workspace, onOpen, o
     </section>
     <div className="home-secondary-actions"><button className="home-overview-link" onClick={onOverview}><Layers3 size={16}/>이력 한눈에 보기</button><button className="home-overview-link" onClick={onUpload} disabled={busy}><CloudUpload size={16}/>공문 업로드</button><button className="button secondary" onClick={onCreate} disabled={busy}><Plus size={16}/>경력 추가</button></div>
     </div>
-    {favorites.length > 0 && <section className="home-favorites" aria-label="즐겨찾는 기록"><h2><Star size={18} aria-hidden="true"/>즐겨찾기</h2><div>{favorites.map(item => <button key={item.id} onClick={() => onOpen(`${item.kind}:${item.id}`)}><Star size={17} aria-hidden="true"/><span>{displayLabel(item.title)}</span><ArrowUpRight size={13}/></button>)}</div></section>}
   </div>;
 }

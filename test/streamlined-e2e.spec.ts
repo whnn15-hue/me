@@ -30,7 +30,7 @@ test('career collections separate awards, default lectures to years and retain q
   // The owner asked (2026-11-12) to keep the visible category tabs and list/overview tabs.
   await expect(page.locator('.career-collections')).toHaveCount(1);await expect(page.locator('.career-mode-tabs')).toHaveCount(1);
   for(const value of ['근무','연구, 수상','기타','파견'])await expect(categories.getByRole('button',{name:new RegExp(`^${value}`)})).toHaveCount(0);
-  await expect(primary.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(0);
+  await expect(primary.getByRole('button',{name:/이력 하위 메뉴/})).toHaveCount(1);
   await expect(categories.getByRole('button',{name:/^공모전 수상/})).toHaveCount(1);
   const choose=async(name:string)=>{await categories.getByRole('button',{name:new RegExp(`^${name}`)}).first().click();const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')!==null)await details.locator('summary').click();};
   const moreFilters=async()=>{const details=page.locator('.career-extra-filters');if(await details.getAttribute('open')===null)await details.locator('summary').click();};
@@ -118,8 +118,8 @@ test('career collections separate awards, default lectures to years and retain q
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   }
   await primary.getByRole('button',{name:'수업',exact:true}).click();await expect(page.getByRole('heading',{name:'수업 기록',exact:true})).toBeVisible();
-  await primary.getByRole('button',{name:'학습 자료',exact:true}).click();await expect(page.getByRole('heading',{name:/^학습 자료/})).toBeVisible();
-  await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'학습 자료',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
+  await primary.getByRole('button',{name:'교안',exact:true}).click();await expect(page.getByRole('heading',{name:/^교안/})).toBeVisible();
+  await page.setViewportSize({width:1440,height:1000});await primary.getByRole('button',{name:'교안',exact:true}).click();await page.getByRole('button',{name:'자료 추가',exact:true}).click();
   const material=page.getByRole('dialog',{name:'자료 추가',exact:true});
   await expect(material.locator('details.optional-fields')).not.toHaveAttribute('open');await expect(material.getByText('내가 만든 자료',{exact:true})).toHaveCount(0);
   await material.getByRole('button',{name:'취소',exact:true}).click();
@@ -129,7 +129,7 @@ test('career collections separate awards, default lectures to years and retain q
   expect((await (await page.request.get('/api/data')).json()).careers).toEqual(before);
 });
 
-test('HTML uploads remain attachments and library favorites persist with links and JSON backup',async({page})=>{
+test('HTML uploads remain attachments and hidden legacy favorites persist through editing and JSON backup',async({page})=>{
   await page.goto('/#careers');
   const original=(await (await page.request.get('/api/data')).json());
   const previous=(await (await page.request.get('/api/workspace')).json());
@@ -141,19 +141,18 @@ test('HTML uploads remain attachments and library favorites persist with links a
   const download=await page.request.get(`/api/documents/${doc.id}/file`);
   expect(download.headers()['content-disposition']).toMatch(/^attachment/);expect(await download.body()).toEqual(html);
   const links=original.careers[0]?[`career:${original.careers[0].id}`]:[];
-  const response=await page.request.post('/api/workspace/items',{data:{item:{id:'html_library_e2e',kind:'material',title:'통합검증 HTML 수학 자료',format:'HTML',subjects:['수학'],trainings:['수 연산'],fileUrl:'https://drive.google.com/file/d/synthetic123/view'},links,expectedRevision:previous.revision}});
+  const response=await page.request.post('/api/workspace/items',{data:{item:{id:'html_library_e2e',kind:'material',favorite:true,title:'통합검증 HTML 수학 자료',format:'HTML',subjects:['수학'],trainings:['수 연산'],fileUrl:'https://drive.google.com/file/d/synthetic123/view'},links,expectedRevision:previous.revision}});
   expect(response.ok()).toBeTruthy();
   const materialId=(await response.json()).items.find((item:{title:string})=>item.title==='통합검증 HTML 수학 자료').id;
   await page.reload();
   const primary=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-  await primary.getByRole('button',{name:'학습 자료',exact:true}).click();
+  await primary.getByRole('button',{name:'교안',exact:true}).click();
   await page.locator('.materials-advanced-filters > summary').click();
   await page.getByRole('combobox',{name:'자료 형식 필터',exact:true}).selectOption('HTML');
   await page.locator('.materials-advanced-filters > summary').click();
-  const favorite=page.getByRole('button',{name:'통합검증 HTML 수학 자료 즐겨찾기',exact:true});
-  await favorite.click();await expect(favorite).toHaveAttribute('aria-pressed','true');
-  await page.reload();await primary.getByRole('button',{name:'학습 자료',exact:true}).click();
-  await expect(favorite).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('button',{name:/즐겨찾기/})).toHaveCount(0);
+  await page.reload();await primary.getByRole('button',{name:'교안',exact:true}).click();
+  await expect(page.getByRole('button',{name:/즐겨찾기/})).toHaveCount(0);
   await page.getByRole('button',{name:'목록 보기',exact:true}).click();
   await page.getByRole('button',{name:'통합검증 HTML 수학 자료 상세보기',exact:true}).click();
   let dialog=page.getByRole('dialog',{name:'통합검증 HTML 수학 자료',exact:true});
@@ -168,6 +167,7 @@ test('HTML uploads remain attachments and library favorites persist with links a
   if(links.length)expect(saved.links).toContainEqual({from:links[0],to:`material:${materialId}`});
   const backup=(await (await page.request.get('/api/workspace/export')).json());
   expect(backup.workspace.items.find((item:{id:string})=>item.id===materialId).format).toBe('HTML');
+  expect(backup.workspace.items.find((item:{id:string})=>item.id===materialId).favorite).toBe(true);
   expect(backup.careers).toEqual(original.careers);
   expect((await page.request.delete(`/api/workspace/items/${materialId}`,{data:{expectedRevision:saved.revision}})).ok()).toBeTruthy();
   expect((await page.request.delete(`/api/documents/${doc.id}`)).ok()).toBeTruthy();
@@ -198,7 +198,7 @@ test('six workspaces separate learning from video and keep tools and research un
     const seeded=await (await page.request.get('/api/workspace')).json();
     await page.goto('/#home');
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','학습 자료','영상 작업','연구 자료']);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','교안','연구 자료','영상 작업']);
     await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
     await expect(page.getByText('작업 공간',{exact:true})).toHaveCount(0);
     await page.evaluate(()=>document.fonts.ready);
@@ -219,8 +219,8 @@ test('six workspaces separate learning from video and keep tools and research un
     await expect(page.getByRole('heading',{name:'공문 보관함',exact:true})).toBeVisible();
 
     const card=(title:string)=>page.locator('.material-card').filter({hasText:title});
-    await menu.getByRole('button',{name:'학습 자료',exact:true}).click();
-    await page.getByRole('textbox',{name:'학습 자료 검색',exact:true}).fill('구분검증');
+    await menu.getByRole('button',{name:'교안',exact:true}).click();
+    await page.getByRole('textbox',{name:'교안 검색',exact:true}).fill('구분검증');
     await expect(page.locator('.material-card')).toHaveCount(2);
     await expect(card(fixtures[0].title)).toBeVisible();await expect(card(fixtures[1].title)).toBeVisible();
     await page.screenshot({path:'/workspace/artifacts/workspace-learning.png',animations:'disabled'});

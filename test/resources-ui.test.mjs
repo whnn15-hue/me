@@ -59,7 +59,7 @@ test('learning and video libraries stay separate through filtering, editing, add
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.doesNotMatch(await page.locator('body').innerText(),/·/);assert.deepEqual(errors,[]);
     mkdirSync('/tmp/resource-preview',{recursive:true});await page.screenshot({path:'/tmp/resource-preview/library-light.png',fullPage:true});
     await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));await page.screenshot({path:'/tmp/resource-preview/library-dark.png',fullPage:true});
-    await page.goto(origin);await page.getByRole('heading',{name:'학습 자료',exact:true}).waitFor();
+    await page.goto(origin);await page.getByRole('heading',{name:'교안',exact:true}).waitFor();
     assert.equal(await page.locator('.material-card').count(),2);assert.equal(await page.getByRole('button',{name:'교원 연수 영상 상세보기'}).count(),1);
     assert.equal(await page.getByLabel('자료 종류 필터',{exact:true}).count(),0);assert.doesNotMatch(await page.locator('.materials-toolbar').innerText(),/배경음악|효과음|템플릿/);
     await page.getByRole('button',{name:'자료 추가',exact:true}).click();const learningEditor=page.getByRole('dialog',{name:'자료 추가',exact:true});

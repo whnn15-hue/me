@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowDownAZ, Code2, Star, Check, Clapperboard, ExternalLink, FileText, LoaderCircle,
+  ArrowDownAZ, Code2, Check, Clapperboard, ExternalLink, FileText, LoaderCircle,
   PencilLine, Plus, Presentation, Search, SlidersHorizontal, Trash2, X, Headphones, Image as ImageIcon,
 } from "lucide-react";
 import { uploadDate } from "./upload-date";
 import HtmlPreview from "./HtmlPreview";
 import AudioPreview from "./AudioPreview";
 import {videoResourceTypes, resourceType, resourceLabel, materialLibrary, audioName, formatBytes, type ResourceType, type MaterialLibrary} from "../../shared/resources.mjs";
-import { FavoriteButton, useFavorites, useLibraryView, ViewSwitch } from "./LibraryControls";
+import { useLibraryView, ViewSwitch } from "./LibraryControls";
 import FileDropzone from "../FileDropzone";
 import { recordTags, materialClassification, materialSubjects, materialTrainings } from "../../shared/material-classification.mjs";
 import { Modal } from "../CareerEditor";
@@ -119,10 +119,8 @@ export interface MaterialsViewProps extends WorkspaceSectionProps {
 export default function MaterialsView({ workspace, careers, onSave, onDelete, onOpen, focusId, onError, purpose = "lecture", library = "learning", importPanel, onFiles, uploading, loadHtmlPreview, loadAudioPreview, initialSection, initialSubject }: MaterialsViewProps) {
   const classroom = purpose === "classroom";
   const video = !classroom && library === "video";
-  const materialLabel = classroom ? "학급 자료" : video ? "영상 작업" : "학습 자료";
+  const materialLabel = classroom ? "학급 자료" : video ? "영상 작업" : "교안";
   const [view, setView] = useLibraryView(`materials-${purpose}-${library}`);
-  const [quick, setQuick] = useState(initialSection === "favorites" ? "favorites" : "all");
-  const favorites = useFavorites({ workspace, onSave, onError });
   const [query, setQuery] = useState("");
   const [subject, setSubject] = useState(initialSubject || "");
   const [training, setTraining] = useState("");
@@ -144,15 +142,14 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
   const allTags = [...new Set(materials.flatMap(item => item.tags))].sort((a, b) => a.localeCompare(b, "ko"));
   const normalizedQuery = query.trim().normalize("NFC").toLocaleLowerCase("ko-KR");
   const filtered = materials.filter(item => {
-    if (quick === "favorites" && !item.favorite || quick === "linked" && !fileUrl(item.fileUrl) || quick === "missing" && fileUrl(item.fileUrl)) return false;
     if (resource && resourceType(item)!==resource) return false;
     if (subject && (subject === "unclassified" ? classified.get(item.id)!.subjects.length > 0 : !classified.get(item.id)!.subjects.includes(subject)) || training && !classified.get(item.id)!.trainings.includes(training)
       || format && item.format !== format || tag && !item.tags.includes(tag)) return false;
     return !normalizedQuery || [resourceLabel(item), item.sourceFile?.name, item.title, item.author, item.eventName, item.summary, item.date, item.format, ...classified.get(item.id)!.subjects, ...classified.get(item.id)!.trainings, ...item.audience, ...item.tags]
       .join(" ").normalize("NFC").toLocaleLowerCase("ko-KR").includes(normalizedQuery);
   }).sort((a, b) => sort === "title" ? a.title.localeCompare(b.title, "ko") : b.createdAt.localeCompare(a.createdAt));
-  const hasFilters = Boolean(resource || query || subject || training || format || tag || quick !== "all");
-  const resetFilters = () => { setResource(""); setQuick("all"); setQuery(""); setSubject(""); setTraining(""); setFormat(""); setTag(""); };
+  const hasFilters = Boolean(resource || query || subject || training || format || tag);
+  const resetFilters = () => { setResource(""); setQuery(""); setSubject(""); setTraining(""); setFormat(""); setTag(""); };
 
   useEffect(() => {
     if (focusId && materials.some(item => item.id === focusId)) setSelectedId(focusId);
@@ -174,10 +171,9 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
       </div>
       {onFiles && <div className="materials-quick-upload"><FileDropzone onFiles={files=>onFiles(files,purpose)} busy={uploading} label="파일을 끌어 놓거나 선택" accept=".pdf,.ppt,.pptx,.potx,.hwp,.hwpx,.docx,.dotx,.xlsx,.xltx,.cell,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a,.flac" hint={video ? "효과음, 음악, 템플릿, 이미지 / 파일당 25 MB" : "문서와 수업 자료 / 파일당 25 MB"} /></div>}
       {importPanel && <details className="materials-import-panel"><summary>준비된 자료 가져오기</summary>{importPanel}</details>}
-      {favorites.error && <p role="alert" className="alert error">{displayLabel(favorites.error)}</p>}
       <div className="materials-toolbar">
         <label className="materials-search"><Search size={17} /><input aria-label={`${materialLabel} 검색`} value={query} onChange={event => setQuery(event.target.value)} placeholder="제목, 내용, 태그 검색" />{query && <button className="icon-button" aria-label="자료 검색어 지우기" onClick={() => setQuery("")}><X size={14} /></button>}</label>
-        <div className="materials-select-filters"><button className="material-favorites-filter" aria-label="즐겨찾는 자료만" title="즐겨찾는 자료만 보기" aria-pressed={quick === "favorites"} onClick={() => setQuick(quick === "favorites" ? "all" : "favorites")}><Star size={19} strokeWidth={2} fill={quick === "favorites" ? "currentColor" : "none"} aria-hidden="true"/></button>
+        <div className="materials-select-filters">
           {video ? <select aria-label="자료 종류 필터" value={resource} onChange={event=>setResource(event.target.value)}><option value="">모든 종류</option>{videoResourceTypes.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}</select> : <select aria-label="과목 필터" value={subject} onChange={event => setSubject(event.target.value)}><option value="">모든 과목</option>{allSubjects.map(value => <option key={value}>{value}</option>)}<option value="unclassified">미분류</option></select>}
           <details className="materials-advanced-filters"><summary className={training || format || tag ? "active" : ""}><SlidersHorizontal size={16}/>상세 필터{Boolean(training || format || tag) && <span className="filter-dot" aria-label="필터 적용됨"/>}</summary><div className="materials-filter-popover">
           {!video && <label>기초훈련<select aria-label="기초훈련 필터" value={training} onChange={event=>setTraining(event.target.value)}><option value="">모든 기초훈련</option>{materialTrainings.map(value=><option key={value}>{value}</option>)}</select></label>}
@@ -190,7 +186,6 @@ export default function MaterialsView({ workspace, careers, onSave, onDelete, on
       {filtered.length ? (
         <div className={`materials-grid library-${view}`}>
           {filtered.map(item => <article className="material-card" data-format={item.format} key={item.id}>
-            <FavoriteButton item={item} pending={favorites.pending} onToggle={favorites.toggle}/>
             <button type="button" className="material-card-open" onClick={() => setSelectedId(item.id)} aria-label={`${displayLabel(item.title)} 상세보기`}>
             <span className="record-file-icon" aria-hidden="true"><FormatIcon format={item.format} size={22}/></span>
             <div className="material-card-body"><h3>{displayLabel(item.title)}</h3><div className="record-tags">{item.tags.slice(0,4).map(value => <span key={value}>#{displayLabel(value)}</span>)}{item.tags.length > 4 && <span>+{item.tags.length-4}</span>}</div></div>

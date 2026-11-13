@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, BookOpen, FileText, FolderOpen, GraduationCap, Layers3, Lightbulb, Link2, ListChecks, Plus, Search, X } from "lucide-react";
+import { materialLibrary } from "../../shared/resources.mjs";
 import type { Career } from "../types";
 import { displayText } from "../display";
 import type { WorkspaceData, WorkspaceKind, WorkspaceItem } from "./types";
 
 export const displayLabel = displayText;
 export const workspaceKindLabels: Record<WorkspaceKind | "career" | "document", string> = {
-  career: "이력", project: "수업", material: "자료실", course: "대학원 강좌",
+  career: "이력", project: "수업", material: "교안", course: "대학원 강좌",
   assignment: "과제", paper: "논문", idea: "메모", document: "공문", photo: "사진", submission: "공모전 제출본",
 };
 export const workspaceKindIcons = {
@@ -14,7 +15,7 @@ export const workspaceKindIcons = {
   assignment: ListChecks, paper: BookOpen, idea: Lightbulb, document: FileText, photo: FolderOpen, submission: FileText,
 };
 export function workspaceItemLabel(item: WorkspaceItem): string {
-  return item.kind === "material" && item.purpose === "classroom" ? "학급 자료" : item.kind === "material" && item.purpose === "research" ? "연구대회 자료" : workspaceKindLabels[item.kind];
+  return item.kind === "material" && item.purpose === "classroom" ? "학급 자료" : item.kind === "material" && item.purpose === "research" ? "연구대회 자료" : item.kind === "material" && materialLibrary(item) === "video" ? "영상 작업" : workspaceKindLabels[item.kind];
 }
 export function linkedRefs(workspace: WorkspaceData, currentRef: string): string[] {
   return [...new Set(workspace.links.flatMap(link => link.from === currentRef ? [link.to] : link.to === currentRef ? [link.from] : []))];

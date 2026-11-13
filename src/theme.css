@@ -125,9 +125,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline-color: va
 .field-legend strong, .field-legend small { color: var(--ui-muted); }
 .material-cover, .project-cover { color: var(--ui-muted); background: var(--ui-inset); }
 .material-subject-badge, .material-card h3, .project-card h2, .grad-card h3, .lecture-institution { color: var(--ui-text); }
-.library-favorite { color: var(--ui-muted); background: var(--ui-surface); border-color: var(--ui-border); }
-.library-favorite[aria-pressed=true] { color: var(--ui-warning-ink); background: var(--ui-warning-soft); border-color: var(--ui-warning-line); }
-.library-favorite:hover { background: var(--ui-inset); }
 .material-file-status.connected, .connection-badge.connected { color: var(--ui-accent-ink); }
 .workspace-related-link, .workspace-link-option, .global-search-result { background: var(--ui-surface); border-color: var(--ui-border); }
 .workspace-related-link:hover, .global-search-result:hover, .workspace-link-option:has(input:checked) { background: var(--ui-inset); }

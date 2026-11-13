@@ -14,7 +14,7 @@ const bundle = await build({
     import {createRoot} from 'react-dom/client';
     import ProjectsView from './src/workspace/ProjectsView';
     const emptyProject = {kind:'project',schoolYear:'2025',grade:'초등 4학년',startDate:'2025-04-01',endDate:'2025-04-03',subjects:[{subject:'사회',unit:'가상 마을'}],drivingQuestion:'학교 주변에는 어떤 이야기가 있을까?',lessonFlow:'탐구 후 나눔',activities:'가상 프로젝트 활동',tools:[],outputs:[],photos:[],reflection:'학생의 질문이 늘었음',tags:['마을'],createdAt:'2025-04-04',updatedAt:'2025-04-04'};
-    const initial={schemaVersion:1,revision:0,items:[{...emptyProject,id:'project-a',title:'가상 마을 탐구'},{...emptyProject,id:'project-b',title:'가상 과학 수업',schoolYear:'2026',subjects:[{subject:'과학',unit:'생태계'}],tags:['생태']}],links:[]};
+    const initial={schemaVersion:1,revision:0,items:[{...emptyProject,id:'project-a',title:'가상 마을 탐구',favorite:true},{...emptyProject,id:'project-b',title:'가상 과학 수업',schoolYear:'2026',subjects:[{subject:'과학',unit:'생태계'}],tags:['생태']}],links:[]};
     const careers=[{id:'career-a',title:'가상 연수 강의',category:'강의·연수',organization:'테스트 기관',startDate:'2025',role:'강사',tags:[]}];
     globalThis.fixture={saved:[],saveRevisions:[],deleted:[],deleteRevisions:[],errors:[],opened:[],failNextSave:false};
     function Fixture(){
@@ -61,6 +61,8 @@ async function fixture(run){
 
 test('project filters and editor preserve structured fields, relationships, and failed-save input',browserOptions,async()=>{
   await fixture(async page=>{
+    assert.equal(await page.getByRole('button',{name:/즐겨찾/}).count(),0);
+    assert.equal(await page.locator('.project-card').count(),2);
     await page.getByLabel('학년도 필터',{exact:true}).selectOption('2026');
     assert.equal(await page.getByRole('button',{name:'가상 마을 탐구 자세히 보기'}).count(),0);
     assert.equal(await page.getByRole('button',{name:'가상 과학 수업 자세히 보기'}).count(),1);
@@ -130,6 +132,13 @@ test('project filters and editor preserve structured fields, relationships, and 
     assert.equal(await page.evaluate(()=>fixture.saved[1].item.reflection),'수정한 성찰');
     await page.getByRole('dialog').getByRole('button',{name:'이력 가상 연수 강의'}).click();
     assert.deepEqual(await page.evaluate(()=>fixture.opened),['career:career-a']);
+    await page.getByRole('dialog').waitFor({state:'hidden'});
+    await page.getByRole('button',{name:'가상 마을 탐구 자세히 보기'}).click();
+    await page.getByRole('button',{name:'수정',exact:true}).click();
+    await page.getByRole('button',{name:'수업 저장',exact:true}).click();
+    await page.waitForFunction(()=>fixture.saved.length===3);
+    assert.equal(await page.evaluate(()=>fixture.saved[2].item.favorite),true);
+    assert.equal(await page.getByRole('button',{name:/즐겨찾/}).count(),0);
   });
 });
 

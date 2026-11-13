@@ -34,9 +34,6 @@
 .home-bottom-actions > button:hover { border-color:var(--ui-accent-line); }
 .active-filter-chips { display:flex; flex-wrap:wrap; gap:7px; padding:12px 0 0; }
 .active-filter-chips > button { display:flex; align-items:center; gap:7px; border:1px solid var(--ui-accent-line); color:var(--ui-accent-ink); background:var(--ui-accent-soft); border-radius:7px; padding:6px 10px; font-size:13px; }
-.command-actions { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 20px; }
-.command-actions button { display:flex; align-items:center; gap:7px; padding:10px 12px; border:1px solid var(--ui-border); border-radius:9px; font-size:13px; }
-.command-actions button:hover { background:var(--ui-inset); }
 .command-center .global-search-tools .search-box { min-height:52px; background:var(--ui-inset); border-radius:12px; border-color:transparent; }
 .command-center .global-search-tools input { font-size:16px; }
 .command-center .global-search-result.selected { background:var(--ui-accent-soft); box-shadow:inset 3px 0 var(--ui-accent); }

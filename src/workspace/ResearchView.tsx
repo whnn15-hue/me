@@ -5,7 +5,6 @@ import { download } from "../api";
 import type { DocumentRecord } from "../types";
 import { materialFileFormat } from "../../shared/material-classification.mjs";
 import { RESEARCH_TYPES } from "../../shared/workspace.mjs";
-import { FavoriteButton, useFavorites } from "./LibraryControls";
 import { displayLabel, LinkPicker, linkedRefs, RelatedLinks, TagsInput } from "./WorkspaceUI";
 import type { MaterialItem, WorkspaceSectionProps } from "./types";
 import "./ResearchView.css";
@@ -101,16 +100,14 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
   const items = useMemo(() => workspace.items.filter(isResearch), [workspace.items]);
   const [query, setQuery] = useState(""), [contest, setContest] = useState("");
   const [type, setType] = useState<ResearchType | "">(RESEARCH_TYPES.includes(initialSection as ResearchType) ? initialSection as ResearchType : "");
-  const [onlyFavorites, setOnlyFavorites] = useState(initialSection === "favorites");
   const [selectedId, setSelectedId] = useState(""), [editing, setEditing] = useState<MaterialItem | null>(null);
   const [deleting, setDeleting] = useState<{ item: MaterialItem; revision: number } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const favorites = useFavorites({ workspace, onSave, onError });
   const selected = items.find(item => item.id === selectedId);
   useEffect(() => { if (focusId && items.some(item => item.id === focusId)) setSelectedId(focusId); }, [focusId, items]);
   const contests = useMemo(() => [...new Map(items.map(item => [researchGroupKey(item), researchGroupLabel(item)])).entries()].sort((a, b) => b[1].localeCompare(a[1], "ko")), [items]);
   const words = query.trim().normalize("NFC").toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const matchesExceptType = (item: MaterialItem) => (!contest || researchGroupKey(item) === contest) && (!onlyFavorites || item.favorite)
+  const matchesExceptType = (item: MaterialItem) => (!contest || researchGroupKey(item) === contest)
     && words.every(word => [item.title, item.eventName, item.author, item.summary, item.sourceFile?.name || "", researchTypeOf(item), ...item.tags].join(" ").normalize("NFC").toLocaleLowerCase().includes(word));
   const filtered = items.filter(item => matchesExceptType(item) && (!type || researchTypeOf(item) === type));
   // Newest year first; inside a contest, by document type order then latest edit.
@@ -151,14 +148,11 @@ export default function ResearchView({ workspace, documents, careers, onSave, on
     <div className="research-toolbar">
       <label className="search-box"><Search size={17} aria-hidden="true" /><input aria-label="연구대회 자료 검색" placeholder="제목, 대회명, 작성자, 메모, 태그 검색" value={query} onChange={event => setQuery(event.target.value)} /></label>
       <label className="select-wrap"><select aria-label="대회 거르기" value={contest} onChange={event => setContest(event.target.value)}><option value="">모든 대회</option>{contests.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <button className="research-favorites-filter" aria-pressed={onlyFavorites} onClick={() => setOnlyFavorites(value => !value)}>즐겨찾기만</button>
     </div>
-    {favorites.error && <p role="alert" className="alert error">{displayLabel(favorites.error)}</p>}
-    <p className="research-count" aria-live="polite">{query || contest || type || onlyFavorites ? "찾은 자료" : "전체 자료"} {filtered.length}개</p>
+    <p className="research-count" aria-live="polite">{query || contest || type ? "찾은 자료" : "전체 자료"} {filtered.length}개</p>
     {groups.length ? groups.map(group => <section className="research-group" key={group.key} aria-label={group.label}>
       <h2>{displayLabel(group.label)} <small>{group.rows.length}개</small></h2>
       <div className="research-grid">{group.rows.map(item => <article className="research-card" key={item.id}>
-        <FavoriteButton item={item} pending={favorites.pending} onToggle={favorites.toggle} />
         <button className="research-card-open" onClick={() => setSelectedId(item.id)} aria-label={`${item.title} 자세히 보기`}>
           <span className="research-card-meta"><span className={`research-type type-${RESEARCH_TYPES.indexOf(researchTypeOf(item))}`}>{displayLabel(researchTypeOf(item))}</span><small>{item.format}</small></span>
           <h3>{displayLabel(item.title)}</h3>

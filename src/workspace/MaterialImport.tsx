@@ -69,12 +69,12 @@ export default function MaterialImport({ driveConnected, disabled = false, onBus
           <input type="checkbox" checked={selected.includes(item.id)} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} />
           <span><strong><FileText size={15} />{displayLabel(item.title)}</strong><small>{item.format}, {displayLabel(prepared.documents.find(document => document.id === documentId)?.name || "")}</small><p>{displayLabel(item.summary)}</p><span className="tags">{item.tags.map(tag => <span key={tag}>#{displayLabel(tag)}</span>)}</span></span>
         </label>)}</fieldset>
-        <p className="material-import-note">원본은 연결한 드라이브에 저장하고, 여기에는 파일 링크와 활용 메모를 추가합니다. 기존 수업과 강의 자료는 유지합니다.</p>
+        <p className="material-import-note">원본은 연결한 드라이브에 저장하고, 여기에는 파일 링크와 활용 메모를 추가합니다.</p>
         <div className="material-import-actions"><button className="button primary" disabled={locked || !driveConnected || !selected.length} onClick={() => void save()}>{busy === "saving" ? <LoaderCircle className="spin" size={16} /> : <CloudUpload size={16} />}{busy === "saving" ? "학급 자료 추가 중" : "드라이브에 보관하고 추가"}</button>{busy === "saving" && <button className="text-button" disabled={progress?.phase === "saving" || progress?.phase === "done"} onClick={() => controller.current?.abort()}>중단하기</button>}</div>
       </>}
       {busy === "saving" && progress && <div className="material-import-progress" role="status"><span>{progress.phase === "saving" ? "자료 목록 저장 중" : progress.phase === "validating" ? "원본과 기존 자료 확인 중" : "드라이브에 원본 보관 중"} {progress.completed} / {progress.total}</span><progress aria-label="학급 자료 가져오기 진행률" max={Math.max(1, progress.total)} value={progress.completed} /></div>}
       {result && <p className="material-import-result" role="status"><Check size={18} />학급 자료 {result.added}개 추가, 기존 자료 {result.duplicates}개 유지</p>}
-      {!driveConnected && <p className="material-import-note">백업 및 설정에서 구글 드라이브를 연결하면 원본을 저장할 수 있어요. 자료 목록은 먼저 확인할 수 있습니다.</p>}
+      {!driveConnected && <p className="material-import-note">백업 및 설정에서 드라이브를 연결하면 원본을 저장할 수 있어요. 자료 목록은 먼저 확인할 수 있습니다.</p>}
       {error && <div className="alert error" role="alert">{displayLabel(error)}</div>}
     </div>
   </details>;

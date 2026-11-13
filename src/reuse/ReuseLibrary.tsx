@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, Download, FileText, Image, Plus, Search, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Download, FileText, Image, Plus, Search, Trash2, X } from "lucide-react";
 import { api, download, loadDocumentBlob, saveBlob } from "../api";
 import { Modal } from "../CareerEditor";
 import FileDropzone from "../FileDropzone";

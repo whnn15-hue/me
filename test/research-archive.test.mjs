@@ -85,7 +85,7 @@ test('local server: research original, career link and edits survive ZIP restore
 });
 
 const browserPath = ['/usr/bin/chromium', '/opt/pw-browsers/chromium'].find(path => existsSync(path));
-test('research view groups by year and contest, filters by type and favorites, uploads through the archive path and keeps lecture lists separate', { skip: !browserPath }, async () => {
+test('research view groups by year and contest, filters by type without favorite controls, uploads through the archive path and keeps lecture lists separate', { skip: !browserPath }, async () => {
   const sha = 'b'.repeat(64);
   const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import {useState} from 'react';import {createRoot} from 'react-dom/client';import ResearchView from './src/workspace/ResearchView';import WorkspaceTree from './src/WorkspaceTree';
@@ -96,7 +96,7 @@ const make=(id,fields)=>normalizeWorkspaceItem({id,kind:'material',purpose:'rese
 const initial={schemaVersion:1,revision:0,links:[],items:[
   make('r1',{title:'2026 계획서',researchType:'계획서',eventName:'현장교육연구대회',date:'2026',sourceFile:{name:'계획서.pdf',size:2048,sha256:'${sha}'}}),
   make('r2',{title:'2026 보고서 최종',researchType:'보고서',eventName:'현장교육연구대회',date:'2026',summary:'최종 제출본'}),
-  make('r3',{title:'2024 발표자료',researchType:'발표자료',eventName:'교육자료전',date:'2024',favorite:true}),
+  make('r3',{title:'2024 발표자료',researchType:'발표자료',eventName:'교육자료전',date:'2024',favorite:true,fileUrl:'https://drive.google.com/file/d/legacy-presentation/view'}),
   normalizeWorkspaceItem({id:'lecture1',kind:'material',title:'일반 강의 자료',createdAt:stamp,updatedAt:stamp}),
 ]};
 const documents=[{id:'doc1',name:'계획서.pdf',size:2048,mime:'application/pdf',createdAt:stamp,recordIds:[],sha256:'${sha}'}];
@@ -118,7 +118,7 @@ createRoot(document.getElementById('root')).render(<Fixture/>);` }, bundle: true
     // The compact sidebar keeps research reports separate from learning materials.
     const reportLink = page.locator('#tree').getByRole('button', { name: '연구대회 보고서', exact: true });
     assert.equal(await reportLink.getAttribute('aria-current'), 'page');
-    assert.equal(await page.locator('#tree').getByRole('button', { name: '학습 자료', exact: true }).getAttribute('aria-current'), null);
+    assert.equal(await page.locator('#tree').getByRole('button', { name: '교안', exact: true }).getAttribute('aria-current'), null);
     // Newest year first, grouped by contest.
     assert.deepEqual(await page.locator('.research-group h2').allTextContents(), ['2026년 현장교육연구대회 2개', '2024년 교육자료전 1개']);
     assert.equal(await page.locator('.research-card').count(), 3);
@@ -127,11 +127,14 @@ createRoot(document.getElementById('root')).render(<Fixture/>);` }, bundle: true
     await page.getByRole('group', { name: '자료 종류로 거르기' }).getByRole('button', { name: /^보고서/ }).click();
     assert.equal(await page.locator('.research-card').count(), 1);
     await page.getByRole('group', { name: '자료 종류로 거르기' }).getByRole('button', { name: /^전체/ }).click();
-    await page.getByRole('button', { name: '즐겨찾기만' }).click();
-    assert.equal(await page.locator('.research-card').count(), 1);
-    await page.getByRole('button', { name: '즐겨찾기만' }).click();
-    await page.getByRole('button', { name: '2026 보고서 최종 즐겨찾기' }).click();
-    await page.waitForFunction(() => fixture.saves.some(item => item.id === 'r2' && item.favorite === true));
+    assert.equal(await page.getByRole('button', { name: /즐겨찾/ }).count(), 0);
+    assert.equal(await page.locator('.research-card').count(), 3);
+    assert.deepEqual(await page.evaluate(() => fixture.saves), []);
+    await page.getByRole('button', { name: '2024 발표자료 자세히 보기' }).click();
+    await page.getByRole('button', { name: '자료 수정', exact: true }).click();
+    await page.getByRole('button', { name: '자료 저장', exact: true }).click();
+    await page.waitForFunction(() => fixture.saves.some(item => item.id === 'r3'));
+    assert.equal(await page.evaluate(() => fixture.saves.find(item => item.id === 'r3').favorite), true);
     // New file goes through onUploadFile and is saved as a research material with its original identity.
     await page.getByRole('button', { name: '자료 보관' }).first().click();
     await page.getByLabel('연구대회 원본 파일').setInputFiles({ name: '2025 부록.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 synthetic') });

@@ -19,6 +19,12 @@ export function celebrationStats(model: Model, documents: DocumentRecord[]) {
 }
 
 export interface Achievement { id: string; title: string; year: number; section: string; grade: string; organization: string }
+/** Pick only from this year's eligible records, without immediately repeating
+ * the previous preview when another record is available. Never mutate records. */
+export function pickYearRecord<T extends { id: string }>(records: readonly T[], previousId?: string, random: () => number = Math.random): T | undefined {
+  const candidates = records.length > 1 ? records.filter(record => record.id !== previousId) : records;
+  return candidates.length ? candidates[Math.floor(random() * candidates.length)] : undefined;
+}
 /** A random selection (owner request) of at most `max` award/competition records that
  *  have already started, shown newest first. `random` is injectable for tests. */
 export function pickAchievements(careers: Career[], documents: DocumentRecord[], today: string, max = 3, random: () => number = Math.random): Achievement[] {

@@ -1,5 +1,5 @@
 export const resourceTypes = [
-  {id:'lecture',label:'강의 자료'}, {id:'sound',label:'효과음과 오디오'},
+  {id:'lecture',label:'교안'}, {id:'sound',label:'효과음과 오디오'},
   {id:'music',label:'배경음악'}, {id:'template',label:'템플릿'},
   {id:'image',label:'이미지'}, {id:'video',label:'영상'}, {id:'other',label:'기타'},
 ];

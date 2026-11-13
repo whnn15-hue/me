@@ -23,7 +23,7 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
     await expect(menu.getByRole('button',{name:'홈',exact:true})).toHaveAttribute('aria-current','page');
     await expect(menu.getByText('대학원', {exact:true})).toHaveCount(0);
-    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','학습 자료','영상 작업','연구 자료']);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','교안','연구 자료','영상 작업']);
     await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
     await expect(menu.getByRole('button',{name:'백업 및 설정',exact:true})).toHaveCount(0);
     await expect(menu.getByRole('button',{name:'사진 보관함',exact:true})).toHaveCount(0);
@@ -64,7 +64,9 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await expect(page.locator('.career-row').filter({hasText:'홈검증 오늘 특강'})).toBeVisible();
     await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
     await menu.getByRole('button',{name:'홈',exact:true}).click();
-    await page.getByRole('region',{name:'즐겨찾는 기록',exact:true}).getByRole('button',{name:/홈검증 최근 강의안/}).click();
+    await expect(page.getByRole('region',{name:'즐겨찾는 기록',exact:true})).toHaveCount(0);
+    await menu.getByRole('button',{name:'교안',exact:true}).click();
+    await page.getByRole('button',{name:'홈검증 최근 강의안 상세보기',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'홈검증 최근 강의안',exact:true})).toBeVisible();
     await expect(page.getByRole('dialog')).not.toContainText('제작자 또는 출처');
     await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).first().click();
