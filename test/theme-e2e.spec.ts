@@ -77,7 +77,7 @@ test('desktop palette follows the system live across all workspaces without losi
   const root=page.locator('.main-shell');
   await expect(root).toHaveCSS('background-color','rgb(243, 243, 243)');
   await expect(page.getByRole('region',{name:'기록 달력',exact:true})).toHaveCount(0);
-  await expect(page.locator('.growth-card').first()).toHaveCSS('background-color','rgb(255, 255, 255)');
+  await expect(page.locator('.atlas-panel')).toHaveCSS('background-color','rgb(255, 255, 255)');
   await page.evaluate(()=>document.fonts.ready);
   await page.screenshot({path:'/tmp/introduce-me-neutral-light.png',animations:'disabled'});
   await page.getByRole('button',{name:'경력 추가',exact:true}).click();
@@ -91,10 +91,10 @@ test('desktop palette follows the system live across all workspaces without losi
   await expect(title).toHaveCSS('color','rgb(237, 237, 237)');
   await page.screenshot({path:'/tmp/introduce-me-dark-editor.png',animations:'disabled'});
   await editor.getByRole('button',{name:'취소',exact:true}).click();
-  await expect(page.locator('.growth-card').first()).toHaveCSS('background-color','rgb(32, 32, 32)');
+  await expect(page.locator('.atlas-panel')).toHaveCSS('background-color','rgb(32, 32, 32)');
   await page.screenshot({path:'/tmp/introduce-me-neutral-dark.png',animations:'disabled'});
   // Every tab uses the same semantic surfaces, including its editor.
-  for(const [tab,add,dialog] of [['수업','수업 추가','새 수업 기록'],['강의 자료','자료 추가','강의 자료 추가']]){
+  for(const [tab,add,dialog] of [['수업','수업 추가','새 수업 기록'],['교안','자료 추가','자료 추가']]){
     await main.getByRole('button',{name:tab,exact:true}).click();
     await expect(root).toHaveCSS('background-color','rgb(20, 20, 20)');
     await page.getByRole('button',{name:add,exact:true}).first().click();
@@ -103,18 +103,20 @@ test('desktop palette follows the system live across all workspaces without losi
     await expect(modal.locator('input').first()).toHaveCSS('color','rgb(237, 237, 237)');
     await modal.getByRole('button',{name:'취소',exact:true}).click();
   }
-  await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'백업 및 설정',exact:true}).click();
+  await page.getByRole('button',{name:'보관함과 설정',exact:true}).click();
+  await page.getByRole('menuitem',{name:'백업 및 설정',exact:true}).click();
   await expect(page.locator('.settings-card').first()).toHaveCSS('background-color','rgb(32, 32, 32)');
   await page.screenshot({path:'/tmp/introduce-me-dark-settings.png',animations:'disabled'});
   await page.getByRole('navigation',{name:'주 메뉴',exact:true}).getByRole('button',{name:'홈',exact:true}).click();
-  await page.locator('.global-search-trigger').click();
-  await expect(page.getByRole('dialog')).toHaveCSS('background-color','rgb(32, 32, 32)');
+  await page.getByRole('combobox',{name:'모든 기록 검색어',exact:true}).focus();
+  await expect(page.getByRole('region',{name:'통합 검색 결과',exact:true})).toHaveCSS('background-color','rgb(32, 32, 32)');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.reload();
   await expect(root).toHaveCSS('background-color','rgb(20, 20, 20)');
   await page.emulateMedia({colorScheme:'light'});
   await expect(root).toHaveCSS('background-color','rgb(243, 243, 243)');
-  await expect(page.locator('.growth-card').first()).toHaveCSS('background-color','rgb(255, 255, 255)');
+  await expect(page.locator('.atlas-panel')).toHaveCSS('background-color','rgb(255, 255, 255)');
   expect(await (await page.request.get('/api/data')).json()).toEqual(original);
   expect(await (await page.request.get('/api/workspace')).json()).toEqual(originalWorkspace);
   expect(errors).toEqual([]);

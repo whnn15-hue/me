@@ -79,7 +79,14 @@ test('desktop growth journey animates real records, supports reduced motion and 
   expect(Math.abs(alignment.center-alignment.cards)).toBeLessThanOrEqual(2);
 
   const previewBox=await preview.boundingBox(),canvasBox=await map.locator('.atlas-canvas').boundingBox();
-  expect(previewBox!.y+previewBox!.height).toBeLessThanOrEqual(canvasBox!.y+11);
+  // The route intentionally climbs behind the title, but the selected title remains readable.
+  expect(canvasBox!.y).toBeLessThan(previewBox!.y+previewBox!.height);
+  await expect(preview.getByRole('button').first()).toBeVisible();
+  const titleVisible=await preview.locator('strong').evaluate(element=>{
+    const box=element.getBoundingClientRect(),hit=document.elementFromPoint(box.x+box.width/2,box.y+box.height/2);
+    return Boolean(hit&&(element.contains(hit)||hit.contains(element)));
+  });
+  expect(titleVisible).toBe(true);
 
   const trail=map.locator('.atlas-reveal');
   await expect(trail).toHaveCSS('animation-name','atlas-reveal');
@@ -89,8 +96,7 @@ test('desktop growth journey animates real records, supports reduced motion and 
   const reach=await map.evaluate(root=>{const line=root.querySelector('.atlas-trail')!.getBoundingClientRect(),pins=[...root.querySelectorAll('.atlas-pin-core')].map(pin=>pin.getBoundingClientRect());const last=pins.at(-1)!;return {lineEnd:line.right,pin:last.left+last.width/2,reveal:getComputedStyle(root.querySelector('.atlas-reveal')!).transform};});
   expect(reach.lineEnd).toBeGreaterThanOrEqual(reach.pin-2);
   expect(['none','matrix(1, 0, 0, 1, 0, 0)']).toContain(reach.reveal);
-  await page.getByRole('button',{name:'성장 지도 모션 다시 보기',exact:true}).click();
-  await expect.poll(()=>trail.evaluate(element=>element.getAnimations().some(animation=>animation.playState==='running'))).toBe(true);
+  await expect(page.getByRole('button',{name:'성장 지도 모션 다시 보기',exact:true})).toHaveCount(0);
   await page.emulateMedia({reducedMotion:'reduce'});
   await expect(trail).toHaveCSS('animation-name','none');
   await expect(map.locator('.atlas-pin').first()).toHaveCSS('animation-name','none');
@@ -131,7 +137,11 @@ test('desktop growth journey animates real records, supports reduced motion and 
   await expect(page.getByRole('button',{name:/즐겨찾/})).toHaveCount(0);
   await main.getByRole('button',{name:'홈',exact:true}).click();
   const growth=page.getByRole('region',{name:'나의 성장',exact:true});
-  await growth.getByRole('button',{name:'접기',exact:true}).click();await expect(map).toHaveCount(0);await page.reload();await expect(map).toHaveCount(0);await growth.getByRole('button',{name:'펼치기',exact:true}).click();
+  await expect(growth.getByRole('button',{name:/^(접기|펼치기)$/})).toHaveCount(0);
+  await page.evaluate(()=>localStorage.setItem('introduce-me-growth-open','false'));
+  await page.reload();
+  await expect(map).toBeVisible();
+  await expect(map.locator('.atlas-pin')).toHaveCount(currentYear-2020+1);
   await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/growth-e2e-desktop.png',animations:'disabled'});
   } finally {
     for(const item of created)expect((await page.request.delete(`/api/careers/${item.id}`)).ok()).toBeTruthy();

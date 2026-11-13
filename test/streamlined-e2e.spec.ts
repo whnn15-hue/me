@@ -198,7 +198,7 @@ test('six workspaces separate learning from video and keep tools and research un
     const seeded=await (await page.request.get('/api/workspace')).json();
     await page.goto('/#home');
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
-    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','교안','연구 자료','영상 작업']);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','연구 자료','교안','영상 작업']);
     await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
     await expect(page.getByText('작업 공간',{exact:true})).toHaveCount(0);
     await page.evaluate(()=>document.fonts.ready);

@@ -68,3 +68,9 @@
 .home-focus .evidence-focus-button.complete .evidence-focus-total { color:var(--ui-muted); }
 @media (max-width:1000px) { .home-focus .home-secondary-actions { gap:15px; }.home-focus .home-support-row { gap:12px; } }
 @media (prefers-reduced-motion:reduce) { .home-focus .evidence-focus-button { transition:none; } }
+
+/* The desktop home is a compact dashboard, with natural scrolling as fallback. */
+.app-shell.is-home .main-content { padding-top:20px; padding-bottom:18px; }
+.app-shell.is-home .home-focus .home-support-row { margin:12px 0 0; gap:12px; }
+.app-shell.is-home .home-focus .evidence-focus-button { min-height:46px; padding-block:6px; }
+.app-shell.is-home .home-focus .home-secondary-actions { gap:16px; }

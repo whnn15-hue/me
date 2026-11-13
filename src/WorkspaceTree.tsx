@@ -16,8 +16,8 @@ const entries = [
   { view: "home", label: "홈", icon: House },
   { view: "careers", label: "이력", icon: Layers3 },
   { view: "projects", label: "수업", icon: BookOpen },
-  { view: "materials", label: "교안", icon: FileText },
   { view: "research", label: "연구 자료", icon: FileStack },
+  { view: "materials", label: "교안", icon: FileText },
   { view: "video", label: "영상 작업", icon: Clapperboard },
 ] as const;
 const careerIcons: Partial<Record<Category | "전체", typeof Layers3>> = {

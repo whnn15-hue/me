@@ -57,7 +57,7 @@ async function fixture(run, reducedMotion = 'no-preference') {
       if (new URL(route.request().url()).origin === origin) return route.continue();
       external.push(route.request().url()); return route.abort();
     });
-    await page.addInitScript(() => sessionStorage.setItem('c-archive-home-intro-v1', 'played'));
+    await page.addInitScript(() => { sessionStorage.setItem('c-archive-home-intro-v1', 'played'); localStorage.setItem('introduce-me-growth-open', 'false'); });
     const now = new Date('2026-11-13T03:00:00Z');
     await page.clock.install({ time: now });
     await page.clock.pauseAt(new Date(now.getTime() + 1000));
@@ -156,7 +156,7 @@ test('reading and explicit pause hold the preview while year pins retain their r
   });
 });
 
-test('hidden or collapsed maps do not advance, and reduced motion starts paused with manual playback available', browserOptions, async () => {
+test('maps stay visible despite old collapse preferences, hidden tabs pause, and reduced motion allows manual playback', browserOptions, async () => {
   await fixture(async page => {
     await play(page).waitFor();
     const original = await title(page).innerText();
@@ -169,13 +169,9 @@ test('hidden or collapsed maps do not advance, and reduced motion starts paused 
     await page.evaluate(() => fixture.visibility(false));
     await advance(page, 4999); await expect(title(page)).toHaveText(hidden);
     await advance(page, 1); await expect(title(page)).not.toHaveText(hidden);
-    await page.getByRole('button', { name: '접기', exact: true }).click();
-    await expect(page.locator('.atlas-milestone')).toHaveCount(0);
-    await advance(page, 20000);
-    await page.getByRole('button', { name: '펼치기', exact: true }).click();
-    await away(page); const expanded = await title(page).innerText();
-    await advance(page, 4999); await expect(title(page)).toHaveText(expanded);
-    await advance(page, 1); await expect(title(page)).not.toHaveText(expanded);
+    await expect(page.getByRole('button', { name: '접기', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '성장 지도 모션 다시 보기', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '연도별 성장 지도', exact: true })).toBeVisible();
   }, 'reduce');
 });
 

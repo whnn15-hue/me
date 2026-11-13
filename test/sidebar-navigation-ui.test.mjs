@@ -63,7 +63,7 @@ async function fixture(run, saved) {
 test('career disclosure selects existing presentation categories, preserves records, and keeps video last',browserOptions,async()=>{
   await fixture(async page=>{
     const menu=page.getByRole('navigation',{name:'주 메뉴'});
-    assert.deepEqual(await menu.locator('.tree-parent > .nav-item').allTextContents(),['홈','이력','수업','교안','연구 자료','영상 작업']);
+    assert.deepEqual(await menu.locator('.tree-parent > .nav-item').allTextContents(),['홈','이력','수업','연구 자료','교안','영상 작업']);
     assert.equal(await menu.locator('#tree-careers').count(),0);
     await menu.getByRole('button',{name:'이력 하위 메뉴 펼치기',exact:true}).click();
     assert.equal(await menu.getByRole('button',{name:'이력 하위 메뉴 접기',exact:true}).getAttribute('aria-expanded'),'true');

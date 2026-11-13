@@ -23,7 +23,7 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     const menu=page.getByRole('navigation',{name:'주 메뉴',exact:true});
     await expect(menu.getByRole('button',{name:'홈',exact:true})).toHaveAttribute('aria-current','page');
     await expect(menu.getByText('대학원', {exact:true})).toHaveCount(0);
-    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','교안','연구 자료','영상 작업']);
+    await expect(menu.locator('.tree-parent > .nav-item')).toHaveText(['홈','이력','수업','연구 자료','교안','영상 작업']);
     await expect(menu.getByText('보관 도구',{exact:true})).toHaveCount(0);
     await expect(menu.getByRole('button',{name:'백업 및 설정',exact:true})).toHaveCount(0);
     await expect(menu.getByRole('button',{name:'사진 보관함',exact:true})).toHaveCount(0);
@@ -58,8 +58,7 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await page.screenshot({path:'/workspace/artifacts/workspace-home-light.png',animations:'disabled'});
     // The per-year card was removed; the growth map opens the year in the career list instead.
     await expect(page.getByRole('region',{name:'선택한 연도 기록'})).toHaveCount(0);
-    const growthToggle=page.getByRole('button',{name:'펼치기',exact:true});
-    if(await growthToggle.isVisible())await growthToggle.click();
+    await expect(home.getByRole('button',{name:/^(접기|펼치기)$/})).toHaveCount(0);
     await page.getByRole('button',{name:new RegExp(`^${today.slice(0,4)}년 이력 보기`)}).click();
     await expect(page.locator('.career-row').filter({hasText:'홈검증 오늘 특강'})).toBeVisible();
     await expect(page.getByRole('region',{name:'경력 요약'})).toHaveCount(0);
@@ -90,12 +89,65 @@ test('desktop home emphasizes missing evidence, keeps libraries accessible and r
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await expect(page.getByRole('region',{name:'연도별 성장 지도'})).toBeVisible();
     await page.screenshot({path:'/workspace/artifacts/workspace-home-dark.png',animations:'disabled'});
-    await page.setViewportSize({width:1280,height:900});
-    await expect(page.getByRole('button',{name:'모든 기록 검색 열기'})).toBeInViewport();
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    for(const viewport of [{width:1440,height:900},{width:1366,height:768}]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(()=>window.scrollTo(0,0));
+      await expect(page.getByRole('combobox',{name:'모든 기록 검색어',exact:true})).toBeInViewport();
+      await expect(home.locator('.home-support-row')).toBeInViewport({ratio:1});
+      const layout=await page.evaluate(()=>({width:document.documentElement.scrollWidth,height:document.documentElement.scrollHeight,screenWidth:innerWidth,screenHeight:innerHeight}));
+      expect(layout.width).toBeLessThanOrEqual(layout.screenWidth);
+      expect(layout.height).toBeLessThanOrEqual(layout.screenHeight+2);
+      for(const stat of await home.locator('.atlas-hero-stats > div').all()) {
+        await expect(stat.locator('dt')).toHaveCSS('text-align','center');
+        await expect(stat.locator('dd')).toHaveCSS('justify-content','center');
+      }
+      for(const pin of await home.locator('.atlas-pin:not(:disabled)').all()) {
+        const hit=await pin.evaluate(element=>{
+          const core=element.querySelector('.atlas-pin-core')!.getBoundingClientRect();
+          const target=document.elementFromPoint(core.x+core.width/2,core.y+core.height/2);
+          return {name:element.getAttribute('aria-label'),clickable:target?.closest('.atlas-pin')===element};
+        });
+        expect(hit.clickable,`${viewport.width}x${viewport.height}: ${hit.name}`).toBe(true);
+      }
+      await page.screenshot({path:`/workspace/artifacts/dashboard-${viewport.width}x${viewport.height}.png`,animations:'disabled'});
+    }
+    const input=page.getByRole('combobox',{name:'모든 기록 검색어',exact:true});
+    await input.fill('홈검증 오늘 특강');
+    await expect(input).toBeFocused();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const results=page.getByRole('region',{name:'통합 검색 결과',exact:true});
+    await expect(results.getByRole('listbox',{name:'검색 결과',exact:true}).getByRole('option').first()).toContainText('홈검증 오늘 특강');
+    await input.press('Enter');
+    await expect(page.getByRole('dialog',{name:'경력 상세',exact:true})).toContainText('홈검증 오늘 특강');
+    await page.getByRole('button',{name:'상세 닫기',exact:true}).click();
+    await menu.getByRole('button',{name:'홈',exact:true}).click();
+    await page.keyboard.press('Control+k');
+    await expect(input).toBeFocused();
+    await input.fill('');
+    await input.press('Escape');
+    await expect(results).toHaveCount(0);
     await page.getByRole('button',{name:'경력 추가',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'새 경력 기록하기',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'취소',exact:true}).click();
+    await page.setViewportSize({width:1440,height:900});
+    await menu.getByRole('button',{name:'경력 아카이브',exact:true}).click();
+    const selectedCategory=page.locator('.career-collections button.active');
+    await expect(selectedCategory).toHaveAttribute('aria-pressed','true');
+    const categoryContrast=await selectedCategory.evaluate(element=>{
+      const style=getComputedStyle(element),inactive=getComputedStyle(element.parentElement!.querySelector('button:not(.active)')!);
+      const luminance=(color:string)=>{
+        const channels=color.match(/[\d.]+/g)!.slice(0,3).map(value=>Number(value)/255).map(value=>value<=.04045?value/12.92:((value+.055)/1.055)**2.4);
+        return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;
+      };
+      const foreground=luminance(style.color),background=luminance(style.backgroundColor);
+      return {contrast:(Math.max(foreground,background)+.05)/(Math.min(foreground,background)+.05),distinct:style.backgroundColor!==inactive.backgroundColor};
+    });
+    expect(categoryContrast.distinct).toBe(true);
+    expect(categoryContrast.contrast).toBeGreaterThanOrEqual(4.5);
+    await page.screenshot({path:'/workspace/artifacts/dashboard-career-dark.png',animations:'disabled'});
+    await menu.getByRole('button',{name:'연구 자료',exact:true}).click();
+    await expect(page.getByRole('heading',{name:/^연구대회 자료/})).toBeVisible();
+    await page.screenshot({path:'/workspace/artifacts/dashboard-research-dark.png',animations:'disabled'});
     expect(errors).toEqual([]);
   } finally {
     if(careerId)expect((await page.request.delete(`/api/careers/${careerId}`)).ok()).toBeTruthy();

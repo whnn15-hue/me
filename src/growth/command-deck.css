@@ -1,0 +1,69 @@
+/* A single desktop stage: the growth trail shares space with the rotating record.
+   Its height responds to the viewport, while content may still grow naturally. */
+.growth-atlas.atlas-primary { margin:0; }
+.growth-atlas.atlas-primary .atlas-heading { margin:0 0 14px; }
+.growth-atlas.atlas-primary .atlas-heading h2 { font-size:28px; letter-spacing:-.045em; }
+.growth-atlas.atlas-primary .atlas-panel { border-radius:22px; border-color:color-mix(in srgb,var(--ui-accent-line) 48%,var(--ui-border)); background:var(--ui-surface); box-shadow:inset 0 1px 0 color-mix(in srgb,var(--ui-accent) 8%,transparent),0 12px 38px rgb(var(--ui-shadow-rgb) / .04); }
+.growth-atlas.atlas-primary .atlas-panel::before { content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; background:radial-gradient(ellipse at 85% 35%,color-mix(in srgb,var(--ui-accent) 7%,transparent),transparent 65%); }
+.growth-atlas.atlas-primary .atlas-hero { grid-template-columns:minmax(0,1fr) minmax(400px,.98fr); gap:22px; padding:21px 28px 5px; }
+.growth-atlas.atlas-primary .atlas-hero-title { font-size:clamp(22px,1.8vw,28px); line-height:1.3; }
+.growth-atlas.atlas-primary .atlas-hero-copy { gap:7px; }
+.growth-atlas.atlas-primary .atlas-hero-copy p { display:none; }
+.growth-atlas.atlas-primary .atlas-hero-glow { background:radial-gradient(ellipse at 76% 40%,color-mix(in srgb,var(--ui-accent) 8%,transparent),transparent 68%); }
+.growth-atlas.atlas-primary .atlas-hero .atlas-range { font-size:14px; }
+.growth-atlas.atlas-primary .atlas-hero .atlas-range em { font-size:12px; }
+.growth-atlas.atlas-primary .atlas-hero-stats { grid-template-columns:repeat(var(--stat-count,4),minmax(0,1fr)); gap:9px; }
+.growth-atlas.atlas-primary .atlas-hero-stats > div { justify-items:center; text-align:center; gap:8px; padding:12px 8px; border-radius:14px; box-shadow:none; background:color-mix(in srgb,var(--ui-surface) 78%,transparent); }
+.growth-atlas.atlas-primary .atlas-hero-stats dt { font-size:13px; }
+.growth-atlas.atlas-primary .atlas-hero-stats dd { justify-content:center; width:100%; }
+.growth-atlas.atlas-primary .atlas-hero-stats .count-up { min-width:0 !important; font-size:32px; text-align:center; }
+.growth-atlas.atlas-primary .atlas-hero-stats small { font-size:13px; }
+.growth-atlas.atlas-primary .atlas-stage { --stage-height:clamp(260px,calc(100svh - 550px),380px); padding-bottom:36px; display:grid; grid-template-areas:"scene"; position:relative; isolation:isolate; min-width:0; }
+.growth-atlas.atlas-primary .atlas-stage::before { content:""; position:absolute; inset:18px 24px 10px; z-index:-1; pointer-events:none; background-image:linear-gradient(to right,color-mix(in srgb,var(--ui-accent) 6%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--ui-accent) 6%,transparent) 1px,transparent 1px); background-size:64px 52px; mask-image:radial-gradient(ellipse at 65% 55%,#000,transparent 73%); }
+.growth-atlas.atlas-primary .atlas-stage .atlas-canvas { grid-area:scene; height:var(--stage-height); margin:0 18px; z-index:3; pointer-events:none; }
+.growth-atlas.atlas-primary .atlas-pin { pointer-events:auto; }
+.growth-atlas.atlas-primary .atlas-horizon { background:radial-gradient(ellipse at 90% 20%,color-mix(in srgb,var(--ui-accent) 14%,transparent),transparent 53%); mask-image:radial-gradient(ellipse,#000 20%,transparent 75%); }
+.growth-atlas.atlas-primary .atlas-contours { opacity:.24; }
+.growth-atlas.atlas-primary .atlas-watermark { right:3%; bottom:9%; opacity:.035; font-size:clamp(120px,14vw,205px); }
+.growth-atlas.atlas-primary .atlas-trail { stroke-width:2.4; }
+.growth-atlas.atlas-primary .atlas-trail-glow { stroke-width:15; opacity:.42; }
+.growth-atlas.atlas-primary .atlas-milestone.career-carousel { grid-area:scene; align-self:start; justify-self:center; z-index:2; width:72%; max-width:860px; min-height:0; margin:-6px 0 0; padding:7px 14px 12px; gap:7px; pointer-events:none; }
+.growth-atlas.atlas-primary .career-carousel-content, .growth-atlas.atlas-primary .career-carousel-controls { pointer-events:auto; }
+.growth-atlas.atlas-primary .career-carousel-slide { gap:6px; min-height:96px; }
+.growth-atlas.atlas-primary .career-carousel-meta { font-size:16px; min-height:21px; gap:10px; }
+.growth-atlas.atlas-primary .career-carousel-meta > :not(:first-child) { font-size:13px; }
+.growth-atlas.atlas-primary .career-carousel .atlas-milestone-record { gap:5px; grid-template-rows:auto; }
+.growth-atlas.atlas-primary .career-carousel .atlas-milestone-record strong { min-height:2.7em; font-size:clamp(23px,1.8vw,29px); line-height:1.35; text-shadow:0 0 16px var(--ui-surface),0 2px 6px var(--ui-surface),0 -2px 6px var(--ui-surface); }
+.growth-atlas.atlas-primary .career-carousel .atlas-milestone-record small { font-size:14px; text-shadow:0 0 8px var(--ui-surface),0 0 4px var(--ui-surface); }
+.growth-atlas.atlas-primary .career-carousel-controls { position:absolute; top:calc(var(--stage-height) + 4px); padding:2px 7px; border:1px solid color-mix(in srgb,var(--ui-border) 80%,transparent); border-radius:24px; background:color-mix(in srgb,var(--ui-surface) 92%,transparent); backdrop-filter:blur(8px); min-height:30px; }
+.growth-atlas.atlas-primary .career-carousel-controls button { width:28px; height:28px; flex-basis:28px; }
+.growth-atlas.atlas-primary .career-carousel-controls button:last-child { margin-left:5px; border:0; }
+.growth-atlas.atlas-primary .atlas-pin-label { margin-top:9px; padding:4px 7px; gap:5px; }
+.growth-atlas.atlas-primary .atlas-pin-label strong { font-size:22px; }
+.growth-atlas.atlas-primary .atlas-pin-label small { font-size:12px; }
+.growth-atlas.atlas-primary .atlas-pin.is-empty .atlas-pin-label strong { font-size:19px; }
+.growth-atlas.atlas-primary .atlas-present { bottom:calc(100% + 15px); padding:5px 9px; font-size:11px; }
+.growth-atlas.atlas-primary .atlas-reel { gap:8px; padding:4px 28px 16px; }
+.growth-atlas.atlas-primary .atlas-reel-label { font-size:13px; }
+.growth-atlas.atlas-primary .atlas-reel ul { gap:10px; max-width:1060px; }
+.growth-atlas.atlas-primary .atlas-reel button { min-height:52px; padding:7px 10px; border-radius:12px; }
+.growth-atlas.atlas-primary .atlas-reel-grade { font-size:11px; padding:3px 6px; }
+.growth-atlas.atlas-primary .atlas-footer { padding:12px 28px; font-size:12px; }
+.growth-atlas.atlas-primary .atlas-footer button, .growth-atlas.atlas-primary .atlas-earlier > summary { font-size:12px; }
+
+@media (min-width:1051px) and (max-height:820px) {
+  .growth-atlas.atlas-primary .atlas-hero { padding-top:16px; }
+  .growth-atlas.atlas-primary .atlas-hero-stats > div { padding:10px 8px; gap:6px; }
+  .growth-atlas.atlas-primary .atlas-hero-stats .count-up { font-size:29px; }
+  .growth-atlas.atlas-primary .atlas-reel { padding-bottom:12px; }
+  .growth-atlas.atlas-primary .atlas-reel button { min-height:48px; }
+}
+@media (max-width:1180px) {
+  .growth-atlas.atlas-primary .atlas-hero { grid-template-columns:1fr; gap:14px; }
+  .growth-atlas.atlas-primary .atlas-hero-copy { grid-template-columns:auto 1fr; align-items:center; }
+  .growth-atlas.atlas-primary .atlas-hero-title { text-align:right; }
+  .growth-atlas.atlas-primary .atlas-milestone.career-carousel { width:72%; }
+  .growth-atlas.atlas-primary .atlas-stage { --stage-height:340px; }
+}
+
+.growth-atlas.atlas-primary .career-carousel-institution { max-width:100%; overflow-wrap:anywhere; }

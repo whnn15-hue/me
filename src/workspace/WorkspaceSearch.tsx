@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, ChevronDown, Search } from "lucide-react";
 import { recordTags, materialClassification } from "../../shared/material-classification.mjs";
 import { materialLibrary } from "../../shared/resources.mjs";
-import { Modal } from "../CareerEditor";
 import { rankSearch } from "../archive-tools";
+import "./WorkspaceSearch.css";
 import type { Career, DocumentRecord } from "../types";
 import type { WorkspaceData } from "./types";
 import { displayLabel, workspaceKindIcons, workspaceKindLabels, workspaceItemLabel } from "./WorkspaceUI";
@@ -24,13 +24,32 @@ function matchesKind(entry: SearchResult, kind: string) {
 
 export default function WorkspaceSearch({ workspace, careers, documents, onOpen, onClose }: {
   workspace: WorkspaceData; careers: Career[]; documents: DocumentRecord[];
-  onOpen: (ref: string) => void; onClose: () => void;
+  onOpen: (ref: string) => void; onClose?: () => void;
 }) {
   const [query, setQuery] = useState(""), [kind, setKind] = useState("all"), [tag, setTag] = useState("");
   const [active, setActive] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k" || document.querySelector('[role="dialog"]')) return;
+      event.preventDefault();
+      setExpanded(true);
+      input.current?.focus();
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
+  useEffect(() => {
+    if (!expanded) return;
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !container.current?.contains(event.target)) setExpanded(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [expanded]);
   const entries = useMemo<SearchResult[]>(() => [
     ...careers.map(career => ({ ref: `career:${career.id}`, kind: "career" as const, title: career.title, detail: [careerCategoryLabel(career, documents), career.startDate, career.organization, career.role].filter(Boolean).join(" / "), body: `${career.title} ${careerCategoryLabel(career, documents)} ${recognitionDetails(career).grade} ${recognitionDetails(career).stages.join(" ")} ${career.organization} ${career.role} ${career.description} ${career.startDate} ${career.endDate} ${career.tags.join(" ")}`, tags: career.tags, date: career.startDate })),
     ...documents.map(document => {
@@ -44,17 +63,32 @@ export default function WorkspaceSearch({ workspace, careers, documents, onOpen,
   const results = hasSearch ? rankSearch(entries.filter(entry => matchesKind(entry, kind) && (!tag || entry.tags.includes(tag))), query) : [];
   const visible = results.slice(0, 100);
   const selected = Math.min(active, Math.max(0, visible.length - 1));
-  const open = (ref: string) => { onClose(); onOpen(ref); };
+  const close = () => { setExpanded(false); onClose?.(); };
+  const open = (ref: string) => { close(); input.current?.blur(); onOpen(ref); };
   useEffect(() => { setActive(0); if (list.current) list.current.scrollTop = 0; }, [query, kind, tag]);
-  useEffect(() => { list.current?.querySelector(`[data-search-index="${selected}"]`)?.scrollIntoView({ block: "nearest" }); }, [selected]);
-  return <Modal title="모든 기록 검색" onClose={onClose} wide>
-    <div className="modal-body command-center">
-      <div className="global-search-tools">
-        <label className="search-box"><Search size={18} /><input data-autofocus ref={input} role="combobox" aria-expanded="true" aria-controls="archive-search-results" aria-autocomplete="list" aria-activedescendant={visible.length ? `archive-result-${selected}` : undefined} onKeyDown={event => {
+  useEffect(() => { list.current?.querySelector(`[data-search-index="${selected}"]`)?.scrollIntoView({ block: "nearest" }); }, [selected, expanded]);
+  return <div className="header-search" ref={container} onBlur={event => {
+    if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setExpanded(false);
+  }} onKeyDown={event => {
+    if (event.key === "Escape" && !event.nativeEvent.isComposing && expanded) {
+      event.preventDefault(); event.stopPropagation(); input.current?.focus(); close();
+    }
+  }}>
+    <form className={`header-search-field ${expanded ? "is-open" : ""}`} role="search" aria-label="통합 검색" onSubmit={event => { event.preventDefault(); setExpanded(true); input.current?.focus(); }}>
+      <input ref={input} role="combobox" aria-expanded={expanded} aria-controls={expanded ? "archive-search-results" : undefined} aria-autocomplete="list" aria-activedescendant={expanded && visible.length ? `archive-result-${selected}` : undefined}
+        aria-label="모든 기록 검색어" placeholder="통합 검색" autoComplete="off" spellCheck={false} value={query} onFocus={() => setExpanded(true)} onChange={event => { setQuery(event.target.value); setExpanded(true); }} onKeyDown={event => {
           if (event.nativeEvent.isComposing) return;
-          if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActive(value => Math.max(0, Math.min(visible.length - 1, value + (event.key === "ArrowDown" ? 1 : -1)))); }
-          if (event.key === "Enter" && visible[selected]) { event.preventDefault(); open(visible[selected].ref); }
-        }} aria-label="모든 기록 검색어" placeholder="활동명, 자료 내용, 태그를 입력하세요" value={query} onChange={event => setQuery(event.target.value)} /></label>
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault(); setExpanded(true);
+            setActive(value => Math.max(0, Math.min(visible.length - 1, value + (event.key === "ArrowDown" ? 1 : -1))));
+          }
+          if (event.key === "Enter" && expanded && visible[selected]) { event.preventDefault(); open(visible[selected].ref); }
+        }}/>
+      <kbd aria-hidden="true">{typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘ K" : "Ctrl K"}</kbd>
+      <button type="submit" aria-label="통합 검색 실행"><Search size={19}/></button>
+    </form>
+    {expanded && <section className="header-search-popover command-center" aria-label="통합 검색 결과">
+      <div className="global-search-tools">
         <label className="select-wrap"><select aria-label="검색할 기록 종류" value={kind} onChange={event => setKind(event.target.value)}><option value="all">모든 기록</option><option value="career">이력</option><option value="project">수업 전체</option><option value="classroom">학급 자료</option><option value="material">교안</option><option value="video">영상 작업</option><option value="research">연구대회 자료</option><option value="photo">사진</option><option value="submission">공모전 제출본</option><option value="document">공문</option></select><ChevronDown size={13} /></label>
         <label className="select-wrap"><select aria-label="통합 검색 태그" value={tag} onChange={event => setTag(event.target.value)}><option value="">모든 태그</option>{tags.map(value => <option key={value} value={value}>#{displayLabel(value)}</option>)}</select><ChevronDown size={13} /></label>
       </div>
@@ -64,6 +98,6 @@ export default function WorkspaceSearch({ workspace, careers, documents, onOpen,
         return <button role="option" id={`archive-result-${index}`} data-search-index={index} aria-selected={index === selected} className={`global-search-result ${index === selected ? "selected" : ""}`} key={entry.ref} onFocus={() => setActive(index)} onClick={() => open(entry.ref)}><span className="workspace-link-kind"><Icon size={18} /></span><div><strong>{displayLabel(entry.title)}</strong><small>{entry.label || workspaceKindLabels[entry.kind]}{entry.detail ? ` / ${displayLabel(entry.detail)}` : ""}</small>{entry.tags.length > 0 && <div className="tags">{entry.tags.slice(0, 4).map((value, index) => <span key={`${value}-${index}`}>#{displayLabel(value)}</span>)}</div>}</div><ArrowUpRight size={15} /></button>;
       }) : <p className="workspace-inline-empty">{hasSearch ? "찾는 기록이 없어요. 검색어나 필터를 바꿔 보세요." : "검색어를 입력해 주세요."}</p>}</div>
       <footer className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> 이동 <kbd>Enter</kbd> 열기</span><span><kbd>Esc</kbd> 닫기</span></footer>
-    </div>
-  </Modal>;
+    </section>}
+  </div>;
 }
