@@ -7,12 +7,13 @@ export const approvedEvidenceArchives: readonly string[] = Object.freeze([
 /** Exact batches approved only to add originals, without creating or editing
  * careers or their links. These permissions cannot be combined with the lists below. */
 export const approvedEvidenceDocumentArchives: readonly string[] = Object.freeze([
-  // 2026-11-16: two reviewed PDFs, retained without guessing existing career identities.
-  "8e79fcf47cb22a9e08a167420a338efd82a7ee6a0c0ec2bc33d079b91a0b01a1",
+  // The 2026-11-16 originals-only batch was superseded by the two new careers.
 ]);
 
 /** Separately approved batches may also add the reviewed new career records. */
 export const approvedEvidenceNewCareerArchives: readonly string[] = Object.freeze([
+  // 2026-11-16: two owner-confirmed new careers with their unchanged PDF evidence.
+  "d0e2193660b98336e9e8fc60cf13da858c184cc0b4e3c586f88cd6dc3e213e6c",
   // 2026-11-13: reviewed scans plus the preceding committee originals.
   "d78e5367b9154010410c5bf9661f05f8fe9e73d58884d4a09510edaf00c0d2a6",
   "e1dd2e4292291f1459dcfd98410be165041bdf4843932daa393b7ad34f36f73a",
