@@ -1,16 +1,20 @@
 import type { Career } from "../types";
 import type { PreparedEvidenceImport } from "./evidence-import";
-import { approvedEvidenceArchives, approvedEvidenceNewCareerArchives, approvedEvidenceDetailArchives, approvedEvidenceLinkArchives } from "./evidence-approvals";
+import { approvedEvidenceArchives, approvedEvidenceDocumentArchives, approvedEvidenceNewCareerArchives, approvedEvidenceDetailArchives, approvedEvidenceLinkArchives } from "./evidence-approvals";
 
 /** A URL parameter or a flag inside an imported ZIP cannot grant approval. */
-export async function evidenceImportApproval(file: File): Promise<{ allowNewCareers: boolean; allowCareerDetails: boolean; allowLinkCorrections: boolean } | null> {
+export async function evidenceImportApproval(file: File): Promise<{ allowNewCareers: boolean; allowCareerDetails: boolean; allowLinkCorrections: boolean; documentOnly: boolean } | null> {
   if (file.size < 1 || file.size > 16 * 1024 * 1024) return null;
   const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())),
     byte => byte.toString(16).padStart(2, "0")).join("");
   const allowNewCareers = approvedEvidenceNewCareerArchives.includes(fingerprint);
   const allowCareerDetails = approvedEvidenceDetailArchives.includes(fingerprint);
   const allowLinkCorrections = approvedEvidenceLinkArchives.includes(fingerprint);
-  return allowNewCareers || allowCareerDetails || allowLinkCorrections || approvedEvidenceArchives.includes(fingerprint) ? { allowNewCareers, allowCareerDetails, allowLinkCorrections } : null;
+  const documentOnly = approvedEvidenceDocumentArchives.includes(fingerprint);
+  // Conflicting policies cannot broaden a document-only approval.
+  if (documentOnly && (allowNewCareers || allowCareerDetails || allowLinkCorrections || approvedEvidenceArchives.includes(fingerprint))) return null;
+  return documentOnly || allowNewCareers || allowCareerDetails || allowLinkCorrections || approvedEvidenceArchives.includes(fingerprint)
+    ? { allowNewCareers, allowCareerDetails, allowLinkCorrections, documentOnly } : null;
 }
 
 export async function hasEvidenceImportApproval(file: File): Promise<boolean> {
@@ -37,9 +41,15 @@ export interface AutomaticEvidencePlan { links: Record<string, string[]>; newCar
 
 /** Only separately approved new proposals may be created. Matching itself never
  * changes fields; exact semantic matches reuse their current IDs. */
-export function automaticEvidencePlan(prepared: PreparedEvidenceImport, current: Career[], allowNewCareers = false, allowCareerDetails = false): AutomaticEvidencePlan | null {
+export function automaticEvidencePlan(prepared: PreparedEvidenceImport, current: Career[], allowNewCareers = false, allowCareerDetails = false, documentOnly = false): AutomaticEvidencePlan | null {
   const proposed = new Set(prepared.newCareerIds ?? []);
   if ((!allowNewCareers && proposed.size) || !prepared.documents.length) return null;
+  if (documentOnly) {
+    if (allowNewCareers || allowCareerDetails || prepared.careers.length || proposed.size
+      || prepared.careerDetails?.length || prepared.linkCorrections?.length
+      || prepared.documents.some(document => document.recordIds.length)) return null;
+    return { links: Object.fromEntries(prepared.documents.map(document => [document.id, []])), newCareerIds: [] };
+  }
   const live = new Map(current.map(career => [career.id, career]));
   const archived = new Map(prepared.careers.map(career => [career.id, career]));
   const links: Record<string, string[]> = {};

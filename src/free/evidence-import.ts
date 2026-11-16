@@ -47,6 +47,9 @@ export interface EvidenceImportOptions {
   allowAutomaticCareerDetails?: boolean;
   /** Only the separately fingerprint-approved archive may remove reviewed links. */
   allowAutomaticLinkCorrections?: boolean;
+  /** Only an exact, separately approved archive can automatically add unlinked
+   * originals. It must contain no career proposals, patches or links. */
+  automaticDocumentsOnly?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: EvidenceImportProgress) => void;
 }
@@ -186,8 +189,15 @@ export async function applyEvidenceImport(
     throw new Error("묶음에 제안된 새 경력 중 추가할 항목을 확인해 주세요.");
   const carrierById = new Map(prepared.careers.map(career => [career.id, career]));
   const allowAutomaticNewCareers = options.allowAutomaticNewCareers === true;
+  const automaticDocumentsOnly = options.automaticDocumentsOnly === true;
   const requestedDetails = readEvidenceDetails(prepared.careerDetails, prepared.careers, prepared.documents);
   const requestedCorrections = readLinkCorrections(prepared.linkCorrections, prepared.documents);
+  if (automaticDocumentsOnly && (!options.requireMatchingCareerDetails
+    || allowAutomaticNewCareers || options.allowAutomaticCareerDetails || options.allowAutomaticLinkCorrections
+    || prepared.careers.length || suggestedIds.size || selectedIds.length || requestedDetails.length || requestedCorrections.length
+    || prepared.documents.some(document => !Array.isArray(document.recordIds) || document.recordIds.length)
+    || Object.values(options.approvedLinks).some(links => !Array.isArray(links) || links.length)))
+    throw new Error("공문 원본만 추가하도록 승인된 묶음에는 경력이나 연결 변경을 포함할 수 없습니다.");
   if (requestedCorrections.length && !(options.requireMatchingCareerDetails && options.allowAutomaticLinkCorrections === true))
     throw new Error("이 증빙 묶음은 연결 수정 승인이 필요합니다. 승인된 최신 연결 링크를 사용해 주세요.");
   // Snapshot before awaits; an ordinary import can never opt itself into updates.
@@ -242,8 +252,8 @@ export async function applyEvidenceImport(
   const current = await readFreeSnapshot();
   checkCancellation(options.signal);
   if (automaticInput) {
-    const plan = automaticEvidencePlan(automaticInput, current.careers, allowAutomaticNewCareers, approvedDetails.length > 0);
-    if (!plan || incoming.some(item => !item.links.length))
+    const plan = automaticEvidencePlan(automaticInput, current.careers, allowAutomaticNewCareers, approvedDetails.length > 0, automaticDocumentsOnly);
+    if (!plan || !automaticDocumentsOnly && incoming.some(item => !item.links.length))
       throw new Error("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 최신 연결 내용을 확인해 주세요.");
     // A record added in another tab between review and save is reused here.
     for (const item of incoming) item.links = plan.links[item.document.id];

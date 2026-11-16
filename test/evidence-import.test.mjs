@@ -695,6 +695,62 @@ test('automatic imports reject new or unlinked records without writes', async ()
   assertNoWrites(state);
 });
 
+test('separately approved originals-only imports preserve careers and reuse duplicate originals on replay', async () => {
+  const document=original('unlinked_approved');
+  const input=await prepared([], [document]);
+  const sentinel=career('existing_career', [], {description:'Keep the current owner notes'});
+  const state=runtime([sentinel]);
+  const options={requireMatchingCareerDetails:true,automaticDocumentsOnly:true,approvedLinks:{[document.id]:[]}};
+  const first=await applyEvidenceImport(input,options);
+  assert.equal(first.added,1);assert.equal(first.linked,0);assert.equal(first.unmatched,1);
+  assert.deepEqual(state.snapshot.careers,[sentinel]);
+  assert.deepEqual(state.snapshot.documents[0].recordIds,[]);
+  const second=await applyEvidenceImport(input,options);
+  assert.equal(second.added,0);assert.equal(second.duplicates,1);assert.equal(second.linked,0);
+  assert.equal(state.uploads.length,1);assert.equal(state.activations.length,1);
+  assert.deepEqual(state.snapshot.careers,[sentinel]);
+});
+
+test('originals-only permission cannot authorize career proposals, patches, corrections, or links', async () => {
+  const document=original('originals_only');
+  const input=await prepared([], [document]);
+  const carrier=career('existing_career',[document.id]);
+  const options={requireMatchingCareerDetails:true,automaticDocumentsOnly:true,approvedLinks:{[document.id]:[]}};
+  const scenarios=[
+    [input,{...options,requireMatchingCareerDetails:false}],
+    [input,{...options,allowAutomaticNewCareers:true}],
+    [input,{...options,allowAutomaticCareerDetails:true}],
+    [input,{...options,allowAutomaticLinkCorrections:true}],
+    [input,{...options,approvedLinks:{[document.id]:[carrier.id]}}],
+    [{...input,documents:input.documents.map(item=>({...item,recordIds:[carrier.id]}))},options],
+    [await prepared([carrier],[document]),options],
+    [await preparedWithNew([carrier],[document],[carrier.id]),{...options,approvedNewCareerIds:[carrier.id]}],
+    [{...input,careerDetails:[{careerId:carrier.id}]},options],
+    [{...input,linkCorrections:[{documentId:document.id,previousCareer:{id:carrier.id,title:carrier.title,startDate:'2026'}}]},options],
+  ];
+  for(const [candidate,permissions] of scenarios){
+    const state=runtime([career(carrier.id)]);
+    await assert.rejects(applyEvidenceImport(candidate,permissions));
+    assertNoWrites(state);assert.equal(state.reads,0);
+  }
+  const state=runtime([career(carrier.id)]);
+  await assert.rejects(applyEvidenceImport(input,{requireMatchingCareerDetails:true,approvedLinks:{[document.id]:[]}}),/연결 대상 이력이 변경/);
+  assertNoWrites(state);
+});
+
+test('originals-only duplicate imports leave existing career links and original metadata intact',async()=>{
+  const incoming=original('unlinked_incoming','already saved');
+  const existing=storedDocument(original('owned_existing','already saved',['owner_career']),{name:'Owner filename.txt',text:'Owner notes'});
+  const sentinel=career('owner_career',[existing.id]);
+  const state=runtime([sentinel],[existing]);
+  const before=structuredClone(state.snapshot);
+  const stats=await applyEvidenceImport(await prepared([],[incoming]),{
+    requireMatchingCareerDetails:true,automaticDocumentsOnly:true,approvedLinks:{[incoming.id]:[]},
+  });
+  assert.equal(stats.added,0);assert.equal(stats.duplicates,1);assert.equal(stats.linked,0);
+  assertNoWrites(state);assert.deepEqual(state.snapshot,before);
+});
+
 test('separately approved new records are created once and existing records keep their fields', async () => {
   const document=original('approved_new_document');
   const proposed=career('approved_new_career',[document.id],{title:'Reviewed teaching',organization:'Example academy',role:'Assistant',startDate:'2026-04-03',verified:true});
