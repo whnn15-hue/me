@@ -12,6 +12,8 @@ export const approvedEvidenceDocumentArchives: readonly string[] = Object.freeze
 
 /** Separately approved batches may also add the reviewed new career records. */
 export const approvedEvidenceNewCareerArchives: readonly string[] = Object.freeze([
+  // 2026-11-18: owner asked to add the 2026 weekend family AI·SW lecture appointment (notice + roster).
+  "b960dca824955e6b031364646215dced671eb2b892d68a93fdccc1ccdb6a541b",
   // 2026-11-16: two owner-confirmed new careers with their unchanged PDF evidence.
   "d0e2193660b98336e9e8fc60cf13da858c184cc0b4e3c586f88cd6dc3e213e6c",
   // 2026-11-13: reviewed scans plus the preceding committee originals.
