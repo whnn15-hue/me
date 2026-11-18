@@ -274,11 +274,24 @@ export function createFreeOneDrive({ vault, config, fetcher = networkFetch, capt
 
   async function folderFor(uid, context, leaseHeld = false) {
     const key = `oneDriveFolder/${uid}`;
-    const response = await graphRequest(uid, context, `${GRAPH}/me/drive/special/approot?$select=id,name,folder`, { signal: AbortSignal.timeout(20000) }, '폴더 확인', leaseHeld);
-    if (!response.ok) throw graphFailure('폴더 확인', response.status);
+    const saved = await vault.getJSON(key);
+    const cached = validOneDriveItemId(saved) ? saved : null;
+    let response;
+    try {
+      // The app folder ID is stable. When one is already known, a slow approot
+      // lookup must not fail the whole request (owner hit a 20s timeout here on
+      // 2026-11-18), so only a short check is attempted before using the cache.
+      response = await graphRequest(uid, context, `${GRAPH}/me/drive/special/approot?$select=id,name,folder`, { signal: AbortSignal.timeout(cached ? 6000 : 20000) }, '폴더 확인', leaseHeld);
+    } catch (error) {
+      if (cached && error?.status === 504 || cached && error?.status === 502 && /연결하지 못했습니다/.test(error.message)) return cached;
+      throw error;
+    }
+    if (!response.ok) {
+      if (cached && response.status >= 500) { await response.body?.cancel().catch(() => {}); return cached; }
+      throw graphFailure('폴더 확인', response.status);
+    }
     const folder = (await response.json()).id;
     if (!validOneDriveItemId(folder)) throw fault('OneDrive 앱 폴더 응답이 올바르지 않습니다.', 502);
-    const saved = await vault.getJSON(key);
     if (saved !== folder) await vault.setJSON(key, folder);
     return folder;
   }
