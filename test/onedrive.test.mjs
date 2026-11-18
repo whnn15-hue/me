@@ -484,3 +484,19 @@ test('scheduled backup failures are recorded for the owner without throwing', as
   assert.match(f.records.get('backupError/owner-uid'), /형식/);
   assert.deepEqual(await fixture().create().scheduled(), { skipped: 'owner-not-connected' });
 });
+
+test('a slow app-folder lookup falls back to the known folder instead of failing access (2026-11-18)', async () => {
+  let slow = false;
+  const timeout = Object.assign(new Error('private URL'), { name: 'TimeoutError' });
+  const f = fixture({ intercept: url => { if (slow && url.includes('/special/approot')) throw timeout; } });
+  const { drive } = await connect(f);
+  const first = response(); await drive.access({ user: owner }, first);
+  assert.equal(first.body.folderId, FOLDER);
+  assert.equal(f.records.get('oneDriveFolder/owner-uid'), FOLDER, 'the resolved folder is remembered');
+  slow = true;
+  const second = response(); await drive.access({ user: owner }, second);
+  assert.equal(second.body.folderId, FOLDER, 'a timed-out lookup uses the remembered folder');
+  // Without a remembered folder the timeout still surfaces with its stage.
+  f.records.delete('oneDriveFolder/owner-uid');
+  await assert.rejects(drive.access({ user: owner }, response()), error => error.status === 504 && /폴더 확인/.test(error.message));
+});
