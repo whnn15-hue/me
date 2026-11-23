@@ -8,8 +8,16 @@ export const approvedEvidenceArchives: readonly string[] = Object.freeze([
  * careers or their links. These permissions cannot be combined with the lists below. */
 export const approvedEvidenceDocumentArchives: readonly string[] = Object.freeze([
   // The 2026-11-16 originals-only batch was superseded by the two new careers.
-  // 2026-11-23: 2022 Wednesday training originals (notice + guide + card news); the owner links them to the existing career in the app.
-  "70d1c4744131ba95e53570f54b78a8bd5fcd92237987757affa6b45a0052c2f2",
+  // The 2026-11-23 originals-only batch was replaced by the title-match batch at the owner's request.
+]);
+
+/** Exact batches approved to attach originals to an existing career whose live ID
+ * is unknown: the single current career with the same title in the same year.
+ * Never creates, renames or edits careers; ambiguity stops automatic saving. */
+export const approvedEvidenceTitleMatchArchives: readonly string[] = Object.freeze([
+  // 2026-11-23: owner asked to attach the 2022 Wednesday training notice, guide and card news
+  // automatically to the existing 2022 career "수요연수회: 에듀테크 관련".
+  "1fab10e2b35ba8f6351868f5c28557c6d8a3c8ef8ae29192d87690e3b6b831ec",
 ]);
 
 /** Separately approved batches may also add the reviewed new career records. */
