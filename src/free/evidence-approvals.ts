@@ -8,12 +8,13 @@ export const approvedEvidenceArchives: readonly string[] = Object.freeze([
  * careers or their links. These permissions cannot be combined with the lists below. */
 export const approvedEvidenceDocumentArchives: readonly string[] = Object.freeze([
   // The 2026-11-16 originals-only batch was superseded by the two new careers.
+  // 2026-11-23: 2022 Wednesday training originals (notice + guide + card news); the owner links them to the existing career in the app.
+  "70d1c4744131ba95e53570f54b78a8bd5fcd92237987757affa6b45a0052c2f2",
 ]);
 
 /** Separately approved batches may also add the reviewed new career records. */
 export const approvedEvidenceNewCareerArchives: readonly string[] = Object.freeze([
-  // 2026-11-23: owner asked to add the 2022 Wednesday training (Notion, 16th session) lecture: notice + guide + card news.
-  "ac3822053a40053484bdf78706924714519c14546378d8eba1e0bfe072a35995",
+  // The 2026-11-23 new-career batch was retired: the owner already has this lecture as an existing career.
   // 2026-11-18: owner asked to add the 2026 weekend family AI·SW lecture appointment (notice + roster).
   "b960dca824955e6b031364646215dced671eb2b892d68a93fdccc1ccdb6a541b",
   // 2026-11-16: two owner-confirmed new careers with their unchanged PDF evidence.
