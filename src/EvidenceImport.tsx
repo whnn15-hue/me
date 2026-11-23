@@ -91,6 +91,7 @@ export default function EvidenceImport({
   const [autoAllowCareerDetails, setAutoAllowCareerDetails] = useState(false);
   const [autoAllowLinkCorrections, setAutoAllowLinkCorrections] = useState(false);
   const [automaticDocumentsOnly, setAutomaticDocumentsOnly] = useState(false);
+  const [automaticTitleMatch, setAutomaticTitleMatch] = useState(false);
   const [automaticSelectionIntact, setAutomaticSelectionIntact] = useState(false);
   const [reviewedRetryAvailable, setReviewedRetryAvailable] = useState(false);
   const [autoNote, setAutoNote] = useState("");
@@ -166,6 +167,7 @@ export default function EvidenceImport({
     setAutoAllowCareerDetails(false);
     setAutoAllowLinkCorrections(false);
     setAutomaticDocumentsOnly(false);
+    setAutomaticTitleMatch(false);
     setAutomaticSelectionIntact(false);
     setReviewedRetryAvailable(false);
     setAutoNote("");
@@ -176,7 +178,7 @@ export default function EvidenceImport({
       const [latestCareers, approved] = await Promise.all([
         readEvidenceImportReviewCareers(), evidenceImportApproval(archive),
       ]);
-      const automatic = approved ? automaticEvidencePlan(content, latestCareers, approved.allowNewCareers, approved.allowCareerDetails, approved.documentOnly) : null;
+      const automatic = approved ? automaticEvidencePlan(content, latestCareers, approved.allowNewCareers, approved.allowCareerDetails, approved.documentOnly, approved.titleMatch) : null;
       const liveIds = new Set(latestCareers.map(career => career.id));
       const newIds = (content.newCareerIds ?? []).filter(id => !liveIds.has(id));
       const availableIds = new Set([...liveIds, ...newIds]);
@@ -189,6 +191,7 @@ export default function EvidenceImport({
       setAutoAllowCareerDetails(Boolean(approved?.allowCareerDetails));
       setAutoAllowLinkCorrections(Boolean(approved?.allowLinkCorrections));
       setAutomaticDocumentsOnly(Boolean(approved?.documentOnly));
+      setAutomaticTitleMatch(Boolean(approved?.titleMatch));
       setAutomaticSelectionIntact(Boolean(automatic));
       setAutoPending(Boolean(automatic));
       if (approved && !automatic) setAutoNote("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 아래 연결만 확인해 주세요.");
@@ -226,7 +229,7 @@ export default function EvidenceImport({
       let newCareerIds = approvedNewCareerIds;
       if (reviewedRetry) {
         const latestCareers = await readEvidenceImportReviewCareers();
-        const plan = automaticEvidencePlan(prepared, latestCareers, autoAllowNewCareers, autoAllowCareerDetails, automaticDocumentsOnly);
+        const plan = automaticEvidencePlan(prepared, latestCareers, autoAllowNewCareers, autoAllowCareerDetails, automaticDocumentsOnly, automaticTitleMatch);
         setReviewCareers(latestCareers);
         if (!plan) {
           setAutomaticSelectionIntact(false);
@@ -247,6 +250,7 @@ export default function EvidenceImport({
         allowAutomaticCareerDetails: automatic && autoAllowCareerDetails,
         allowAutomaticLinkCorrections: automatic && autoAllowLinkCorrections,
         automaticDocumentsOnly: automatic && automaticDocumentsOnly,
+        allowAutomaticTitleMatch: automatic && automaticTitleMatch,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -262,7 +266,7 @@ export default function EvidenceImport({
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") setCanceled(true);
       else setError(cause instanceof Error ? cause.message : "증빙을 추가하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.");
-      setReviewedRetryAvailable(automatic && (autoAllowLinkCorrections || automaticDocumentsOnly) && automaticSelectionIntact);
+      setReviewedRetryAvailable(automatic && (autoAllowLinkCorrections || automaticDocumentsOnly || automaticTitleMatch) && automaticSelectionIntact);
       setStep(current => current === "complete" ? current : "review");
       // A network interruption can occur after a committed write. Refresh the
       // visible archive so retrying never relies on an outdated client count.

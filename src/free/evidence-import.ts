@@ -50,6 +50,8 @@ export interface EvidenceImportOptions {
   /** Only an exact, separately approved archive can automatically add unlinked
    * originals. It must contain no career proposals, patches or links. */
   automaticDocumentsOnly?: boolean;
+  /** Set only for an exact title-match approval; attaches to one existing career. */
+  allowAutomaticTitleMatch?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: EvidenceImportProgress) => void;
 }
@@ -190,6 +192,10 @@ export async function applyEvidenceImport(
   const carrierById = new Map(prepared.careers.map(career => [career.id, career]));
   const allowAutomaticNewCareers = options.allowAutomaticNewCareers === true;
   const automaticDocumentsOnly = options.automaticDocumentsOnly === true;
+  const automaticTitleMatch = options.allowAutomaticTitleMatch === true;
+  if (automaticTitleMatch && (!options.requireMatchingCareerDetails || automaticDocumentsOnly || allowAutomaticNewCareers
+    || options.allowAutomaticCareerDetails || options.allowAutomaticLinkCorrections))
+    throw new Error("기존 이력 제목으로 연결하도록 승인된 묶음은 다른 변경을 함께 할 수 없습니다.");
   const requestedDetails = readEvidenceDetails(prepared.careerDetails, prepared.careers, prepared.documents);
   const requestedCorrections = readLinkCorrections(prepared.linkCorrections, prepared.documents);
   if (automaticDocumentsOnly && (!options.requireMatchingCareerDetails
@@ -252,7 +258,7 @@ export async function applyEvidenceImport(
   const current = await readFreeSnapshot();
   checkCancellation(options.signal);
   if (automaticInput) {
-    const plan = automaticEvidencePlan(automaticInput, current.careers, allowAutomaticNewCareers, approvedDetails.length > 0, automaticDocumentsOnly);
+    const plan = automaticEvidencePlan(automaticInput, current.careers, allowAutomaticNewCareers, approvedDetails.length > 0, automaticDocumentsOnly, automaticTitleMatch);
     if (!plan || !automaticDocumentsOnly && incoming.some(item => !item.links.length))
       throw new Error("연결 대상 이력이 변경되어 자동 저장을 멈췄습니다. 최신 연결 내용을 확인해 주세요.");
     // A record added in another tab between review and save is reused here.
