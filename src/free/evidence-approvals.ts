@@ -22,6 +22,8 @@ export const approvedEvidenceTitleMatchArchives: readonly string[] = Object.free
 
 /** Separately approved batches may also add the reviewed new career records. */
 export const approvedEvidenceNewCareerArchives: readonly string[] = Object.freeze([
+  // 2026-11-24: owner asked to add the 2026 Dalseong gifted education curriculum committee appointment (notice + member list).
+  "495f08f1b85b4524f6a2d4d9bd4b0d09939b70b719bdaa9e4a9ddee4126fcd89",
   // The 2026-11-23 new-career batch was retired: the owner already has this lecture as an existing career.
   // 2026-11-18: owner asked to add the 2026 weekend family AI·SW lecture appointment (notice + roster).
   "b960dca824955e6b031364646215dced671eb2b892d68a93fdccc1ccdb6a541b",
