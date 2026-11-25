@@ -92,6 +92,30 @@ test('community membership and secondment share activity careers while produced 
   assert.equal(careerSection(explicit),'활동 경력');
 });
 
+test('teacher research groups show under activity careers without changing the saved category',()=>{
+  for(const fields of [
+    {category:'위원회·지원단',title:'가상 미디어리터러시 교육 연구회',role:'회장'},
+    {category:'위원회·지원단',title:'가상 온라인학습 연구회 활동'},
+    {category:'기타',title:'가상 연구회 회장'},
+    {category:'위원회·지원단',title:'가상 교사 모임',role:'회원'},
+  ]){
+    const career=fixtureCareer(fields);const before=structuredClone(career);
+    assert.equal(careerSection(career),'활동 경력',fields.title);
+    assert.equal(matchesCareerCategory(career,'위원회·지원단'),false);
+    assert.deepEqual(career,before);
+  }
+  for(const fields of [
+    {category:'위원회·지원단',title:'가상 미디어 연구회 위원'},
+    {category:'위원회·지원단',title:'가상 연구회 컨설팅 지원단'},
+    {category:'위원회·지원단',title:'가상 교사연구회 결과 심사',role:'심사위원'},
+    {category:'위원회·지원단',title:'가상 연구회',role:'운영위원'},
+    {category:'위원회·지원단',title:'가상 미디어교육 지원단'},
+  ]) assert.equal(careerSection(fixtureCareer(fields)),'위원회·지원단',fields.title);
+  assert.equal(careerSection(fixtureCareer({category:'강의·연수',title:'가상 연구회 연수',role:'강사'})),'강의·연수');
+  assert.equal(careerSection(fixtureCareer({category:'연구대회',title:'가상 교사연구회 연구대회 1등급'})),'연구대회');
+  assert.equal(careerSection(fixtureCareer({category:'기타',title:'가상 연구회 위원'})),'위원회·지원단');
+});
+
 test('recognition keeps explicit overrides and preserves multiple stages and grades through both validators',()=>{
   const original=fixtureCareer({category:'연구·수상',title:'전국 가상 연구대회 1등급',description:'시도 예선, 전국 본선'});
   assert.deepEqual(recognitionDetails(original),{level:'전국',grade:'1등급',stages:['예선','본선']});

@@ -18,6 +18,18 @@ function communityMembership(career) {
   return /^(?:영상제작콘텐츠교사모임|교사모임)?몽당분필(?:교사모임)?(?:활동|소속활동|회원활동|정회원|회원|운영진활동|운영진|운영위원|대표|회장|임원|가입|참여|활동경력)?$/.test(title);
 }
 
+/** Teacher research groups (연구회, 교사 모임) are activities the owner joins or
+ * leads, not appointments. Only committee or catch-all records move, for display
+ * only; appointments, judging, consulting and lecturing stay where they were. */
+function researchGroup(career) {
+  if (!['위원회·지원단', '기타'].includes(career.category)) return false;
+  const title = fold(career.title), role = fold(career.role);
+  const group = /연구회|교사\s*모임|교사\s*동아리|교사\s*학습\s*공동체|전문적\s*학습\s*공동체/.test(title);
+  if (!group) return false;
+  if (/위원|지원단|컨설팅|컨설턴트|심사|평가|강사|강의|출강|연수/.test(title)) return false;
+  return !/위원|컨설턴트|심사|평가|강사/.test(role);
+}
+
 /** Internal KERIS plans are secondment work, not outside invitations to teach. */
 function secondmentWork(career, originals) {
   const title = fold(career.title), role = fold(career.role);
@@ -32,7 +44,7 @@ function secondmentWork(career, originals) {
 /** One destination per career; classification never changes the original record. */
 export function careerSection(career, documents = []) {
   const originals = originalNames(career, documents);
-  if (career.category === '활동 경력' || secondmentWork(career, originals) || communityMembership(career)) return '활동 경력';
+  if (career.category === '활동 경력' || secondmentWork(career, originals) || communityMembership(career) || researchGroup(career)) return '활동 경력';
   const title = fold(career.title), role = fold(career.role), primary = `${title} ${role}`;
   if (career.category === '표창' || /표창|감사장|공로상|훈장|포장\s*수여/.test(primary)) return '표창';
   if (career.category === '공모전 수상') return '공모전 수상';
